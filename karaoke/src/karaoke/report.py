@@ -16,8 +16,9 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
         return results.get(n, {}).get("result", {}) or {}
 
     statuses = {n: r["status"] for n, r in results.items()}
+    # A blocked step is a consequence of its dependency's status, already counted there.
     for n, st in statuses.items():
-        if st in ("echec", "bloque"):
+        if st == "echec":
             risk += 100
             alerts.append(f"{n} : {st} {results[n].get('error', '')}".strip())
         elif st == "a_reessayer":
@@ -40,9 +41,17 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
     if rate is not None and rate < 0.9:
         risk += round((0.9 - rate) * 200)
         alerts.append(f"calage des paroles {rate:.0%}")
-    failed = any(st in ("echec", "bloque") for st in statuses.values())
+    values = set(statuses.values())
+    if "echec" in values:
+        statut = "echec"
+    elif "a_reessayer" in values:
+        statut = "a_reessayer"
+    elif "bloque" in values:
+        statut = "echec"
+    else:
+        statut = "alerte" if alerts else "ok"
     return {"id": song.id, "titre": song.titre, "artiste": song.artiste,
-            "statut": "echec" if failed else ("alerte" if alerts else "ok"),
+            "statut": statut,
             "etapes": statuses, "secondes": {n: round(r.get("seconds", 0), 1) for n, r in results.items()},
             "duree_ecart_s": ing.get("ref_delta_s"),
             "tempo": {k: pkg.get(k) for k in ("bpm", "variation_pct", "stable")},
@@ -80,7 +89,7 @@ def write_global(rows: list[dict], csv_path: Path, html_path: Path) -> None:
         "<!doctype html><meta charset='utf-8'><title>Rapport karaoké</title>"
         "<style>body{font:14px system-ui;margin:24px}table{border-collapse:collapse}"
         "td,th{border:1px solid #ccc;padding:4px 8px;text-align:left}"
-        "tr.echec{background:#fdd}tr.alerte{background:#ffe9c7}</style>"
+        "tr.echec{background:#fdd}tr.alerte{background:#ffe9c7}tr.a_reessayer{background:#e6efff}</style>"
         f"<h1>Rapport karaoké ({len(rows)} morceaux)</h1><table><tr>{head}</tr>{body}</table>", encoding="utf-8")
 
 

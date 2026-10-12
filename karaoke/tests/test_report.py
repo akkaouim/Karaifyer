@@ -64,3 +64,12 @@ def test_cli_traiter_writes_reports_and_isolates_failures(tmp_path, monkeypatch)
     assert (tmp_path / "rapport.csv").read_text(encoding="utf-8").splitlines()[1].startswith("001")
     r2 = CliRunner().invoke(cli.app, ["traiter", "--forcer", "nimporte"])
     assert r2.exit_code != 0 and "étape inconnue" in r2.output
+
+
+def test_retry_is_not_a_failure():
+    res = dict(BASE)
+    res["lyrics"] = {"status": "a_reessayer", "seconds": 0, "result": {}, "error": "LRCLIB HTTP 503"}
+    res["check"] = {"status": "bloque", "seconds": 0, "result": {}, "error": "dépend de : lyrics"}
+    res["video"] = {"status": "bloque", "seconds": 0, "result": {}, "error": "dépend de : lyrics, check"}
+    r = song_report(song(), res)
+    assert r["statut"] == "a_reessayer" and r["risque"] == 40
