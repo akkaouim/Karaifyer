@@ -85,3 +85,11 @@ def test_load_reports_only_current_manifest_folders(cfg):
         d.mkdir(parents=True)
         (d / "rapport.json").write_text(json.dumps({"id": d.name[:3], "risque": 0}), encoding="utf-8")
     assert [r["id"] for r in load_reports(cfg.sortie, [keep.out])] == ["001"]
+
+
+def test_word_rate_alert():
+    res = dict(BASE)
+    res["check"] = ok({"rate": 1.0, "drift_ms": 8.0, "word_rate": 0.8})
+    r = song_report(song(), res)
+    assert any("mots" in a and "80" in a for a in r["alertes"]) and r["risque"] > 0
+    assert r["paroles"]["taux_mots"] == 0.8

@@ -12,9 +12,13 @@ UP = {"ingest": {"offset_s": 0.5}, "separate": {}}
 def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009"):
     monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: result)
     calls = []
-    def fake_align(vocals, lines, language, work, duration_s=600.0):
-        calls.append(lines)
-        return aligned or [(1.0 + i, 0.9) for i in range(len(lines))]
+    def fake_align(vocals, lines, language, work, duration_s=600.0, segments=None):
+        calls.append((lines, segments))
+        if aligned:
+            return [{"start": t, "score": sc, "words": []} for t, sc in aligned]
+        return [{"start": 1.0 + i, "score": 0.9,
+                 "words": [{"w": w, "s": 1.0 + i + 0.1 * k, "e": 1.0 + i + 0.1 * k + 0.08}
+                           for k, w in enumerate(l.split())]} for i, l in enumerate(lines)]
     monkeypatch.setattr(L, "align_lines", fake_align)
     for name, text in (files or {}).items():
         (cfg.paroles / name).write_text(text, encoding="utf-8")
@@ -23,24 +27,27 @@ def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009"):
 
 def test_synced_is_shifted_by_offset(cfg, monkeypatch):
     r, calls = run(cfg, monkeypatch, LrclibResult(True, False, "[00:10.00]Bonjour\n[00:12.00]Salut", "x"))
-    assert r["source"] == "lrclib-synchro" and not calls
-    assert [l["t"] for l in r["lines"]] == [9.5, 11.5]
+    assert r["source"] == "lrclib-synchro"
+    assert [l["t"] for l in r["lines"]] == [9.5, 11.5]            # line starts keep LRCLIB's timing
+    # every line is also aligned word by word, within its own window
+    assert calls[0][0] == ["Bonjour", "Salut"] and calls[0][1] == [[9.0, 11.5], [11.0, 21.5]]
+    assert r["lines"][0]["words"][0]["text"] == "Bonjour" and r["lines"][0]["words"][0]["syllables"]
 
 
 def test_plain_is_aligned(cfg, monkeypatch):
     r, calls = run(cfg, monkeypatch, LrclibResult(True, False, None, "[Refrain]\nUn\nDeux"))
-    assert r["source"] == "lrclib-texte+alignement" and calls == [["Un", "Deux"]]
+    assert r["source"] == "lrclib-texte+alignement" and calls == [(["Un", "Deux"], None)]
     assert [l["t"] for l in r["lines"]] == [1.0, 2.0]
 
 
 def test_user_text_when_lrclib_missing(cfg, monkeypatch):
     r, calls = run(cfg, monkeypatch, LrclibResult(False, False, None, None), files={"009.txt": "A\nB\n"})
-    assert r["source"] == "texte-fourni+alignement" and calls == [["A", "B"]]
+    assert r["source"] == "texte-fourni+alignement" and calls == [(["A", "B"], None)]
 
 
 def test_user_lrc_overrides_everything(cfg, monkeypatch):
     r, _ = run(cfg, monkeypatch, LrclibResult(True, False, "[00:01.00]x", None), files={"009.lrc": "[00:03.00]Corrigé"})
-    assert r["source"] == "fichier-lrc" and r["lines"] == [{"t": 2.5, "text": "Corrigé", "score": None}]
+    assert r["source"] == "fichier-lrc" and [(l["t"], l["text"]) for l in r["lines"]] == [(2.5, "Corrigé")]
 
 
 def test_instrumental_and_none(cfg, monkeypatch):
@@ -79,9 +86,11 @@ def test_alignment_job_has_plain_spaces_only(cfg, monkeypatch, tmp_path):
     def fake_tool(tool, args, **kw):
         job = _json.loads(open(args[2], encoding="utf-8").read())
         seen.update(job)
-        _json.dump({"starts": [1.0] * len(job["lines"]), "scores": [1.0] * len(job["lines"])}, open(args[3], "w"))
+        _json.dump({"starts": [1.0] * len(job["lines"]), "scores": [1.0] * len(job["lines"]),
+                    "words": [[] for _ in job["lines"]]}, open(args[3], "w"))
     monkeypatch.setattr(L, "run_tool", fake_tool)
     L.align_lines(tmp_path / "v.wav", ["Dis, quand reviendras-tu ?", "un deux   trois"], "fr", tmp_path)
+    assert "segments" not in seen
     assert seen["lines"] == ["Dis, quand reviendras-tu ?", "un deux trois"]
 
 
@@ -100,8 +109,8 @@ def test_offline_uses_supplied_text(cfg, monkeypatch):
         raise StepRetry("offline")
     monkeypatch.setattr(lrclib, "fetch", offline)
     calls = []
-    monkeypatch.setattr(L, "align_lines", lambda v, lines, lang, work, d=600.0: calls.append(lines) or
-                        [(1.0 + i, 0.9) for i in range(len(lines))])
+    monkeypatch.setattr(L, "align_lines", lambda v, lines, lang, work, d=600.0, segments=None: calls.append(lines)
+                        or [{"start": 1.0 + i, "score": 0.9, "words": []} for i in range(len(lines))])
     (cfg.paroles / "013.txt").write_text("A\nB\n", encoding="utf-8")
     r = L.LYRICS.run(Workspace(cfg, song(id="013")), UP)
     assert r["source"] == "texte-fourni+alignement" and calls == [["A", "B"]]

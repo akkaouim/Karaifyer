@@ -41,6 +41,10 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
     if rate is not None and rate < 0.9:
         risk += round((0.9 - rate) * 200)
         alerts.append(f"calage des paroles {rate:.0%}")
+    word_rate = chk.get("word_rate")
+    if word_rate is not None and word_rate < 0.9:
+        risk += round((0.9 - word_rate) * 100)
+        alerts.append(f"calage des mots {word_rate:.0%} (tolérance ±0,5 s)")
     values = set(statuses.values())
     if "echec" in values:
         statut = "echec"
@@ -56,7 +60,8 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
             "duree_ecart_s": ing.get("ref_delta_s"),
             "tempo": {k: pkg.get(k) for k in ("bpm", "variation_pct", "stable")},
             "clic_derive_ms": chk.get("drift_ms"),
-            "paroles": {"source": lyr.get("source"), "lignes": len(lyr.get("lines", [])), "taux_calage": rate},
+            "paroles": {"source": lyr.get("source"), "lignes": len(lyr.get("lines", [])), "taux_calage": rate,
+                        "taux_mots": word_rate},
             "alertes": alerts, "risque": risk}
 
 

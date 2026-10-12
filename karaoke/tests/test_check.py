@@ -40,3 +40,19 @@ def test_no_lines(cfg):
     r = CHECK.run(ws, {"beats": {"beats": [0.5, 1.0], "downbeats": []}, "separate": {},
                        "lyrics": {"lines": [], "source": "aucune"}})
     assert r["rate"] is None and r["lines"] == []
+
+
+def test_word_rate_with_half_second_tolerance(cfg):
+    # Michel: a word within ±0.5 s of the singing is fine; beyond that it counts as off.
+    ws = Workspace(cfg, song())
+    audio.write_wav(ws.stems / "vocals.wav", vocals_with_phrases([(2, 3), (6, 7)]))
+    audio.write_wav(ws.stems / "drums.wav", np.zeros((20 * 44100, 2), np.float32))
+    words = [{"text": "a", "start": 2.4, "end": 2.6},      # inside the phrase
+             {"text": "b", "start": 5.6, "end": 5.8},      # 0.4 s before singing starts: tolerated
+             {"text": "c", "start": 4.0, "end": 4.2}]      # 1 s from any singing: off
+    lines = [{"t": 2.0, "text": "a b c", "score": 1, "words": words}]
+    up = {"beats": {"beats": [0.5 * i for i in range(40)], "downbeats": []}, "separate": {},
+          "lyrics": {"lines": lines, "source": "x"}}
+    r = CHECK.run(ws, up)
+    assert r["word_rate"] == pytest.approx(2 / 3)
+    assert r["words_off"] == [{"t": 4.0, "text": "c"}]

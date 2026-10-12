@@ -1,7 +1,9 @@
 """Forced alignment of known lyric lines on a vocal stem (no transcription).
 
-job.json: {"audio": path, "language": "fr"|"en", "lines": ["...", ...]}
-out.json: {"starts": [seconds|null per line], "scores": [mean word score|null per line]}
+job.json: {"audio": path, "language": "fr"|"en", "lines": ["...", ...], "segments": [[start, end], ...]?}
+          with "segments", each line is aligned inside its own window (lines already synced).
+out.json: {"starts": [seconds|null per line], "scores": [mean word score|null per line],
+           "words": [[{"w": word, "s": start|null, "e": end|null}, ...] per line]}
 """
 import json
 import sys
@@ -23,10 +25,14 @@ def main(job_path: str, out_path: str) -> None:
     # otherwise the first word absorbs the whole intro and lands at 0 s.
     loud = (abs(audio) > 0.01).nonzero()[0]
     start = max(0.0, float(loud[0]) / 16000.0 - 0.2) if len(loud) else 0.0
-    res = whisperx.align([{"start": start, "end": dur, "text": text}], model, meta, audio,
-                         "cpu", return_char_alignments=False)
+    segs = job.get("segments")
+    if segs:
+        segments = [{"start": float(a), "end": float(b), "text": l} for (a, b), l in zip(segs, lines)]
+    else:
+        segments = [{"start": start, "end": dur, "text": text}]
+    res = whisperx.align(segments, model, meta, audio, "cpu", return_char_alignments=False)
     words = res.get("word_segments", [])
-    starts, scores, i = [], [], 0
+    starts, scores, per_line, i = [], [], [], 0
     for n in words_per_line:
         chunk = words[i:i + n]
         i += n
@@ -34,7 +40,8 @@ def main(job_path: str, out_path: str) -> None:
         starts.append(float(timed[0]["start"]) if timed else None)
         sc = [w["score"] for w in timed if "score" in w]
         scores.append(float(sum(sc) / len(sc)) if sc else None)
-    json.dump({"starts": starts, "scores": scores}, open(out_path, "w"))
+        per_line.append([{"w": w.get("word", ""), "s": w.get("start"), "e": w.get("end")} for w in chunk])
+    json.dump({"starts": starts, "scores": scores, "words": per_line}, open(out_path, "w"), ensure_ascii=False)
 
 
 if __name__ == "__main__":

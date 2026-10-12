@@ -6,6 +6,8 @@ Outputs: result {rate, lines: [{t, ok, end}], drift_ms}.
   end  : end of the last active vocal frame before the next line (t+3 s if none) — used by
          the video to detect instrumental gaps.
   rate : ok / lines (None without lines).  drift_ms: click (detected beats) vs drum onsets.
+  word_rate: share of words with vocal activity within ±WORD_TOLERANCE_S of their start (Michel:
+         under 0.5 s nobody notices); words_off: the others (time, text), at most 50.
 """
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ from karaoke.runner import Step
 from karaoke.workspace import Workspace
 
 HOP_S = 0.05
+WORD_TOLERANCE_S = 0.5
 
 
 def vocal_activity(x: np.ndarray, sr: int, hop_s: float = HOP_S) -> np.ndarray:
@@ -47,7 +50,16 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     dx, _ = audio.read(ws.stems / "drums.wav")
     drift = grid.drift_ms(upstream["beats"]["beats"], grid.onsets(dx, sr))
     rate = (sum(l["ok"] for l in out) / len(out)) if out else None
-    return {"rate": rate, "lines": out, "drift_ms": drift}
+    words = [w for line in lines for w in line.get("words", [])]
+    off = []
+    for w in words:
+        a = max(0, int((w["start"] - WORD_TOLERANCE_S) / HOP_S))
+        b = int((w["start"] + WORD_TOLERANCE_S) / HOP_S) + 1
+        if not act[a:b].any():
+            off.append({"t": w["start"], "text": w["text"]})
+    word_rate = (1 - len(off) / len(words)) if words else None
+    return {"rate": rate, "lines": out, "drift_ms": drift, "word_rate": word_rate, "words_off": off[:50]}
 
 
-CHECK = Step(name="check", deps=("beats", "separate", "lyrics"), key=lambda ws: "", run=_run)
+CHECK = Step(name="check", deps=("beats", "separate", "lyrics"), key=lambda ws: "", run=_run,
+             version="2")   # 2: word timing check with ±0.5 s tolerance
