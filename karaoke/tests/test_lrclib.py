@@ -51,6 +51,24 @@ def test_network_error_and_503_are_retry():
     def h(req):
         raise httpx.ConnectError("offline")
     with pytest.raises(StepRetry):
-        fetch("t", "a", "al", 100, client(h))
+        fetch("t", "a", "al", 100, client(h), sleep=lambda s: None)
     with pytest.raises(StepRetry):
-        fetch("t", "a", "al", 100, client(lambda req: httpx.Response(503)))
+        fetch("t", "a", "al", 100, client(lambda req: httpx.Response(503)), sleep=lambda s: None)
+
+
+def test_transient_503_is_retried_with_backoff():
+    calls, sleeps = [], []
+    def h(req):
+        calls.append(req.url.path)
+        if len(calls) < 3:
+            return httpx.Response(503)
+        return httpx.Response(200, json={"syncedLyrics": "[00:01.00]a"})
+    r = fetch("t", "a", "al", 100, client(h), sleep=sleeps.append)
+    assert r.synced == "[00:01.00]a" and len(calls) == 3 and sleeps == [2.0, 5.0]
+
+
+def test_gives_up_after_retries():
+    sleeps = []
+    with pytest.raises(StepRetry):
+        fetch("t", "a", "al", 100, client(lambda req: httpx.Response(503)), sleep=sleeps.append)
+    assert sleeps == [2.0, 5.0, 10.0]
