@@ -70,4 +70,5 @@ def _run(ws: Workspace, upstream: dict) -> dict:
             "removed": removed, "gain_db": float(20 * np.log10(gain))}
 
 
-PACKAGE = Step(name="package", deps=("ingest", "separate", "beats"), key=_key, run=_run, artifacts=_artifacts)
+PACKAGE = Step(name="package", deps=("ingest", "separate", "beats"), key=_key, run=_run, artifacts=_artifacts,
+               version="2")   # 2: tempo variation measured over 16-beat spans

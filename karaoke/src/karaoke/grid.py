@@ -17,11 +17,15 @@ def beats_per_bar(beats: Sequence[float], downbeats: Sequence[float]) -> int:
     return int(min(7, max(2, round(float(np.median(counts))))))
 
 
+TEMPO_WINDOW = 16   # beats; averaging over a span cancels Beat This!'s ±1 frame (20 ms) jitter
+
+
 def tempo_stats(beats: Sequence[float]) -> dict:
-    ibi = np.diff(np.asarray(beats, float))
+    b = np.asarray(beats, float)
+    ibi = np.diff(b)
     med = float(np.median(ibi))
-    w = 8
-    local = np.array([np.median(ibi[i:i + w]) for i in range(0, max(1, len(ibi) - w + 1))])
+    w = min(TEMPO_WINDOW, len(b) - 1)
+    local = (b[w:] - b[:-w]) / w          # mean interval over each w-beat span
     local_bpm = 60.0 / local
     var = float((np.percentile(local_bpm, 95) - np.percentile(local_bpm, 5)) / np.median(local_bpm) * 100)
     return {"bpm": 60.0 / med, "variation_pct": var, "stable": var <= STABLE_PCT}

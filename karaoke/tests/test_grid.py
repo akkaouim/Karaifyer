@@ -67,3 +67,13 @@ def test_onsets_on_click_train():
     x = render_click(ev, total_frames=6 * 44100)
     found = onsets(x, 44100)
     assert drift_ms([t for t, _ in ev], found) < 15
+
+
+def test_tempo_ignores_20ms_frame_quantization():
+    # Beat This! reports beats on a 20 ms grid: at 143 BPM single intervals read 0.40 or 0.42 s
+    # (150 vs 143 BPM). Measured on « Le petit bal perdu »: the median-IBI metric said 5 %.
+    b, _ = grid(bpm=143.0, start=0.5, n=400)
+    jitter = np.random.default_rng(0).integers(-1, 2, len(b)) * 0.02     # ±1 detection frame
+    q = [round(t / 0.02) * 0.02 + j for t, j in zip(b, jitter)]
+    s = tempo_stats(q)
+    assert s["stable"] and s["variation_pct"] < 2.0 and s["bpm"] == pytest.approx(143, abs=0.5)
