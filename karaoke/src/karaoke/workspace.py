@@ -30,7 +30,9 @@ class Workspace:
         self.work.mkdir(parents=True, exist_ok=True)
 
     def marker(self, step: str) -> Path:
-        return self.work / f"{step}.json"
+        # Markers live in their own folder so they never collide with a step's artifacts
+        # (the beats tool writes travail/<id>/beats.json).
+        return self.work / "etapes" / f"{step}.json"
 
     def read_marker(self, step: str) -> dict | None:
         p = self.marker(step)
@@ -38,6 +40,7 @@ class Workspace:
 
     def write_marker(self, step: str, data: dict) -> None:
         p = self.marker(step)
+        p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(tmp, p)

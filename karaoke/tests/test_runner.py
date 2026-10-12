@@ -109,3 +109,14 @@ def test_declared_artifact_change_reruns_downstream(cfg):
     calls.clear()
     run_song(ws, steps(b"two", "3"))          # same result dict, different file: b reruns
     assert calls == ["a", "b"]
+
+
+def test_marker_does_not_collide_with_step_artifacts(cfg):
+    # The beats tool writes travail/<id>/beats.json; the runner's marker must live elsewhere.
+    ws = Workspace(cfg, song())
+    def run(ws, up):
+        (ws.work / "beats.json").write_text('{"beats": [1, 2]}')
+        return {"n": 2}
+    run_song(ws, [Step("beats", (), lambda ws: "", run)])
+    assert (ws.work / "beats.json").read_text() == '{"beats": [1, 2]}'
+    assert ws.read_marker("beats")["result"] == {"n": 2}
