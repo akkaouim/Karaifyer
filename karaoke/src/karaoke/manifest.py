@@ -110,3 +110,11 @@ def songs_from_sysrec(audio_dir: Path) -> list[Song]:
                           duree_ref_s=float(audio.info.length), isrc="", fichier=flac, retirer=(),
                           decompte_mesures=2, langue="fr", partie=""))
     return songs
+
+
+def group_by_partie(songs: list[Song]) -> dict[str, list[Song]]:
+    """Songs per part of the evening, parts in first-appearance order; empty partie → « sans-partie »."""
+    groups: dict[str, list[Song]] = {}
+    for s in songs:
+        groups.setdefault(s.partie or "sans-partie", []).append(s)
+    return groups

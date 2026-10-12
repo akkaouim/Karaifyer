@@ -91,3 +91,11 @@ def test_text_is_nfc_normalised(tmp_path):
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-metadata", f"artist={nfd}",
                     "-metadata", "title=Danser", "-metadata", "track=5", str(flac)], check=True)
     assert songs_from_sysrec(flac.parent)[0].artiste == "Loïc Nottet"
+
+
+def test_group_by_partie_keeps_order_and_unassigned():
+    from karaoke.manifest import group_by_partie
+    songs = [song(id="001", partie="B"), song(id="002", partie="A"), song(id="003", partie="B"), song(id="004", partie="")]
+    g = group_by_partie(songs)
+    assert list(g) == ["B", "A", "sans-partie"]
+    assert [s.id for s in g["B"]] == ["001", "003"]
