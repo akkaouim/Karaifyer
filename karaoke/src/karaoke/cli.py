@@ -4,12 +4,13 @@ from pathlib import Path
 
 import typer
 
+from karaoke.ableton.build import SetError, SongEntry, build_set
 from karaoke.config import Config
-from karaoke.manifest import read_manifest, songs_from_sysrec, write_manifest
+from karaoke.manifest import group_by_partie, read_manifest, songs_from_sysrec, write_manifest
 from karaoke.report import load_reports, song_report, write_global
 from karaoke.runner import run_song
 from karaoke.steps import STEPS
-from karaoke.workspace import Workspace
+from karaoke.workspace import Workspace, slug
 
 app = typer.Typer(help="Karaoké live : manifeste → dossiers prêts à jouer.", no_args_is_help=True)
 
@@ -77,3 +78,31 @@ def rapport() -> None:
     write_global(load_reports(cfg.sortie, [Workspace(cfg, s).out for s in songs]),
                  cfg.home / "rapport.csv", cfg.home / "rapport.html")
     typer.echo(f"Rapport : {cfg.home / 'rapport.html'}")
+
+
+@app.command()
+def sets(partie: str = typer.Option(None, help="Ne générer que cette partie")) -> None:
+    """Génère un set Ableton (.als) par partie de soirée, à partir du gabarit."""
+    cfg = Config.load()
+    groups = group_by_partie(read_manifest(cfg.manifest))
+    for name, songs in groups.items():
+        if partie and name != partie:
+            continue
+        entries, missing = [], []
+        for s in songs:
+            ws = Workspace(cfg, s)
+            marker = ws.read_marker("package")
+            if not marker or "faders" not in marker["result"]:
+                missing.append(f"{s.id} {s.titre}")
+                continue
+            entries.append(SongEntry(s.id, s.titre, ws.out, marker["result"]["faders"]))
+        if missing:
+            typer.echo(f"[{name}] pas encore traité (lancer « karaoke traiter ») : " + " ; ".join(missing), err=True)
+            raise typer.Exit(1)
+        out = cfg.sets / f"{slug(name)}.als"
+        try:
+            r = build_set(cfg.gabarit, entries, out)
+        except SetError as e:
+            typer.echo(f"[{name}] {e}", err=True)
+            raise typer.Exit(1)
+        typer.echo(f"{out} : {r['songs']} morceaux, {r['duration_s'] / 60:.0f} min")

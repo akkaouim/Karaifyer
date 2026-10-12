@@ -32,6 +32,16 @@ class Config:
     def sortie(self) -> Path:
         return self.home / "sortie"
 
+    @property
+    def gabarit(self) -> Path:
+        """Michel's Ableton template (only read, never modified)."""
+        env = os.environ.get("KARAOKE_GABARIT")
+        return Path(env) if env else self.home / "gabarit" / "gabarit Project" / "gabarit.als"
+
+    @property
+    def sets(self) -> Path:
+        return self.home / "sets"
+
     def ensure_dirs(self) -> None:
         for d in (self.paroles, self.travail, self.sortie):
             d.mkdir(parents=True, exist_ok=True)

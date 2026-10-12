@@ -62,3 +62,46 @@ def test_clip_ids_unique_per_track(tmp_path):
     ls = load_als(out).getroot().find("LiveSet")
     for name in ("Accompagnement", "Vidéo", "XR18 faders", "Back Vocals"):
         assert [c.get("Id") for c in arranger_events(track(ls, name))] == ["0", "1", "2"], name
+
+
+def test_cli_sets_writes_one_set_per_partie(tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+    from karaoke import cli
+    from karaoke.config import Config
+    from karaoke.manifest import write_manifest
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    import shutil
+    home = tmp_path / "home"
+    monkeypatch.setenv("KARAOKE_HOME", str(home))
+    monkeypatch.setenv("KARAOKE_GABARIT", str(FIX / "gabarit.als"))
+    cfg = Config.load()
+    cfg.ensure_dirs()
+    songs = [song(id="001", partie="Apéro"), song(id="002", partie="Dîner"), song(id="003", partie="Apéro")]
+    write_manifest(cfg.manifest, songs)
+    for s in songs:
+        ws = Workspace(cfg, s)
+        src = make_song(tmp_path / "src" / s.id, s.id, 4.0)
+        shutil.copytree(src.folder, ws.out)
+        ws.write_marker("package", {"key": "k", "output_hash": "h", "seconds": 1,
+                                    "result": {"faders": src.faders, "pad_s": 0.0, "total_s": 4.0}})
+    r = CliRunner().invoke(cli.app, ["sets"])
+    assert r.exit_code == 0, r.output
+    assert sorted(p.name for p in cfg.sets.glob("*.als")) == ["apero.als", "diner.als"]
+    ls = load_als(cfg.sets / "apero.als").getroot().find("LiveSet")
+    assert [l.find("Name").get("Value")[:3] for l in ls.findall("Locators/Locators/Locator")] == ["001", "003"]
+
+
+def test_cli_sets_refuses_unprocessed_song(tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+    from karaoke import cli
+    from karaoke.config import Config
+    from karaoke.manifest import write_manifest
+    from test_manifest import song
+    monkeypatch.setenv("KARAOKE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("KARAOKE_GABARIT", str(FIX / "gabarit.als"))
+    cfg = Config.load()
+    cfg.ensure_dirs()
+    write_manifest(cfg.manifest, [song(id="001", partie="A")])
+    r = CliRunner().invoke(cli.app, ["sets"])
+    assert r.exit_code == 1 and "pas encore traité" in r.output
