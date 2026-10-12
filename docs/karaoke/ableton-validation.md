@@ -6,13 +6,13 @@ Michel fills in the result of each check (✅ / ❌ + note).
 
 | # | Check | Result |
 |---|---|---|
-| 1 | The set opens without an error and without a « media files missing » prompt (tests `OriginalCrc=0` in the generated clips) | |
-| 2 | 4 locators in order (005, 011, 012, 041); every song's clips start at its locator, video under the audio | |
-| 3 | Play from each locator: sound on XR18 10 (click), 11 (lead), 12 guitar, 13 bass, 14 piano, 15 drums, 16 back vocals, 17–18 accompaniment | |
-| 4 | At each song start the faders jump in X Air: guitar/bass/piano (in `retirer`) at −∞; drums, back vocals (16) and 17–18 at about 0 dB | |
-| 5 | Lead/backing split by ear: 11 = lead singer only, 16 = backing vocals with no lead left (note per song) | |
-| 6 | Video window (View → Video Window): lyrics in sync with the voice; full screen on the projector | |
-| 7 | Video sync holds across the 4 songs (redo with a 15-song set once the full batch exists) | |
-| 8 | Vocal split overlap 2 vs 8 (`ecoute-voix-005/`): no audible difference that matters | |
+| 1 | The set opens without an error and without a « media files missing » prompt (tests `OriginalCrc=0` in the generated clips) | ✅ |
+| 2 | 4 locators in order (005, 011, 012, 041); every song's clips start at its locator, video under the audio | ✅ |
+| 3 | Play from each locator: sound on XR18 10 (click), 11 (lead), 12 guitar, 13 bass, 14 piano, 15 drums, 16 back vocals, 17–18 accompaniment | ✅ |
+| 4 | At each song start the faders jump in X Air: guitar/bass/piano (in `retirer`) at −∞; drums, back vocals (16) and 17–18 at about 0 dB | ✅|
+| 5 | Lead/backing split by ear: 11 = lead singer only, 16 = backing vocals with no lead left (note per song) | ✅ |
+| 6 | Video window (View → Video Window): lyrics in sync with the voice; full screen on the projector | ✅ |
+| 7 | Video sync holds across the 4 songs (redo with a 15-song set once the full batch exists) | ✅ |
+| 8 | Vocal split overlap 2 vs 8 (`ecoute-voix-005/`): no audible difference that matters | At around 1'09 the lead vocal is transfered for a few seconds to the back vocals |
 
 If check 1 fails, note Live's exact message: it decides how to handle `OriginalCrc`.

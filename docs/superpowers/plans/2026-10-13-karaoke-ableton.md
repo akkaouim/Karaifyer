@@ -1208,3 +1208,58 @@ git commit -m "karaoke: Ableton set validation notes and usage"
 - **Type consistency:**
   - `faders` keys `guitare/basse/piano/batterie/back_vocals/accompagnement` are used identically in package, `FADER_CC`, `midi_clip`, `SongEntry` and the tests;
   - beats = seconds × 2 everywhere via `BEATS_PER_SECOND`.
+
+---
+
+## Part 2 (requested by Michel, 2026-10-13, after the Live validation)
+
+Michel's decisions:
+- Syllable-by-syllable colour (step, not a smooth wipe).
+- Word timing within ±0.5 s counts as correct.
+- A **4-3-2-1** countdown on the last 4 beats before a line that follows more than 8 beats of silence.
+- Separation chain: RoFormer vocals → Demucs 6s on the instrumental → karaoke split on the RoFormer vocals.
+- **One Live set per song** with an automatic stop at the song's end.
+
+He asked for these to be implemented directly. Each task follows the same rules as above: TDD, a commit per task, ledger rulings.
+
+### Task 8: Separation v2 (RoFormer vocals + Demucs on the instrumental)
+- `separate` step, version 2:
+  1. `audio-separator` with `vocals_mel_band_roformer.ckpt` (vocals score 12.6; spike: 2 min 33 s for 197 s at overlap 2) on `input.wav` gives `(vocals)` and `(other)`;
+  2. Demucs `htdemucs_6s` on the `(other)` instrumental gives drums, bass, guitar, piano, other;
+  3. Demucs's residual `vocals` from the instrumental is kept as `stems/residu_voix.wav` and excluded from every mix.
+- `stems/vocals.wav` = the RoFormer vocals; the other 5 stems come from Demucs. `vocals_split` runs on these vocals, unchanged.
+- `pick_outputs` matches stem labels case-insensitively: the RoFormer writes `(vocals)/(other)`, the karaoke model `(Vocals)/(Instrumental)`.
+
+### Task 9: Word and syllable timing
+- `align_tool` v2:
+  - the job may carry `segments` ([start, end] per line) so each line is aligned within its own window (used for lines already synced by LRCLIB or a user LRC);
+  - it returns `words` per line `[{w, s, e}]` in addition to `starts`/`scores`.
+- `lyrics` step v2:
+  - aligns every song that has lyrics;
+  - keeps the line start from LRCLIB/LRC when present;
+  - attaches `words: [{text, start, end, syllables: [{text, start}]}]` to each line.
+- Syllables come from `pyphen` (`fr_FR` / `en_US`). Each syllable's start is spread over its word's duration in proportion to its letters. Words without timing are interpolated between the line start and the next line.
+- `check` step v2: a word is in time if vocal activity starts within **±0.5 s** of its start. `word_rate` is added to the result, and the report alerts when `word_rate < 0.9`.
+
+### Task 10: Video v3 (syllable colour, beat countdown)
+- The video step depends on `beats` too. Beats in output time = `beats + pad_s`.
+- Timeline states:
+  - for each line, one state per syllable start (`lit` = number of syllables already sung);
+  - the frame draws the current line with sung syllables in yellow and the rest in white, plus the next line in grey.
+- Gaps: if more than 8 beats separate the end of singing from the next line (or the title from the first line), the last 4 beats before the line show `4`, `3`, `2`, `1` (replaces the 8-second / 3-dot rule).
+
+### Task 11: One set per song, automatic stop
+- `karaoke sets` writes `sets/<partie>/<id> <titre>.als`, one song per set.
+- Automatic stop: if the template has a MIDI track **« Auto stop »** (output: IAC Driver bus), a MIDI clip at the song's end (`total_s + 0.5 s`) sends **CC 119 = 127**. Live's Stop button is MIDI-mapped once by Michel to IAC CC 119.
+- New command `karaoke apprendre-stop`: sends CC 119 on the IAC bus every 0.5 s for 20 s, so Michel can map the Stop button in MIDI Map mode.
+- Michel's one-time setup:
+  1. turn on the IAC Driver in Audio MIDI Setup;
+  2. add the « Auto stop » MIDI track to the template, output IAC Driver Bus 1;
+  3. in Live's MIDI settings, set the IAC input « Remote » to On;
+  4. map Stop to CC 119.
+
+### Task 12: Real run and validation
+- Reprocess the 4 test songs (new separation, alignment, video), generate 4 song sets, and Michel checks:
+  - the auto stop;
+  - the syllable colours and the countdown;
+  - the separation by ear (optional).
