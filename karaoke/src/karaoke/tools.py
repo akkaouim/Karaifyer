@@ -8,7 +8,8 @@ TOOLS_DIR = Path(__file__).resolve().parents[2] / "tools"
 
 # Timeout = base + factor × song duration. Measured in phase 0 (M1 Pro): separate ≈ 0.15×,
 # align ≈ 0.12×, beats ≈ 0.02× real time; these leave ~10× headroom for a cold model load.
-_TIMEOUTS = {"separate": (300.0, 3.0), "beats": (120.0, 1.0), "align": (300.0, 3.0)}
+_TIMEOUTS = {"separate": (300.0, 3.0), "beats": (120.0, 1.0), "align": (300.0, 3.0),
+             "vocals": (600.0, 4.0)}   # vocals split ≈ 0.76× real time (spike), model load included
 
 
 def tool_timeout(tool: str, duration_s: float) -> float:
