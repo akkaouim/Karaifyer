@@ -12,7 +12,11 @@ from karaoke.manifest import Song
 
 
 def slug(text: str, max_len: int = 40) -> str:
-    norm = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    # Every non-alphanumeric char (including ’ and other non-ASCII punctuation) separates
+    # words; accents are then dropped (combining marks kept until the ASCII encode).
+    decomposed = unicodedata.normalize("NFKD", text)
+    spaced = "".join(c if c.isalnum() or unicodedata.combining(c) else " " for c in decomposed)
+    norm = spaced.encode("ascii", "ignore").decode()
     s = re.sub(r"[^a-z0-9]+", "-", norm.lower()).strip("-")
     return s[:max_len].rstrip("-") or "sans-titre"
 
