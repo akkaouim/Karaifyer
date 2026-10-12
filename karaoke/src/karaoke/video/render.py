@@ -33,6 +33,39 @@ def _wrap(draw, text, font, width):
     return lines + ([cur] if cur else [])
 
 
+YELLOW, WHITE, GREY = (255, 214, 0), (255, 255, 255), (150, 150, 150)
+
+
+def _karaoke_line(draw, y, text, lit, font):
+    """Current line, centered and wrapped; its first `lit` characters (sung syllables) in yellow."""
+    words, offsets, pos = text.split(" "), [], 0
+    for w in words:
+        offsets.append(pos)
+        pos += len(w) + 1
+    rows, cur = [], []
+    for i, w in enumerate(words):
+        trial = " ".join(words[j] for j in cur + [i])
+        if cur and draw.textlength(trial, font=font) > W - 200:
+            rows.append(cur)
+            cur = [i]
+        else:
+            cur.append(i)
+    if cur:
+        rows.append(cur)
+    space = draw.textlength(" ", font=font)
+    for row in rows:
+        x = (W - draw.textlength(" ".join(words[i] for i in row), font=font)) / 2
+        for i in row:
+            w, n = words[i], max(0, min(len(words[i]), lit - offsets[i]))
+            if n:
+                draw.text((x, y), w[:n], font=font, fill=YELLOW)
+            if n < len(w):
+                draw.text((x + draw.textlength(w[:n], font=font), y), w[n:], font=font, fill=WHITE)
+            x += draw.textlength(w, font=font) + space
+        y += int(font.size * 1.25)
+    return y
+
+
 def _centered(draw, y, text, font, fill):
     for line in _wrap(draw, text, font, W - 200):
         draw.text(((W - draw.textlength(line, font=font)) / 2, y), line, font=font, fill=fill)
@@ -47,13 +80,13 @@ def _frame(s: State) -> Image.Image:
     if s.kind == "titre":
         _centered(d, 380, s.current, big, (255, 255, 255))
     elif s.kind == "ligne":
-        y = _centered(d, 380, s.current, big, (255, 214, 0))
-        _centered(d, max(y + 60, 640), s.next, mid, (150, 150, 150))
+        y = _karaoke_line(d, 380, s.current, s.lit, big)
+        _centered(d, max(y + 60, 640), s.next, mid, GREY)
     elif s.kind == "instrumental":
         _centered(d, 300, "♪", sym, (90, 90, 90))
-        _centered(d, 640, s.next, mid, (150, 150, 150))
-    if s.countdown:
-        _centered(d, 120, "●" * s.countdown, _font(SYM, 110), (255, 80, 80))
+        _centered(d, 640, s.next, mid, GREY)
+    if s.countdown:     # 4-3-2-1 on the last beats before the next line
+        _centered(d, 90, str(s.countdown), _font(BOLD, 200), (255, 80, 80))
     return img
 
 
@@ -61,7 +94,7 @@ def render_video(states: list[State], out_mp4: Path, work: Path, fps: int = 25) 
     work.mkdir(parents=True, exist_ok=True)
     entries = []
     for s in states:
-        h = hashlib.sha1(repr((s.kind, s.current, s.next, s.countdown)).encode()).hexdigest()[:16]
+        h = hashlib.sha1(repr((s.kind, s.current, s.next, s.countdown, s.lit)).encode()).hexdigest()[:16]
         png = work / f"{h}.png"
         if not png.exists():
             _frame(s).save(png)

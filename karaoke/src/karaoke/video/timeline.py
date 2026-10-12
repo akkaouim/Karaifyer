@@ -1,50 +1,80 @@
-"""Pure display timeline for the lyrics video. Times are output (show) times."""
+"""Pure display timeline for the lyrics video. Times are output (show) times.
+
+Each line is shown from its start minus `lead_s`, with one state per syllable start (`lit` = number
+of characters of the line already sung). When more than `gap_beats` beats of silence precede a line,
+the last 4 beats before it show a 4-3-2-1 countdown.
+"""
 from __future__ import annotations
 from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class TimedLine:
+    start: float
+    end: float                            # end of singing (from the vocal activity check)
+    text: str                             # whitespace-normalised
+    syllables: list[tuple[float, int]]    # (start, characters of `text` lit once it starts)
 
 
 @dataclass(frozen=True)
 class State:
     start: float
     end: float
-    kind: str              # titre | ligne | instrumental | fin
+    kind: str                # titre | ligne | instrumental | fin
     current: str
     next: str
     countdown: int | None
+    lit: int = 0
 
 
-def _wait(start: float, end: float, kind: str, current: str, nxt: str, countdown_s: float,
-          with_countdown: bool) -> list[State]:
-    if end <= start:
-        return []
-    if not with_countdown or end - start <= countdown_s:
+def _beats_between(beats, a: float, b: float) -> int:
+    return sum(1 for t in beats if a < t < b)
+
+
+def _with_countdown(start, end, kind, current, nxt, beats, n=4) -> list[State]:
+    marks = [b for b in beats if start <= b < end][-n:]
+    if len(marks) < n:
         return [State(start, end, kind, current, nxt, None)]
-    cd_start = end - countdown_s
-    out = [State(start, cd_start, kind, current, nxt, None)]
-    n = int(round(countdown_s))
-    for k in range(n):
-        out.append(State(cd_start + k, cd_start + k + 1 if k < n - 1 else end, kind, current, nxt, n - k))
+    out = [State(start, marks[0], kind, current, nxt, None)] if marks[0] > start else []
+    for k, b in enumerate(marks):
+        out.append(State(b, marks[k + 1] if k + 1 < n else end, kind, current, nxt, n - k))
     return out
 
 
-def build_states(lines, pad_s, total_s, titre, artiste, lead_s=0.2, gap_s=8.0, countdown_s=3.0) -> list[State]:
-    """lines: [(start_out, end_out, text)]. Contiguous states covering [0, total_s]."""
+def _line_states(line: TimedLine, show: float, stop: float, nxt: str) -> list[State]:
+    out, t, lit = [], show, 0
+    for start, chars in line.syllables:
+        if start <= show:
+            lit = chars
+            continue
+        if start >= stop:
+            break
+        out.append(State(t, start, "ligne", line.text, nxt, None, lit))
+        t, lit = start, chars
+    out.append(State(t, stop, "ligne", line.text, nxt, None, lit))
+    return out
+
+
+def build_states(lines: list[TimedLine], pad_s: float, total_s: float, titre: str, artiste: str,
+                 beats: list[float], lead_s: float = 0.2, gap_beats: int = 8) -> list[State]:
     title = f"{titre} — {artiste}"
     if not lines:
         return [State(0.0, total_s, "titre", title, "", None)]
-    shows = [max(0.0, s - lead_s) for s, _, _ in lines]
-    first = shows[0]
-    states = _wait(0.0, first, "titre", title, lines[0][2], countdown_s, first - pad_s > gap_s)
-    for i, (start, end, text) in enumerate(lines):
-        nxt = lines[i + 1][2] if i + 1 < len(lines) else ""
-        show = shows[i]
-        stop = shows[i + 1] if i + 1 < len(lines) else min(total_s, max(end, start) + 2.0)
-        if i + 1 < len(lines) and lines[i + 1][0] - end > gap_s:
-            sing_end = min(stop, end + 0.5)
-            states.append(State(show, sing_end, "ligne", text, nxt, None))
-            states += _wait(sing_end, stop, "instrumental", "", nxt, countdown_s, True)
+    shows = [max(0.0, l.start - lead_s) for l in lines]
+    first = lines[0]
+    if _beats_between(beats, pad_s, first.start) > gap_beats:
+        states = _with_countdown(0.0, shows[0], "titre", title, first.text, beats)
+    else:
+        states = [State(0.0, shows[0], "titre", title, first.text, None)]
+    for i, line in enumerate(lines):
+        nxt = lines[i + 1] if i + 1 < len(lines) else None
+        stop = shows[i + 1] if nxt else min(total_s, max(line.end, line.start) + 2.0)
+        if nxt and _beats_between(beats, line.end, nxt.start) > gap_beats:
+            sing_end = min(stop, line.end + 0.5)
+            states += _line_states(line, shows[i], sing_end, nxt.text)
+            states += _with_countdown(sing_end, stop, "instrumental", "", nxt.text, beats)
         else:
-            states.append(State(show, stop, "ligne", text, nxt, None))
+            states += _line_states(line, shows[i], stop, nxt.text if nxt else "")
     if states[-1].end < total_s:
         states.append(State(states[-1].end, total_s, "fin", "", "", None))
     return [s for s in states if s.end - s.start > 1e-6]
