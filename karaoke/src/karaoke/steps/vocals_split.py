@@ -13,7 +13,7 @@ import numpy as np
 
 from karaoke import audio
 from karaoke.runner import Step
-from karaoke.tools import run_tool, tool_timeout
+from karaoke.tools import pick_stem, run_tool, tool_timeout
 from karaoke.workspace import Workspace
 
 MODEL = "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt"
@@ -22,11 +22,8 @@ MODEL_DIR = Path.home() / ".cache" / "audio-separator-models"   # downloaded onc
 
 
 def pick_outputs(files: list[Path]) -> tuple[Path, Path]:
-    lead = [f for f in files if "(Vocals)" in f.name]
-    backing = [f for f in files if "(Instrumental)" in f.name]
-    if len(lead) != 1 or len(backing) != 1:
-        raise ValueError(f"sorties inattendues de audio-separator : {[f.name for f in files]}")
-    return lead[0], backing[0]
+    """(lead, backing): the karaoke model's « Vocals » and « Instrumental » outputs."""
+    return pick_stem(files, "vocals"), pick_stem(files, "instrumental")
 
 
 def _rms_db(path: Path) -> float:

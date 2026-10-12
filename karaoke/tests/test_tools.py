@@ -24,9 +24,9 @@ def test_steps_pass_a_timeout(cfg, monkeypatch):
     from test_manifest import song
     seen = {}
     def fake(tool, args, **kw):
-        seen.update(kw)
+        seen.update(kw, tool=tool)
         raise ToolError(tool, 1, "stop")
     monkeypatch.setattr(sep, "run_tool", fake)
     with pytest.raises(ToolError):
         sep.SEPARATE.run(Workspace(cfg, song()), {"ingest": {"duration_s": 200.0}})
-    assert seen["timeout"] == tool_timeout("separate", 200.0)
+    assert seen["timeout"] == tool_timeout(seen["tool"], 200.0)   # first call: the RoFormer ("vocals")

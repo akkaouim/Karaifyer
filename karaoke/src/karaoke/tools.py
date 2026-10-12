@@ -9,7 +9,7 @@ TOOLS_DIR = Path(__file__).resolve().parents[2] / "tools"
 # Timeout = base + factor × song duration. Measured in phase 0 (M1 Pro): separate ≈ 0.15×,
 # align ≈ 0.12×, beats ≈ 0.02× real time; these leave ~10× headroom for a cold model load.
 _TIMEOUTS = {"separate": (300.0, 3.0), "beats": (120.0, 1.0), "align": (300.0, 3.0),
-             "vocals": (600.0, 4.0)}   # vocals split ≈ 0.76× real time (spike), model load included
+             "vocals": (600.0, 4.0)}   # RoFormer / karaoke ≈ 0.78× real time (spike), model load included   # vocals split ≈ 0.76× real time (spike), model load included
 
 
 def tool_timeout(tool: str, duration_s: float) -> float:
@@ -36,3 +36,13 @@ def run_tool(tool: str, args: list[str], env: dict | None = None,
     if proc.returncode != 0:
         raise ToolError(tool, proc.returncode, proc.stderr)
     return proc
+
+
+def pick_stem(files: list[Path], label: str) -> Path:
+    """The audio-separator output whose name carries `(label)`, case-insensitively
+    (the RoFormer writes `(vocals)`, the karaoke model `(Vocals)`)."""
+    tag = f"({label.lower()})"
+    found = [f for f in files if tag in f.name.lower()]
+    if len(found) != 1:
+        raise ValueError(f"sortie « {label} » introuvable parmi {[f.name for f in files]}")
+    return found[0]
