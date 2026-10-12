@@ -13,9 +13,18 @@ uv run karaoke manifeste --audio "$HOME/Music/SysRec/Karaoké - Feuille 1"
 uv run karaoke traiter                       # tout ; reprend là où ça s'est arrêté
 uv run karaoke traiter --ids 041 --forcer package   # refaire un morceau (ex. après changement de « retirer »)
 uv run karaoke rapport                       # rapport.csv / rapport.html triés par risque
+uv run karaoke sets                          # un set Ableton par partie de soirée → $KARAOKE_HOME/sets/
 ```
 
-Pistes (colonne `retirer`) : `drums, bass, guitar, piano, other` (la voix est toujours retirée).
+**Sets Ableton.** `karaoke sets` part du gabarit (`gabarit/gabarit Project/gabarit.als`, jamais modifié) et
+écrit un `.als` par valeur de la colonne `partie` : morceaux enchaînés (4 s d'écart), un repère par titre,
+une piste par canal XR18 (10 clic, 11 voix lead, 12 guitare, 13 basse, 14 piano, 15 batterie,
+16 back vocals, 17–18 accompagnement) et, au début de chaque morceau, un clip MIDI qui place les faders
+de la XR18 : parties de `retirer` à zéro, le reste à 0 dB. Sur la XR18 : X Air → Setup → Mixer →
+MIDI Config → « USB Rx » activé.
+
+Colonne `retirer` : les parties jouées en live (`guitar`, `bass`, `piano`, `drums`). Elles restent
+disponibles sur leur canal, fader à zéro au départ du morceau.
 
 **Paroles manquantes ou à corriger.** Déposer dans `$KARAOKE_HOME/paroles/` :
 - `<id>.txt` : texte brut, aligné automatiquement sur la voix (marche aussi hors ligne) ;
