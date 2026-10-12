@@ -34,6 +34,8 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
     if (chk.get("drift_ms") or 0) > 30:
         risk += 20
         alerts.append(f"dérive du clic {chk['drift_ms']:.0f} ms")
+    for w in res("set").get("warnings", []):
+        alerts.append(f"set Ableton : {w}")
     if lyr.get("source") == "aucune":
         risk += 60
         alerts.append("sans paroles : fournir paroles/<id>.txt")
