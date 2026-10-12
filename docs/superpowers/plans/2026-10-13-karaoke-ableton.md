@@ -9,11 +9,12 @@
 1. **The `package` step** (version 4) writes channel-ready files:
    - `accompagnement.flac`: everything except vocals, guitar, bass, piano and drums (the `other` stem);
    - `guitare.flac`, `basse.flac`, `piano.flac`: mono;
-   - `batterie.flac`: stereo;
+   - `batterie.flac`: mono (decided 2026-10-13);
+   - `guide_voix.flac`: **lead vocals** only, mono; `choeurs.flac`: **backing vocals**, mono (new `vocals_split` step);
    - default XR18 fader values in its result: 0 for the parts in `retirer`, 0 dB for the others.
 2. **A new `karaoke.ableton` package** builds sets by editing Michel's template (`gabarit.als`, gzip XML) with ElementTree. It uses element snippets copied verbatim from Michel's hand-made `reference.als`: audio clip, video clip, MIDI clip with CC envelopes, locator. Only the values change. The template's routing, tracks and settings are never touched.
 
-**Tech Stack:** Python 3.11 (existing `karaoke` package), `xml.etree.ElementTree`, `gzip`, numpy/soundfile (existing), ffprobe. No new dependencies.
+**Tech Stack:** Python 3.11 (existing `karaoke` package), `xml.etree.ElementTree`, `gzip`, numpy/soundfile (existing), ffprobe. New isolated tool env `karaoke/tools/vocals` (`audio-separator`, Mel-Band RoFormer karaoke model) for the lead/backing split.
 
 **Spec:** `docs/karaoke/cahier-des-charges.md` (§ Intégration Ableton, step 8), amended by `docs/karaoke/ableton-xr18-decisions.md`.
 
@@ -32,7 +33,8 @@ The template and reference live in `/Volumes/Hypermnesia/karaoke/gabarit/gabarit
 | Guitare | AudioTrack | `M11` (12) |
 | Basse | AudioTrack | `M12` (13) |
 | Piano | AudioTrack | `M13` (14) |
-| Batterie | AudioTrack | `S7` (15/16) |
+| Batterie | AudioTrack | `S7` (15/16) → **Michel changes it to mono `M14` (15)** |
+| Chœurs | AudioTrack | **new track, added by Michel**: mono `M15` (16) |
 | Vidéo | AudioTrack | none, track off |
 | XR18 faders | MidiTrack | MIDI out to X18/XR18, channel 1 |
 
@@ -67,14 +69,16 @@ The template and reference live in `/Volumes/Hypermnesia/karaoke/gabarit/gabarit
 | Track | XR18 channel | Fader CC |
 |---|---|---|
 | Clic | 10 | 9 |
-| Guide Voix | 11 | 10 |
+| Guide Voix (lead vocals) | 11 | 10 |
 | Guitare | 12 | 11 |
 | Basse | 13 | 12 |
 | Piano | 14 | 13 |
-| Batterie | 15–16 | 14 + 15 |
+| Batterie (mono) | 15 | 14 |
+| Chœurs (backing vocals) | 16 | 15 |
 | Accompagnement | 17–18 | 16 |
 
-- **Per-song default faders:** parts in `retirer` → CC 0 (−∞). Other parts and the accompaniment → 0 dB (`xair_cc(0.0)`). Click and guide vocal faders are **not** sent: Michel sets them once on the console.
+- **Per-song default faders:** parts in `retirer` → CC 0 (−∞). Other parts, the backing vocals (Chœurs) and the accompaniment → 0 dB (`xair_cc(0.0)`). Click and guide vocal (lead) faders are **not** sent: Michel sets them once on the console (lead vocals go to the in-ears only).
+- **Prerequisite (Michel):** template updated (Batterie → output 15 mono; new audio track « Chœurs » → output 16 mono), XR18 channels 15 and 16 unlinked, mono, source USB. Task 1 copies the **updated** template.
 - All files of a song still start at the same zero and have the same length (phase-0 invariant), so in a set all of a song's clips share one `Time`.
 - Songs are spaced by `GAP_S = 4.0` seconds of silence. There's one locator per song, named `"<id> <titre>"`, at its start. Song order = manifest order within a `partie`.
 
@@ -93,6 +97,7 @@ The template and reference live in `/Volumes/Hypermnesia/karaoke/gabarit/gabarit
 ```
 karaoke/src/karaoke/
   xair.py                       PURE: X Air fader law dB ↔ CC
+  steps/vocals_split.py         lead / backing vocals (audio-separator, isolated tool env)
   steps/package.py              (modify) v4: channel files + fader defaults
   manifest.py                   (modify) group_by_partie()
   ableton/__init__.py
@@ -106,7 +111,7 @@ karaoke/src/karaoke/
   cli.py                        (modify) `karaoke sets`
 karaoke/tests/
   fixtures/ableton/gabarit.als, reference.als     (copies of Michel's files)
-  test_xair.py  test_package.py (modify)  test_manifest.py (modify)
+  test_xair.py  test_vocals_split.py  test_package.py (modify)  test_manifest.py (modify)
   test_als.py  test_clips.py  test_build.py
 docs/karaoke/ableton-validation.md                 (Task 7: Michel's checks in Live)
 ```
@@ -127,7 +132,7 @@ docs/karaoke/ableton-validation.md                 (Task 7: Michel's checks in L
   - `arranger_events(track_el) -> ET.Element` (the `Events` list for audio or MIDI tracks);
   - `snippet(name: str) -> ET.Element` (fresh parse of `snippets/<name>.xml`);
   - `controller_target_id(midi_track, cc: int) -> str` (Id of `ControllerTargets.{cc+2}`);
-  - `TRACKS = {"accompagnement": "Accompagnement", "clic": "Clic", "guide_voix": "Guide Voix", "guitare": "Guitare", "basse": "Basse", "piano": "Piano", "batterie": "Batterie", "video": "Vidéo", "faders": "XR18 faders"}`.
+  - `TRACKS = {"accompagnement": "Accompagnement", "clic": "Clic", "guide_voix": "Guide Voix", "guitare": "Guitare", "basse": "Basse", "piano": "Piano", "batterie": "Batterie", "choeurs": "Chœurs", "video": "Vidéo", "faders": "XR18 faders"}`.
 
 - [ ] **Step 1: Copy fixtures and extract snippets**
 
@@ -170,7 +175,8 @@ FIX = Path(__file__).parent / "fixtures" / "ableton"
 
 def test_load_and_tracks():
     ls = load_als(FIX / "gabarit.als").getroot().find("LiveSet")
-    assert [t.find("Name/EffectiveName").get("Value") for t in ls.find("Tracks")] == list(TRACKS.values())
+    # tracks are found by name; Michel may order them as he likes
+    assert sorted(t.find("Name/EffectiveName").get("Value") for t in ls.find("Tracks")) == sorted(TRACKS.values())
     assert len(arranger_events(track(ls, "Accompagnement"))) == 0
     assert arranger_events(track(ls, "XR18 faders")).tag == "Events"
     with pytest.raises(KeyError, match="Accompagnement"):
@@ -178,9 +184,11 @@ def test_load_and_tracks():
 
 
 def test_controller_ids_match_reference():
-    ls = load_als(FIX / "gabarit.als").getroot().find("LiveSet")
+    # Michel's reference clip drew CC 11 and CC 16: its PointeeIds must be ControllerTargets.13 / .18
+    ls = load_als(FIX / "reference.als").getroot().find("LiveSet")
     mt = track(ls, "XR18 faders")
-    assert controller_target_id(mt, 11) == "22555" and controller_target_id(mt, 16) == "22560"
+    clip_ids = [e.get("Value") for e in mt.iter("PointeeId")][-2:]
+    assert clip_ids == [controller_target_id(mt, 11), controller_target_id(mt, 16)]
 
 
 def test_save_roundtrip(tmp_path):
@@ -217,7 +225,7 @@ from pathlib import Path
 
 TRACKS = {"accompagnement": "Accompagnement", "clic": "Clic", "guide_voix": "Guide Voix",
           "guitare": "Guitare", "basse": "Basse", "piano": "Piano", "batterie": "Batterie",
-          "video": "Vidéo", "faders": "XR18 faders"}
+          "choeurs": "Chœurs", "video": "Vidéo", "faders": "XR18 faders"}
 
 
 def load_als(path: Path) -> ET.ElementTree:
@@ -275,7 +283,7 @@ git commit -m "karaoke: Ableton fixtures, snippets from Michel's reference set, 
 - Produces:
   - `xair_cc(db: float) -> int`, where `-inf` gives 0;
   - `xair_db(cc: int) -> float`;
-  - `FADER_CC = {"clic": [9], "guide_voix": [10], "guitare": [11], "basse": [12], "piano": [13], "batterie": [14, 15], "accompagnement": [16]}`.
+  - `FADER_CC = {"clic": [9], "guide_voix": [10], "guitare": [11], "basse": [12], "piano": [13], "batterie": [14], "choeurs": [15], "accompagnement": [16]}`.
 - The law is the X32/X-Air fader taper on a 0–1 float `f`, with `f = cc / 127`:
 
 | Range of `f` | dB |
@@ -309,7 +317,8 @@ def test_roundtrip_and_clamp():
 
 def test_fader_map_matches_xr18_plan():
     # XR18 channel n ↔ CC n-1 on MIDI channel 1; AuxLineIn 17-18 ↔ CC 16
-    assert FADER_CC["guitare"] == [11] and FADER_CC["batterie"] == [14, 15] and FADER_CC["accompagnement"] == [16]
+    assert FADER_CC["guitare"] == [11] and FADER_CC["batterie"] == [14] and FADER_CC["choeurs"] == [15]
+    assert FADER_CC["accompagnement"] == [16]
 ```
 
 - [ ] **Step 2: Run to verify failure**
@@ -331,7 +340,7 @@ import math
 
 # Ableton track -> XR18 fader CCs (XR18 channel n = CC n-1; 17/18 = CC 16)
 FADER_CC = {"clic": [9], "guide_voix": [10], "guitare": [11], "basse": [12], "piano": [13],
-            "batterie": [14, 15], "accompagnement": [16]}
+            "batterie": [14], "choeurs": [15], "accompagnement": [16]}
 
 
 def _db_from_f(f: float) -> float:
@@ -379,6 +388,163 @@ git commit -m "karaoke: X Air fader law and XR18 fader map"
 
 ---
 
+### Task 2b: Lead / backing vocal split (`vocals_split` step)
+
+Demucs `htdemucs_6s` has a single `vocals` stem. A dedicated karaoke model splits it into the lead singer and the backing vocals. Partly exploratory (like phase-0 Task 1): install the tool, confirm the model name, time it, and get Michel's judgement by ear on the 4 test songs before relying on it.
+
+**Files:**
+- Create: `karaoke/tools/vocals/pyproject.toml`, `karaoke/src/karaoke/steps/vocals_split.py`, `karaoke/tests/test_vocals_split.py`
+- Modify: `karaoke/src/karaoke/tools.py` (timeout entry), `karaoke/src/karaoke/steps/__init__.py`, `karaoke/tests/test_models_slow.py`
+
+**Interfaces:**
+- Consumes: `stems/vocals.wav` (from `separate`), `run_tool`, `tool_timeout`.
+- Produces:
+  - `VOCALS_SPLIT: Step` named `"vocals_split"`, deps `("ingest", "separate")`;
+  - artifacts `stems/lead.wav` and `stems/backing.wav` (float32, same length as `vocals.wav`);
+  - result `{"model": str, "lead_rms_db": float, "backing_rms_db": float}`;
+  - `pick_outputs(files: list[Path]) -> tuple[Path, Path]` (lead = the file whose name contains `(Vocals)`, backing = the one with `(Instrumental)`; `ValueError` otherwise);
+  - `tool_timeout("vocals", d)`, with `_TIMEOUTS["vocals"] = (300.0, 3.0)`.
+- Model: `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` (run through `audio-separator`). On the vocal stem, its « Vocals » output is the lead and its « Instrumental » output is what is left, i.e. the backing vocals. If `audio-separator --list_models` names it differently, take the karaoke Mel-Band RoFormer listed and record a ruling.
+
+- [ ] **Step 1: Tool env and spike**
+
+`karaoke/tools/vocals/pyproject.toml`:
+
+```toml
+[project]
+name = "karaoke-vocals"
+version = "0.1.0"
+requires-python = "==3.11.*"
+dependencies = ["audio-separator"]
+```
+
+```bash
+cd ~/Documents/mp3-pipeline/karaoke/tools/vocals && uv sync
+uv run audio-separator --list_models | grep -i -E "karaoke|kara"
+K=/Volumes/Hypermnesia/karaoke/travail/005/stems
+mkdir -p /tmp/kv && time uv run audio-separator "$K/vocals.wav" \
+  --model_filename mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
+  --output_dir /tmp/kv --output_format WAV
+ls /tmp/kv
+```
+
+Expected: two WAVs, `…(Vocals)….wav` and `…(Instrumental)….wav`. Record the model name, device (MPS or CPU), wall time for the 197 s song, and output names in `docs/karaoke/phase0-spike.md` (new section). **Michel listens** to both files for 005, 011, 012, 041 before Task 3 relies on them.
+
+- [ ] **Step 2: Write the failing tests**
+
+`karaoke/tests/test_vocals_split.py`:
+
+```python
+from pathlib import Path
+import numpy as np
+import pytest
+from karaoke import audio
+from karaoke.steps import vocals_split as V
+from karaoke.workspace import Workspace
+from conftest import tone
+from test_manifest import song
+
+
+def test_pick_outputs():
+    files = [Path("vocals_(Instrumental)_m.wav"), Path("vocals_(Vocals)_m.wav")]
+    assert V.pick_outputs(files) == (files[1], files[0])
+    with pytest.raises(ValueError):
+        V.pick_outputs([Path("a.wav")])
+
+
+def test_step_moves_outputs_into_stems(cfg, monkeypatch):
+    ws = Workspace(cfg, song())
+    audio.write_wav(ws.stems / "vocals.wav", tone(2.0))
+    def fake_tool(tool, args, **kw):
+        out = Path(args[args.index("--output_dir") + 1])
+        audio.write_wav(out / "vocals_(Vocals)_m.wav", tone(2.0, amp=0.4))
+        audio.write_wav(out / "vocals_(Instrumental)_m.wav", tone(2.0, amp=0.1))
+        assert kw["timeout"] > 0
+    monkeypatch.setattr(V, "run_tool", fake_tool)
+    r = V.VOCALS_SPLIT.run(ws, {"ingest": {"duration_s": 2.0}, "separate": {}})
+    assert (ws.stems / "lead.wav").exists() and (ws.stems / "backing.wav").exists()
+    assert r["lead_rms_db"] > r["backing_rms_db"]
+    assert sorted(p.name for p in V.VOCALS_SPLIT.artifacts(ws)) == ["backing.wav", "lead.wav"]
+```
+
+- [ ] **Step 3: Run to verify failure**
+
+Run: `cd karaoke && uv run pytest tests/test_vocals_split.py -q`
+Expected: FAIL, `ImportError` (no `vocals_split`).
+
+- [ ] **Step 4: Implement**
+
+`karaoke/src/karaoke/steps/vocals_split.py`:
+
+```python
+"""Step `vocals_split` — lead vs backing vocals (karaoke Mel-Band RoFormer via audio-separator).
+
+Inputs:  travail/<id>/stems/vocals.wav (Demucs).
+Outputs: stems/lead.wav (lead singer), stems/backing.wav (backing vocals); result {model, lead_rms_db,
+         backing_rms_db}. On the vocal stem the model's « Vocals » output is the lead and its
+         « Instrumental » output the remainder, i.e. the backing vocals.
+"""
+from __future__ import annotations
+import shutil
+from pathlib import Path
+
+import numpy as np
+
+from karaoke import audio
+from karaoke.runner import Step
+from karaoke.tools import run_tool, tool_timeout
+from karaoke.workspace import Workspace
+
+MODEL = "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt"
+
+
+def pick_outputs(files: list[Path]) -> tuple[Path, Path]:
+    lead = [f for f in files if "(Vocals)" in f.name]
+    backing = [f for f in files if "(Instrumental)" in f.name]
+    if len(lead) != 1 or len(backing) != 1:
+        raise ValueError(f"sorties inattendues de audio-separator : {[f.name for f in files]}")
+    return lead[0], backing[0]
+
+
+def _rms_db(path: Path) -> float:
+    x, _ = audio.read(path)
+    return float(20 * np.log10(np.sqrt((x.astype(np.float64) ** 2).mean()) + 1e-12))
+
+
+def _run(ws: Workspace, upstream: dict) -> dict:
+    tmp = ws.work / "vocals_tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    run_tool("vocals", ["audio-separator", str(ws.stems / "vocals.wav"), "--model_filename", MODEL,
+                        "--output_dir", str(tmp), "--output_format", "WAV"],
+             timeout=tool_timeout("vocals", upstream["ingest"]["duration_s"]))
+    lead, backing = pick_outputs(sorted(tmp.glob("*.wav")))
+    shutil.move(str(lead), ws.stems / "lead.wav")
+    shutil.move(str(backing), ws.stems / "backing.wav")
+    shutil.rmtree(tmp, ignore_errors=True)
+    return {"model": MODEL, "lead_rms_db": _rms_db(ws.stems / "lead.wav"),
+            "backing_rms_db": _rms_db(ws.stems / "backing.wav")}
+
+
+VOCALS_SPLIT = Step(name="vocals_split", deps=("ingest", "separate"), key=lambda ws: MODEL, run=_run,
+                    artifacts=lambda ws: [ws.stems / "lead.wav", ws.stems / "backing.wav"])
+```
+
+In `tools.py` add `"vocals": (300.0, 3.0)` to `_TIMEOUTS`. In `steps/__init__.py` import `VOCALS_SPLIT` and insert it after `BEATS`: `[INGEST, SEPARATE, BEATS, VOCALS_SPLIT, PACKAGE, LYRICS, CHECK, VIDEO]`. In `test_models_slow.py` add `VOCALS_SPLIT` to the real-model run and assert both files exist.
+
+If audio-separator resamples or changes the length, pad or trim `lead`/`backing` to `len(vocals.wav)` in `_run` before saving (the package step requires equal lengths); add that to the test if it happens in the spike.
+
+- [ ] **Step 5: Run tests, commit**
+
+Run: `cd karaoke && uv run pytest -q` (fast), then `KARAOKE_SAMPLE=<a song> uv run pytest -m slow -q`.
+
+```bash
+git add karaoke/tools/vocals karaoke/src/karaoke/steps karaoke/src/karaoke/tools.py karaoke/tests docs/karaoke/phase0-spike.md
+git commit -m "karaoke: lead/backing vocal split step (karaoke Mel-Band RoFormer)"
+```
+
+---
+
 ### Task 3: Package v4 (channel files, fader defaults) and parts grouping
 
 **Files:**
@@ -387,9 +553,10 @@ git commit -m "karaoke: X Air fader law and XR18 fader map"
 **Interfaces:**
 - Consumes: `xair_cc`, `FADER_CC`.
 - Produces:
-  - `package.CHANNEL_FILES = {"guitare": ("guitar", 1), "basse": ("bass", 1), "piano": ("piano", 1), "batterie": ("drums", 2)}` (file stem → (Demucs stem, channels));
+  - `package.CHANNEL_FILES = {"guitare": "guitar", "basse": "bass", "piano": "piano", "batterie": "drums"}` (file stem → Demucs stem; all mono);
+  - PACKAGE deps become `("ingest", "separate", "beats", "vocals_split")`; `guide_voix.flac` = `stems/lead.wav` mono, `choeurs.flac` = `stems/backing.wav` mono (Task 2b);
   - `package.ROUTED = {"vocals", "guitar", "bass", "piano", "drums"}`.
-  - Package result gains `"faders": {"guitare": int, "basse": int, "piano": int, "batterie": int, "accompagnement": int}`. The value is 0 if the part's stem is in `retirer`, else `xair_cc(0.0)`; accompaniment is always `xair_cc(0.0)`. It also gains `"live": [...]` (the parts muted by default).
+  - Package result gains `"faders": {"guitare": int, "basse": int, "piano": int, "batterie": int, "choeurs": int, "accompagnement": int}` (`choeurs` and `accompagnement` always `xair_cc(0.0)`). The value is 0 if the part's stem is in `retirer`, else `xair_cc(0.0)`; accompaniment is always `xair_cc(0.0)`. It also gains `"live": [...]` (the parts muted by default).
   - `accompagnement.flac` = sum of stems not in `ROUTED` (today: `other`), with the same peak protection as before. `pistes/` keeps all 6 stereo stems.
   - `manifest.group_by_partie(songs) -> dict[str, list[Song]]` keeps first-appearance order of parts and manifest order inside each; an empty `partie` becomes `"sans-partie"`.
 
@@ -408,13 +575,13 @@ def test_accompaniment_excludes_all_routed_parts(cfg):
         return spec[np.argmin(np.abs(freqs - f))]
     # stems: vocals 200, drums 300, bass 400, guitar 500, piano 600, other 700 Hz
     assert level(700) > 100 * max(level(200), level(300), level(400), level(500), level(600))
-    g = sf.info(str(ws.out / "guitare.flac"))
-    assert g.channels == 1 and sf.info(str(ws.out / "batterie.flac")).channels == 2
-    assert r["faders"] == {"guitare": 0, "basse": 95, "piano": 95, "batterie": 95, "accompagnement": 95}
+    for f in ("guitare", "basse", "piano", "batterie", "guide_voix", "choeurs"):
+        assert sf.info(str(ws.out / f"{f}.flac")).channels == 1, f
+    assert r["faders"] == {"guitare": 0, "basse": 95, "piano": 95, "batterie": 95, "choeurs": 95, "accompagnement": 95}
     assert r["live"] == ["guitare"]
 ```
 
-Add `"guitare.flac", "basse.flac", "piano.flac", "batterie.flac"` to the expected names in `test_all_files_same_length_and_zero` (both the length loop and the `PACKAGE.artifacts` assertion). Append to `karaoke/tests/test_manifest.py`:
+In `setup()`, also write `ws.stems / "lead.wav"` (tone 800 Hz) and `ws.stems / "backing.wav"` (tone 900 Hz) and add `"vocals_split": {}` to `up`. Add `"guitare.flac", "basse.flac", "piano.flac", "batterie.flac", "choeurs.flac"` to the expected names in `test_all_files_same_length_and_zero` (both the length loop and the `PACKAGE.artifacts` assertion). Append to `karaoke/tests/test_manifest.py`:
 
 ```python
 def test_group_by_partie_keeps_order_and_unassigned():
@@ -436,7 +603,7 @@ In `karaoke/src/karaoke/steps/package.py`: add the constants, import `from karao
 
 ```python
 ROUTED = {"vocals", "guitar", "bass", "piano", "drums"}
-CHANNEL_FILES = {"guitare": ("guitar", 1), "basse": ("bass", 1), "piano": ("piano", 1), "batterie": ("drums", 2)}
+CHANNEL_FILES = {"guitare": "guitar", "basse": "bass", "piano": "piano", "batterie": "drums"}   # all mono
 ```
 
 ```python
@@ -447,10 +614,12 @@ CHANNEL_FILES = {"guitare": ("guitar", 1), "basse": ("bass", 1), "piano": ("pian
     out = ws.out
     (out / "pistes").mkdir(parents=True, exist_ok=True)
     audio.write_flac(out / "accompagnement.flac", _pad(acc * gain, pad, total), sr)
-    audio.write_flac(out / "guide_voix.flac", _pad(stems["vocals"].mean(axis=1), pad, total), sr)
-    for name, (stem, ch) in CHANNEL_FILES.items():
-        data = stems[stem] if ch == 2 else stems[stem].mean(axis=1)
-        audio.write_flac(out / f"{name}.flac", _pad(data, pad, total), sr)
+    lead, _ = audio.read(ws.stems / "lead.wav")
+    backing, _ = audio.read(ws.stems / "backing.wav")
+    audio.write_flac(out / "guide_voix.flac", _pad(lead.mean(axis=1), pad, total), sr)
+    audio.write_flac(out / "choeurs.flac", _pad(backing.mean(axis=1), pad, total), sr)
+    for name, stem in CHANNEL_FILES.items():
+        audio.write_flac(out / f"{name}.flac", _pad(stems[stem].mean(axis=1), pad, total), sr)
     for s in STEMS:
         audio.write_flac(out / "pistes" / f"{s}.flac", _pad(stems[s], pad, total), sr)
 ```
@@ -458,12 +627,12 @@ CHANNEL_FILES = {"guitare": ("guitar", 1), "basse": ("bass", 1), "piano": ("pian
 In the returned dict, replace `"removed": removed` with:
 
 ```python
-            "live": [n for n, (stem, _) in CHANNEL_FILES.items() if stem in ws.song.retirer],
-            "faders": {**{n: (0 if stem in ws.song.retirer else xair_cc(0.0)) for n, (stem, _) in CHANNEL_FILES.items()},
-                       "accompagnement": xair_cc(0.0)},
+            "live": [n for n, stem in CHANNEL_FILES.items() if stem in ws.song.retirer],
+            "faders": {**{n: (0 if stem in ws.song.retirer else xair_cc(0.0)) for n, stem in CHANNEL_FILES.items()},
+                       "choeurs": xair_cc(0.0), "accompagnement": xair_cc(0.0)},
 ```
 
-Delete the now-unused `removed = …` line. Add the four channel files to `_artifacts`. Set `version="4"` with the comment `# 4: channel files for the XR18 plan, accompaniment = other, fader defaults`.
+Delete the now-unused `removed = …` line. Add the five channel files (`guitare, basse, piano, batterie, choeurs`) to `_artifacts`, and `"vocals_split"` to the PACKAGE deps. Set `version="4"` with the comment `# 4: channel files for the XR18 plan, accompaniment = other, fader defaults`.
 
 Update `karaoke/src/karaoke/report.py` if it reads `removed` (it doesn't; check with `grep -n removed karaoke/src`).
 
@@ -571,7 +740,7 @@ def test_midi_clip_targets_and_values():
     mt = track(ls, "XR18 faders")
     ids = {cc: controller_target_id(mt, cc) for cc in (11, 12, 13, 14, 15, 16)}
     c = midi_clip(10.0, 0.5, {"guitare": 0, "batterie": 95, "accompagnement": 95}, ids,
-                  {"guitare": [11], "batterie": [14, 15], "accompagnement": [16]})
+                  {"guitare": [11], "batterie": [14, 15], "accompagnement": [16]})   # one part on two CCs still works
     envs = c.findall("Envelopes/Envelopes/ClipEnvelope")
     targets = {e.find("EnvelopeTarget/PointeeId").get("Value"):
                [ev.get("Value") for ev in e.findall("Automation/Events/FloatEvent")] for e in envs}
@@ -736,7 +905,7 @@ git commit -m "karaoke: Ableton clip and locator builders from reference snippet
 - Produces:
   - `@dataclass SongEntry(id: str, titre: str, folder: Path, faders: dict[str, int])`;
   - `SetError(ValueError)`;
-  - `build_set(template: Path, songs: list[SongEntry], out: Path, gap_s: float = 4.0) -> dict`. It loads the template (fresh each call) and checks every required file exists. Required: `accompagnement.flac, clic.flac, guide_voix.flac, guitare.flac, basse.flac, piano.flac, batterie.flac, paroles.mp4`; any missing raises `SetError` listing song id and file names. For each song, at `t = Σ(previous durations + gap)`, it appends to each track the audio clip of its file, the video clip and a 0.5 s MIDI clip with `faders`, and adds one locator `"<id> <titre>"`. Clip names = file stem; colors kept from the snippet. Locator Ids 0…n−1. It writes `out` and returns `{"songs": n, "duration_s": float, "locators": [names]}`.
+  - `build_set(template: Path, songs: list[SongEntry], out: Path, gap_s: float = 4.0) -> dict`. It loads the template (fresh each call) and checks every required file exists. Required: `accompagnement.flac, clic.flac, guide_voix.flac, guitare.flac, basse.flac, piano.flac, batterie.flac, choeurs.flac, paroles.mp4`; any missing raises `SetError` listing song id and file names. For each song, at `t = Σ(previous durations + gap)`, it appends to each track the audio clip of its file, the video clip and a 0.5 s MIDI clip with `faders`, and adds one locator `"<id> <titre>"`. Clip names = file stem; colors kept from the snippet. Locator Ids 0…n−1. It writes `out` and returns `{"songs": n, "duration_s": float, "locators": [names]}`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -752,16 +921,17 @@ from karaoke.ableton.als import load_als, track, arranger_events
 from karaoke.ableton.build import SongEntry, SetError, build_set
 
 FIX = Path(__file__).parent / "fixtures" / "ableton"
-FILES = ["accompagnement", "clic", "guide_voix", "guitare", "basse", "piano", "batterie"]
+FILES = ["accompagnement", "clic", "guide_voix", "guitare", "basse", "piano", "batterie", "choeurs"]
 
 
 def make_song(root: Path, sid: str, seconds: float) -> SongEntry:
     folder = root / "sortie" / f"{sid}_x"
     for f in FILES:
-        audio.write_flac(folder / f"{f}.flac", np.zeros((int(seconds * 44100), 1 if f in ("clic", "guide_voix", "guitare", "basse", "piano") else 2), np.float32))
+        audio.write_flac(folder / f"{f}.flac", np.zeros((int(seconds * 44100), 2 if f == "accompagnement" else 1), np.float32))
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=black:s=320x180:d={seconds}",
                     "-c:v", "libx264", str(folder / "paroles.mp4")], check=True)
-    return SongEntry(sid, f"Titre {sid} & co", folder, {"guitare": 0, "basse": 95, "piano": 95, "batterie": 95, "accompagnement": 95})
+    return SongEntry(sid, f"Titre {sid} & co", folder,
+                     {"guitare": 0, "basse": 95, "piano": 95, "batterie": 95, "choeurs": 95, "accompagnement": 95})
 
 
 def test_two_songs_layout(tmp_path):
@@ -816,7 +986,7 @@ from karaoke.ableton.als import TRACKS, arranger_events, controller_target_id, l
 from karaoke.ableton.clips import audio_clip, locator, media_info, midi_clip, video_clip
 from karaoke.xair import FADER_CC
 
-AUDIO_FILES = ["accompagnement", "clic", "guide_voix", "guitare", "basse", "piano", "batterie"]
+AUDIO_FILES = ["accompagnement", "clic", "guide_voix", "guitare", "basse", "piano", "batterie", "choeurs"]
 FADER_CLIP_S = 0.5
 
 
@@ -1005,16 +1175,17 @@ uv run karaoke traiter          # package v4 + video rerun; separation reused
 uv run karaoke sets --partie test
 ```
 
-Expected: `sets/test.als`, 4 songs, about 14 min. Every song folder now holds `guitare.flac`, `basse.flac`, `piano.flac`, `batterie.flac`.
+Expected: `sets/test.als`, 4 songs, about 14 min. Every song folder now holds `guitare.flac`, `basse.flac`, `piano.flac`, `batterie.flac`, `choeurs.flac`, and `guide_voix.flac` now contains the lead vocals only.
 
 - [ ] **Step 2: Michel opens the set in Live 12.4.6 and checks (record each answer in `ableton-validation.md`)**
 
 1. The set opens with no error and no « media files missing » prompt. (This tests `OriginalCrc=0`. If Live complains, record the exact message: the fallback is to leave `OriginalCrc` out or let Live rescan, a follow-up ruling.)
 2. 4 locators in the right order and the clips aligned, with each song's video under its audio.
 3. Play from each locator: sound on XR18 channels 10–18 as per the plan, accompaniment on 17–18.
-4. At each song start the XR18 faders jump in X Air: parts in `retirer` at −∞, the others and 17–18 at about 0 dB.
-5. The video window shows the lyrics in sync with the voice; full screen on the projector (spec phase-0 criterion).
-6. Video sync holds across all 4 songs (spec: « tenue de la synchronisation vidéo sur un set de 15 morceaux »; repeat with a 15-song set once the full batch exists).
+4. At each song start the XR18 faders jump in X Air: parts in `retirer` at −∞; the others, Chœurs (16) and 17–18 at about 0 dB.
+5. Lead/backing split by ear: channel 11 has the lead singer only, channel 16 the backing vocals, no lead left in 16 (record per song).
+6. The video window shows the lyrics in sync with the voice; full screen on the projector (spec phase-0 criterion).
+7. Video sync holds across all 4 songs (spec: « tenue de la synchronisation vidéo sur un set de 15 morceaux »; repeat with a 15-song set once the full batch exists).
 
 - [ ] **Step 3: Commit**
 
@@ -1035,5 +1206,5 @@ git commit -m "karaoke: Ableton set validation notes and usage"
 - **Known risk, carried to Task 7:** `OriginalCrc` is Live's private checksum. The plan writes `0`, and Michel's first opening tells us whether Live accepts it.
 - **Decision to confirm with Michel:** click and guide vocal faders are not driven by the set; he sets them once on the console.
 - **Type consistency:**
-  - `faders` keys `guitare/basse/piano/batterie/accompagnement` are used identically in package, `FADER_CC`, `midi_clip`, `SongEntry` and the tests;
+  - `faders` keys `guitare/basse/piano/batterie/choeurs/accompagnement` are used identically in package, `FADER_CC`, `midi_clip`, `SongEntry` and the tests;
   - beats = seconds × 2 everywhere via `BEATS_PER_SECOND`.
