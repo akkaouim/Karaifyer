@@ -1,0 +1,311 @@
+import AppKit
+import CoreAudio
+import AVFAudio
+import SwiftUI
+import SysRecCore
+
+@main
+struct SysRecApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    // A plain stored model rather than @State: the Command Line Tools SDK
+    // implements @State as a macro whose plugin only ships with Xcode.
+    private let model = QueueModel.shared
+
+    var body: some Scene {
+        MenuBarExtra {
+            MenuContent(model: model)
+                .onAppear { delegate.model = model }
+        } label: {
+            Image(systemName: model.isRunning ? "record.circle" : "waveform")
+        }
+
+        Window("SysRec", id: "queue") {
+            QueueView(model: model)
+                .onAppear { delegate.model = model }
+        }
+        .defaultSize(width: 980, height: 600)
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    var model: QueueModel?
+
+    /// Launch flags for unattended runs:
+    ///   --list <csv>  --output <dir>  --start  --quit-when-done
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "--probe-tap") {
+                // Diagnostic: --probe-tap <bundle-prefix|pid> <out-file>
+                // Reports the format a stereo-mixdown tap advertises for a process.
+                let args = Array(ProcessInfo.processInfo.arguments.dropFirst(i + 1))
+                let out = URL(fileURLWithPath: args.count > 1 ? args[1] : "/dev/stdout")
+                var line = "target \(args.first ?? "?"): "
+                var objs: [AudioObjectID] = []
+                if let target = args.first {
+                    if let pid = Int32(target) {
+                        var p = pid; var obj = AudioObjectID.unknown; var size = UInt32(MemoryLayout<AudioObjectID>.size)
+                        var addr = AudioObjectID.system.address(kAudioHardwarePropertyTranslatePIDToProcessObject)
+                        AudioObjectGetPropertyData(.system, &addr, UInt32(MemoryLayout<pid_t>.size), &p, &size, &obj)
+                        if obj != .unknown { objs = [obj] }
+                    } else {
+                        objs = AudioObjectID.processObjects(bundlePrefix: target).map(\.id)
+                    }
+                }
+                let dev = (try? AudioObjectID.defaultOutputDevice()) ?? .unknown
+                let devRate: Double = (try? dev.read(kAudioDevicePropertyNominalSampleRate, default: 0)) ?? 0
+                line += "device \(dev.deviceName) @ \(Int(devRate)) Hz; "
+                if objs.isEmpty {
+                    line += "no audio process found"
+                } else {
+                    let desc = CATapDescription(stereoMixdownOfProcesses: objs)
+                    desc.isPrivate = true
+                    var tap = AudioObjectID.unknown
+                    let st = AudioHardwareCreateProcessTap(desc, &tap)
+                    if st == noErr, let asbd = try? tap.read(kAudioTapPropertyFormat, default: AudioStreamBasicDescription()) {
+                        line += "tap reports \(Int(asbd.mSampleRate)) Hz, \(asbd.mChannelsPerFrame) ch"
+                        AudioHardwareDestroyProcessTap(tap)
+                    } else {
+                        line += "tap creation failed (\(st))"
+                    }
+                }
+                try? (line + "\n").write(to: out, atomically: true, encoding: .utf8)
+                exit(0)
+            }
+            if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "--scan-glitches") {
+                // Diagnostic: report glitches in existing files, then quit.
+                for path in ProcessInfo.processInfo.arguments.dropFirst(i + 1) {
+                    let url = URL(fileURLWithPath: path)
+                    if let f = try? AVAudioFile(forReading: url),
+                       let g = try? PostProcess.dropouts(in: url, range: (0, Int(f.length)), sampleRate: f.fileFormat.sampleRate) {
+                        print("\(url.lastPathComponent): \(g.isEmpty ? "no glitches" : g.map { String(format: "%.3fs (%.1f ms)", $0.at, $0.ms) }.joined(separator: ", "))")
+                    } else {
+                        print("\(url.lastPathComponent): unreadable")
+                    }
+                }
+                exit(0)
+            }
+            let model = QueueModel.shared
+            self.model = model
+            let args = ProcessInfo.processInfo.arguments
+            func value(_ flag: String) -> String? {
+                args.firstIndex(of: flag).flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
+            }
+            if let out = value("--output") {
+                model.persistOutputRoot = false // one-off; don't change the saved folder
+                model.outputRoot = URL(fileURLWithPath: out)
+            }
+            if let list = value("--list") {
+                do { try model.load(url: URL(fileURLWithPath: list)) }
+                catch { print("SysRec: couldn't load \(list): \(error)") }
+            }
+            model.quitWhenDone = args.contains("--quit-when-done")
+            if args.contains("--silent") { model.silentOverride = true }
+            if args.contains("--start") { model.start() }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { model?.shutdown() }
+    }
+}
+
+struct MenuContent: View {
+    @Bindable var model: QueueModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        if let row = model.currentRow {
+            Text("Row \(row.number) · \(timecode(model.positionSec)) / \(timecode(model.durationSec))")
+            Text(model.states[row.index]?.note ?? row.title)
+        } else if let banner = model.banner {
+            Text(banner)
+        }
+        let c = model.counts
+        Text("\(c.done)/\(c.total) done" + (c.failed > 0 ? " · \(c.failed) failed" : ""))
+        Divider()
+        Button("Open Queue…") {
+            openWindow(id: "queue")
+            NSApp.activate()
+        }
+        if model.isRunning {
+            Button("Skip Track") { model.skipCurrent() }
+            if model.stopRequested {
+                Button("Stopping After This Track…") {}.disabled(true)
+            } else {
+                Button("Stop After This Track") { model.stopAfterThisTrack() }
+            }
+            Button("Stop Now") { model.stopNow() }
+        } else {
+            Button("Start Batch") { model.start() }
+                .disabled(model.rows.isEmpty)
+        }
+        Toggle("Also save MP3 (320 kbps)", isOn: $model.makeMP3)
+        Button("Open Output Folder") { openFolder(model.listDir) }
+        Divider()
+        Button("Quit SysRec") { NSApp.terminate(nil) }
+            .keyboardShortcut("q")
+    }
+}
+
+struct QueueView: View {
+    @Bindable var model: QueueModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            Table(model.rows) {
+                TableColumn("#") { Text($0.number).monospacedDigit() }.width(36)
+                TableColumn("Titre") { Text($0.title) }
+                TableColumn("Artiste") { Text($0.artist) }
+                TableColumn("Proposé par") { Text($0.proposer) }.width(min: 80, ideal: 140)
+                TableColumn("Status") { row in
+                    let st = model.states[row.index] ?? RowState()
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(st.status.label).foregroundStyle(color(st.status))
+                        if let note = st.note, st.status != .recording {
+                            Text(note).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .help(st.note ?? "")
+                }
+                .width(min: 120, ideal: 220)
+                TableColumn("File") { row in
+                    if let f = model.states[row.index]?.file {
+                        Button(f.lastPathComponent) { NSWorkspace.shared.activateFileViewerSelecting([f]) }
+                            .buttonStyle(.link)
+                    }
+                }
+            }
+            Divider()
+            footer
+        }
+        .frame(minWidth: 760, minHeight: 360)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button("Load List…", action: loadList).disabled(model.isRunning)
+                Text(model.listURL?.lastPathComponent ?? "No list loaded").foregroundStyle(.secondary)
+                Spacer()
+                if model.isRunning {
+                    Button("Skip") { model.skipCurrent() }
+                    if model.stopRequested {
+                        Button("Stopping after this track…") {}.disabled(true)
+                    } else {
+                        Button("Stop After Track") { model.stopAfterThisTrack() }
+                    }
+                    Button("Stop Now", role: .destructive) { model.stopNow() }
+                } else {
+                    Button("Retry Failed") { model.retryFailed() }
+                        .disabled(model.counts.failed == 0)
+                    Button("Start") { model.start() }
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(model.rows.isEmpty)
+                }
+            }
+            HStack(spacing: 16) {
+                Toggle("Also save MP3 (320 kbps)", isOn: $model.makeMP3)
+                Toggle("Subfolder per “proposé par”", isOn: $model.groupByProposer).disabled(model.isRunning)
+                Toggle("Switch output to 44.1 kHz while recording", isOn: $model.matchSpotifyRate).disabled(model.isRunning)
+                    .help("Spotify streams at 44.1 kHz. Recording at the same rate avoids a resampling step.")
+                Spacer()
+            }
+            .toggleStyle(.checkbox)
+            HStack {
+                Toggle("Silent recording via BlackHole (44.1 kHz, no resampling)", isOn: $model.silentViaBlackHole)
+                    .disabled(model.isRunning)
+                    .help("During a batch, macOS output is switched to BlackHole at 44.1 kHz, so each file is exactly Spotify's stream with no conversion. It switches the output for the whole Mac (calls and other apps go silent too), and your normal output comes back when the batch ends. Don't switch the output by hand during the batch: SysRec would stop.")
+                if model.silentViaBlackHole {
+                    Text("All Mac audio goes silent while recording (not for use during calls).").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .toggleStyle(.checkbox)
+            HStack {
+                Text("Output:").foregroundStyle(.secondary)
+                Button(model.listDir.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")) { openFolder(model.listDir) }
+                    .buttonStyle(.link)
+                Button("Change…", action: chooseOutput).disabled(model.isRunning)
+                Spacer()
+            }
+        }
+        .padding(12)
+    }
+
+    private var footer: some View {
+        HStack {
+            if let row = model.currentRow {
+                Text("Row \(row.number)").bold()
+                ProgressView(value: min(model.positionSec, model.durationSec), total: max(model.durationSec, 1))
+                    .frame(width: 200)
+                Text("\(timecode(model.positionSec)) / \(timecode(model.durationSec))").monospacedDigit()
+            }
+            if let banner = model.banner {
+                Text(banner).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer()
+            let c = model.counts
+            Text("\(c.done)/\(c.total) done" + (c.failed > 0 ? " · \(c.failed) failed" : ""))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private func color(_ s: RowStatus) -> Color {
+        switch s {
+        case .done: return .green
+        case .failed: return .red
+        case .recording: return .red
+        case .encoding, .waiting: return .orange
+        default: return .secondary
+        }
+    }
+
+    private func loadList() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.commaSeparatedText, .plainText, .text]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do { try model.load(url: url) } catch { model.banner = "Couldn't read list: \(error.localizedDescription)" }
+    }
+
+    private func chooseOutput() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = model.outputRoot
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let oldListDir = model.listDir
+        model.persistOutputRoot = true
+        model.outputRoot = url
+        let existing = model.recordedFiles(in: oldListDir)
+        guard !existing.isEmpty, oldListDir.standardizedFileURL != model.listDir.standardizedFileURL else { return }
+        let alert = NSAlert()
+        alert.messageText = "Move \(existing.count) recorded file\(existing.count == 1 ? "" : "s") to the new folder?"
+        alert.informativeText = "Rows already recorded in the old folder count as done only if their files are in the output folder.\n\nFrom: \(oldListDir.path)\nTo: \(model.listDir.path)"
+        alert.addButton(withTitle: "Move Files")
+        alert.addButton(withTitle: "Leave Them")
+        if alert.runModal() == .alertFirstButtonReturn {
+            do {
+                let n = try model.moveRecordings(from: oldListDir)
+                model.banner = "Moved \(n) file\(n == 1 ? "" : "s") to \(model.listDir.path)."
+            } catch {
+                model.banner = "Couldn't move files: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+func timecode(_ s: Double) -> String {
+    let t = max(0, Int(s))
+    return String(format: "%d:%02d", t / 60, t % 60)
+}
+
+func openFolder(_ url: URL) {
+    try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    NSWorkspace.shared.open(url)
+}

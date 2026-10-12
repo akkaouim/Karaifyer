@@ -1,0 +1,12 @@
+# SwiftPM build output and the assembled app bundle
+.build/
+SysRec.app/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Signing material must never be committed
+*.p12
+*.pem
+*.cer
