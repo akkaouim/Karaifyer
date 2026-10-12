@@ -10,3 +10,11 @@ SysRec.app/
 *.p12
 *.pem
 *.cer
+
+# Agent workflow scratch (plans ledgers)
+.superpowers/
+# Python
+karaoke/.venv/
+karaoke/tools/*/.venv/
+__pycache__/
+.pytest_cache/
