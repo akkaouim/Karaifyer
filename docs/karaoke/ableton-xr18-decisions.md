@@ -24,7 +24,7 @@ Input for the Ableton plan. Agreed with Michel; they amend the « Intégration A
 | 13 | Bass stem, mono | Ableton (USB) |
 | 14 | Piano stem, mono | Ableton (USB) |
 | 15 | Drums stem, **mono** (changed 2026-10-13) | Ableton (USB) |
-| 16 | **Backing vocals** (« Chœurs »), mono (changed 2026-10-13) | Ableton (USB) |
+| 16 | **Backing vocals** (« Back Vocals »), mono (changed 2026-10-13) | Ableton (USB) |
 | 17–18 | **Accompaniment, stereo** (aux pair; was « reserved ») | Ableton (USB) |
 
 The click (10) and guide vocal (11) go to the musicians' monitor sends only, never to the front of house (spec).
@@ -34,8 +34,8 @@ The click (10) and guide vocal (11) go to the musicians' monitor sends only, nev
 - **Drums are mono**, on channel 15 only. The separated drums are nearly mono anyway (Danser L/R correlation 0.99), and this frees channel 16.
 - **Vocals are split into lead and backing** by a second model (karaoke Mel-Band RoFormer) applied to the Demucs vocal stem:
   - the lead goes to the guide vocal (11, in-ears only);
-  - the backing vocals go to channel 16, « Chœurs », at normal level in the room.
-- **Template edits by Michel:** Batterie output → 15 (mono); new audio track « Chœurs » → output 16 (mono). On the XR18, channels 15 and 16 are unlinked, mono, source USB.
+  - the backing vocals go to channel 16, « Back Vocals », at normal level in the room.
+- **Template edits by Michel:** Batterie output → 15 (mono); new audio track « Back Vocals » → output 16 (mono). On the XR18, channels 15 and 16 are unlinked, mono, source USB.
 
 ## Parts: extracted, not removed
 
