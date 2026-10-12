@@ -6,5 +6,6 @@ from karaoke.steps.ingest import INGEST
 from karaoke.steps.lyrics import LYRICS
 from karaoke.steps.package import PACKAGE
 from karaoke.steps.separate import SEPARATE
+from karaoke.steps.video import VIDEO
 
-STEPS: list[Step] = [INGEST, SEPARATE, BEATS, PACKAGE, LYRICS, CHECK]
+STEPS: list[Step] = [INGEST, SEPARATE, BEATS, PACKAGE, LYRICS, CHECK, VIDEO]
