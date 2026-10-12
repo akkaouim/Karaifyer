@@ -10,7 +10,8 @@ FIX = Path(__file__).parent / "fixtures" / "ableton"
 def test_load_and_tracks():
     ls = load_als(FIX / "gabarit.als").getroot().find("LiveSet")
     # tracks are found by name; Michel may order them as he likes
-    assert sorted(t.find("Name/EffectiveName").get("Value") for t in ls.find("Tracks")) == sorted(TRACKS.values())
+    names = {t.find("Name/EffectiveName").get("Value") for t in ls.find("Tracks")}
+    assert set(TRACKS.values()) <= names and "Auto stop" in names     # Michel's template (2026-10-13)
     assert len(arranger_events(track(ls, "Accompagnement"))) == 0
     assert arranger_events(track(ls, "XR18 faders")).tag == "Events"
     with pytest.raises(KeyError, match="Accompagnement"):

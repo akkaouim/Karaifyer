@@ -111,16 +111,16 @@ def test_cli_sets_refuses_unprocessed_song(tmp_path, monkeypatch):
 
 
 def template_with_auto_stop(tmp_path) -> Path:
-    """The fixture template plus a MIDI track named « Auto stop » (as Michel will add it)."""
-    import copy
+    """Michel's template already has the « Auto stop » MIDI track (since 2026-10-13)."""
+    return FIX / "gabarit.als"
+
+
+def template_without_auto_stop(tmp_path) -> Path:
     from karaoke.ableton.als import save_als
     tree = load_als(FIX / "gabarit.als")
-    ls = tree.getroot().find("LiveSet")
-    stop = copy.deepcopy(track(ls, "XR18 faders"))
-    stop.find("Name/EffectiveName").set("Value", "Auto stop")
-    stop.find("Name/UserName").set("Value", "Auto stop")
-    ls.find("Tracks").append(stop)
-    out = tmp_path / "gabarit_auto_stop.als"
+    tracks = tree.getroot().find("LiveSet/Tracks")
+    tracks.remove(track(tree.getroot().find("LiveSet"), "Auto stop"))
+    out = tmp_path / "gabarit_sans_auto_stop.als"
     save_als(tree, out)
     return out
 
@@ -141,7 +141,7 @@ def test_auto_stop_clip_at_song_end(tmp_path):
 
 
 def test_missing_auto_stop_track_only_warns(tmp_path):
-    r = build_set(FIX / "gabarit.als", [make_song(tmp_path, "001", 4.0)], tmp_path / "sets" / "001.als")
+    r = build_set(template_without_auto_stop(tmp_path), [make_song(tmp_path, "001", 4.0)], tmp_path / "sets" / "001.als")
     assert any("Auto stop" in w for w in r["warnings"])
 
 
@@ -156,3 +156,13 @@ def test_cli_apprendre_stop_sends_cc119_on_iac(monkeypatch):
     assert r.exit_code == 0, r.output
     assert seen["tool"] == "midi" and "--cc" in seen["args"] and seen["args"][seen["args"].index("--cc") + 1] == "119"
     assert "Stop" in r.output
+
+
+def test_generated_set_starts_at_zero_and_keeps_stop_mapping(tmp_path):
+    # Michel saved the template with the playhead at beat 103: generated sets must open at 0.
+    out = tmp_path / "sets" / "001.als"
+    r = build_set(FIX / "gabarit.als", [make_song(tmp_path, "001", 4.0)], out)
+    ls = load_als(out).getroot().find("LiveSet")
+    assert ls.find("Transport/CurrentTime").get("Value") == "0"
+    assert ls.find("Transport/StopKeyMidi/NoteOrController").get("Value") == "119"
+    assert r["warnings"] == []                                     # the template now has « Auto stop »

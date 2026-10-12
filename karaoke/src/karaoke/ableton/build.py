@@ -49,6 +49,8 @@ def build_set(template: Path, songs: list[SongEntry], out: Path, gap_s: float = 
     _check(songs)
     tree = load_als(template)
     ls = tree.getroot().find("LiveSet")
+    # The template may have been saved with the playhead mid-arrangement: open every set at 0.
+    ls.find("Transport/CurrentTime").set("Value", "0")
     events = {k: arranger_events(track(ls, name)) for k, name in TRACKS.items()}
     faders_track = track(ls, TRACKS["faders"])
     target_ids = {cc: controller_target_id(faders_track, cc) for ccs in FADER_CC.values() for cc in ccs}
