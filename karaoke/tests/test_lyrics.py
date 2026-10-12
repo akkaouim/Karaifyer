@@ -12,7 +12,7 @@ UP = {"ingest": {"offset_s": 0.5}, "separate": {}}
 def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009"):
     monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: result)
     calls = []
-    def fake_align(vocals, lines, language, work):
+    def fake_align(vocals, lines, language, work, duration_s=600.0):
         calls.append(lines)
         return aligned or [(1.0 + i, 0.9) for i in range(len(lines))]
     monkeypatch.setattr(L, "align_lines", fake_align)
@@ -69,3 +69,39 @@ def test_key_changes_when_user_text_appears(cfg):
     k1 = L.LYRICS.key(ws)
     (cfg.paroles / "012.txt").write_text("x", encoding="utf-8")
     assert L.LYRICS.key(ws) != k1
+
+
+def test_alignment_job_has_plain_spaces_only(cfg, monkeypatch, tmp_path):
+    # Review: str.split() splits on U+00A0/U+202F but WhisperX only on " ", so word counts
+    # drifted after every non-breaking space (common in French: « reviendras-tu ? »).
+    import json as _json
+    seen = {}
+    def fake_tool(tool, args, **kw):
+        job = _json.loads(open(args[2], encoding="utf-8").read())
+        seen.update(job)
+        _json.dump({"starts": [1.0] * len(job["lines"]), "scores": [1.0] * len(job["lines"])}, open(args[3], "w"))
+    monkeypatch.setattr(L, "run_tool", fake_tool)
+    L.align_lines(tmp_path / "v.wav", ["Dis, quand reviendras-tu ?", "un deux   trois"], "fr", tmp_path)
+    assert seen["lines"] == ["Dis, quand reviendras-tu ?", "un deux trois"]
+
+
+def test_corrected_output_lrc_copied_back_keeps_its_timing(cfg, monkeypatch):
+    # Review: Michel corrects sortie/.../paroles.lrc (show time, count-in included) and copies it
+    # to paroles/<id>.lrc. The tag written by the pipeline says how to shift it back.
+    r, _ = run(cfg, monkeypatch, LrclibResult(False, False, None, None),
+               files={"009.lrc": "[karaoke:decalage=4.780]\n[00:18.70]Ligne corrigée\n"})
+    assert r["source"] == "fichier-lrc" and r["lines"][0]["t"] == pytest.approx(18.70 - 4.78)
+
+
+def test_offline_uses_supplied_text(cfg, monkeypatch):
+    # Review: the spec says everything except the LRCLIB request works offline; a supplied
+    # paroles/<id>.txt must not stay blocked behind an unreachable LRCLIB.
+    def offline(*a, **k):
+        raise StepRetry("offline")
+    monkeypatch.setattr(lrclib, "fetch", offline)
+    calls = []
+    monkeypatch.setattr(L, "align_lines", lambda v, lines, lang, work, d=600.0: calls.append(lines) or
+                        [(1.0 + i, 0.9) for i in range(len(lines))])
+    (cfg.paroles / "013.txt").write_text("A\nB\n", encoding="utf-8")
+    r = L.LYRICS.run(Workspace(cfg, song(id="013")), UP)
+    assert r["source"] == "texte-fourni+alignement" and calls == [["A", "B"]]

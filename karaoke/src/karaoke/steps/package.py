@@ -71,4 +71,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 
 
 PACKAGE = Step(name="package", deps=("ingest", "separate", "beats"), key=_key, run=_run, artifacts=_artifacts,
-               version="2")   # 2: tempo variation measured over 16-beat spans
+               version="3")   # 3: count-in before the first detected beat, every beat clicked

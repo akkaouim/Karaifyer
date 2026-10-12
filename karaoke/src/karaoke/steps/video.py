@@ -20,8 +20,8 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     ends = {round(l["t"], 3): l["end"] for l in upstream["check"]["lines"]}
     timed = [(l["t"] + pad, ends.get(round(l["t"], 3), l["t"] + 3.0) + pad, l["text"]) for l in lines]
     ws.out.mkdir(parents=True, exist_ok=True)
-    (ws.out / "paroles.lrc").write_text(lrc.format([lrc.Line(round(s, 3), t) for s, _, t in timed]),
-                                        encoding="utf-8")
+    (ws.out / "paroles.lrc").write_text(lrc.format([lrc.Line(round(s, 3), t) for s, _, t in timed],
+                                                   decalage=pad), encoding="utf-8")
     states = build_states(timed, pad, total, ws.song.titre, ws.song.artiste)
     render_video(states, ws.out / "paroles.mp4", ws.work / "frames")
     return {"duration_s": total, "states": len(states)}
@@ -29,4 +29,5 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 
 VIDEO = Step(name="video", deps=("package", "lyrics", "check"),
              key=lambda ws: f"{ws.song.titre}|{ws.song.artiste}", run=_run,
-             artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4"])
+             artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4"],
+             version="2")   # 2: paroles.lrc carries its [karaoke:decalage] tag

@@ -13,7 +13,9 @@ def main(job_path: str, out_path: str) -> None:
     job = json.load(open(job_path))
     audio = whisperx.load_audio(job["audio"])          # 16 kHz mono float32
     model, meta = whisperx.load_align_model(language_code=job["language"], device="cpu")
-    lines = [l.strip() for l in job["lines"]]
+    # Collapse all whitespace (incl. non-breaking spaces) to " ", the only word separator
+    # WhisperX uses, so our per-line word counts match its word segments.
+    lines = [" ".join(l.split()) for l in job["lines"]]
     words_per_line = [len(l.split()) for l in lines]
     text = " ".join(l for l in lines if l)
     dur = len(audio) / 16000.0

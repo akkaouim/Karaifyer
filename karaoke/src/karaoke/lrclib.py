@@ -55,8 +55,7 @@ def fetch(titre: str, artiste: str, album: str, duree_s: float, client: httpx.Cl
                                     "duration": int(round(duree_s))}, sleep)
     if r.status_code == 200:
         return _result(r.json())
-    if r.status_code != 404:
-        raise StepRetry(f"LRCLIB HTTP {r.status_code}")
+    # Any other 4xx (404 not found, 400/422 e.g. empty album): fall back to search.
     s = _get(c, f"{BASE}/api/search", {"track_name": titre, "artist_name": artiste}, sleep)
     if s.status_code != 200:
         raise StepRetry(f"LRCLIB recherche HTTP {s.status_code}")

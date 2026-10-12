@@ -57,13 +57,15 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
         if wanted and s.id not in wanted:
             continue
         ws = Workspace(cfg, s)
+        ws.adopt_previous_folder()
         typer.echo(f"▶ {s.id} {s.artiste} – {s.titre}")
         res = run_song(ws, STEPS, force=_csv_set(forcer) or set(), only={etape} if etape else None)
         rep = song_report(s, res)
         ws.out.mkdir(parents=True, exist_ok=True)
         (ws.out / "rapport.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
         typer.echo("   " + "  ".join(f"{n}:{r['status']}" for n, r in res.items()) + f"  → {rep['statut']}")
-    write_global(load_reports(cfg.sortie), cfg.home / "rapport.csv", cfg.home / "rapport.html")
+    write_global(load_reports(cfg.sortie, [Workspace(cfg, s).out for s in songs]),
+                 cfg.home / "rapport.csv", cfg.home / "rapport.html")
     typer.echo(f"Rapport : {cfg.home / 'rapport.html'}")
 
 
@@ -71,5 +73,7 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
 def rapport() -> None:
     """Reconstruit le rapport global depuis les rapport.json existants."""
     cfg = Config.load()
-    write_global(load_reports(cfg.sortie), cfg.home / "rapport.csv", cfg.home / "rapport.html")
+    songs = read_manifest(cfg.manifest)
+    write_global(load_reports(cfg.sortie, [Workspace(cfg, s).out for s in songs]),
+                 cfg.home / "rapport.csv", cfg.home / "rapport.html")
     typer.echo(f"Rapport : {cfg.home / 'rapport.html'}")

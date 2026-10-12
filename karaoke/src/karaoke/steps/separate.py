@@ -10,7 +10,7 @@ import shutil
 
 from karaoke.manifest import STEMS
 from karaoke.runner import Step
-from karaoke.tools import run_tool
+from karaoke.tools import run_tool, tool_timeout
 from karaoke.workspace import Workspace
 
 
@@ -19,7 +19,8 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     tmp = ws.work / "demucs_tmp"
     shutil.rmtree(tmp, ignore_errors=True)
     run_tool("separate", ["demucs", "-n", "htdemucs_6s", "-d", device, "--float32", "-o", str(tmp),
-                          "--filename", "{stem}.{ext}", str(ws.work / "input.wav")])
+                          "--filename", "{stem}.{ext}", str(ws.work / "input.wav")],
+             timeout=tool_timeout("separate", upstream["ingest"]["duration_s"]))
     ws.stems.mkdir(parents=True, exist_ok=True)
     for stem in STEMS:
         shutil.move(str(tmp / "htdemucs_6s" / f"{stem}.wav"), ws.stems / f"{stem}.wav")

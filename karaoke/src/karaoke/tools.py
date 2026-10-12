@@ -6,6 +6,15 @@ from pathlib import Path
 
 TOOLS_DIR = Path(__file__).resolve().parents[2] / "tools"
 
+# Timeout = base + factor × song duration. Measured in phase 0 (M1 Pro): separate ≈ 0.15×,
+# align ≈ 0.12×, beats ≈ 0.02× real time; these leave ~10× headroom for a cold model load.
+_TIMEOUTS = {"separate": (300.0, 3.0), "beats": (120.0, 1.0), "align": (300.0, 3.0)}
+
+
+def tool_timeout(tool: str, duration_s: float) -> float:
+    base, factor = _TIMEOUTS[tool]
+    return base + factor * max(0.0, duration_s)
+
 
 class ToolError(RuntimeError):
     def __init__(self, tool: str, code: int, stderr: str):
@@ -18,8 +27,11 @@ def run_tool(tool: str, args: list[str], env: dict | None = None,
     project = TOOLS_DIR / tool
     full_env = {**os.environ, "PYTORCH_ENABLE_MPS_FALLBACK": "1", **(env or {})}
     full_env.pop("VIRTUAL_ENV", None)   # don't let the main env leak into the tool's
-    proc = subprocess.run(["uv", "run", "--project", str(project), *args],
-                          cwd=project, env=full_env, capture_output=True, text=True, timeout=timeout)
+    try:
+        proc = subprocess.run(["uv", "run", "--project", str(project), *args],
+                              cwd=project, env=full_env, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        raise ToolError(tool, -1, f"timeout after {e.timeout:.0f} s") from e
     if proc.returncode != 0:
         raise ToolError(tool, proc.returncode, proc.stderr)
     return proc

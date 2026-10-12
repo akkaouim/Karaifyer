@@ -8,14 +8,15 @@ import json
 import os
 
 from karaoke.runner import Step
-from karaoke.tools import TOOLS_DIR, run_tool
+from karaoke.tools import TOOLS_DIR, run_tool, tool_timeout
 from karaoke.workspace import Workspace
 
 
 def _run(ws: Workspace, upstream: dict) -> dict:
     out = ws.work / "beats.json"
     run_tool("beats", ["python", str(TOOLS_DIR / "beats" / "beats_tool.py"), str(ws.work / "input.wav"),
-                       str(out), "--device", os.environ.get("KARAOKE_DEVICE", "mps")])
+                       str(out), "--device", os.environ.get("KARAOKE_DEVICE", "mps")],
+             timeout=tool_timeout("beats", upstream["ingest"]["duration_s"]))
     data = json.loads(out.read_text())
     if len(data["beats"]) < 8:
         raise ValueError(f"trop peu de temps détectés ({len(data['beats'])})")

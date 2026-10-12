@@ -3,6 +3,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+# Tag written into the show-time paroles.lrc: seconds to subtract to get back to the
+# trimmed input's timeline. A supplied file carrying it is read in show time.
+DECALAGE = re.compile(r"\[karaoke:decalage=([0-9.]+)\]")
 STAMP = re.compile(r"\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]")
 SECTION = re.compile(r"^\s*\[[^\]]*\]\s*$")
 
@@ -29,11 +32,17 @@ def parse(text: str) -> list[Line]:
     return sorted(out, key=lambda l: l.t)
 
 
-def format(lines: list[Line]) -> str:
+def show_offset(text: str) -> float | None:
+    m = DECALAGE.search(text)
+    return float(m.group(1)) if m else None
+
+
+def format(lines: list[Line], decalage: float | None = None) -> str:
     def stamp(t: float) -> str:
         cs = int(round(t * 100))
         return f"[{cs // 6000:02d}:{(cs // 100) % 60:02d}.{cs % 100:02d}]"
-    return "".join(f"{stamp(l.t)}{l.text}\n" for l in lines)
+    head = f"[karaoke:decalage={decalage:.3f}]\n" if decalage is not None else ""
+    return head + "".join(f"{stamp(l.t)}{l.text}\n" for l in lines)
 
 
 def shift(lines: list[Line], delta: float) -> list[Line]:

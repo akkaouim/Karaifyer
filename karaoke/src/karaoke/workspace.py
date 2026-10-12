@@ -29,6 +29,15 @@ class Workspace:
         self.stems = self.work / "stems"
         self.work.mkdir(parents=True, exist_ok=True)
 
+    def adopt_previous_folder(self) -> None:
+        """If the song's title/artist changed, rename its existing show folder instead of
+        starting a second one (keeps one folder per id)."""
+        if self.out.exists():
+            return
+        previous = [p for p in self.cfg.sortie.glob(f"{self.song.id}_*") if p.is_dir()]
+        if len(previous) == 1:
+            previous[0].rename(self.out)
+
     def marker(self, step: str) -> Path:
         # Markers live in their own folder so they never collide with a step's artifacts
         # (the beats tool writes travail/<id>/beats.json).

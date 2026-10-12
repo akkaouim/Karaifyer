@@ -73,7 +73,10 @@ def run_song(ws: Workspace, steps: list[Step], force: set[str] = frozenset(),
         if any(d in forced for d in step.deps):
             forced.add(step.name)
         marker = ws.read_marker(step.name)
-        up_to_date = marker is not None and marker.get("key") == key
+        # Up to date = same key AND every declared artifact still on disk (a deleted
+        # show folder or stems folder must be regenerated, not reported as done).
+        up_to_date = (marker is not None and marker.get("key") == key
+                      and all(p.exists() for p in step.artifacts(ws)))
         selected = only is None or step.name in only
         if not step.always and (not selected or (up_to_date and step.name not in forced)):
             if up_to_date:
@@ -82,6 +85,9 @@ def run_song(ws: Workspace, steps: list[Step], force: set[str] = frozenset(),
                 out[step.name] = _entry("bloque", error="étape non sélectionnée et pas à jour")
             continue
         upstream = {d: out[d]["result"] for d in step.deps}
+        # Drop the old marker first: an interrupted rerun (Ctrl-C, full disk) leaves
+        # half-written outputs that must not be mistaken for a finished step.
+        ws.marker(step.name).unlink(missing_ok=True)
         try:
             ws.log(f"début {step.name}")
             result = step.run(ws, upstream)

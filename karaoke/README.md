@@ -18,9 +18,13 @@ uv run karaoke rapport                       # rapport.csv / rapport.html triés
 Pistes (colonne `retirer`) : `drums, bass, guitar, piano, other` (la voix est toujours retirée).
 
 **Paroles manquantes ou à corriger.** Déposer dans `$KARAOKE_HOME/paroles/` :
-`<id>.txt` (texte brut, aligné automatiquement sur la voix) ou `<id>.lrc` (déjà
-synchronisé sur l'enregistrement d'origine, prioritaire sur tout le reste). La relance
-refait automatiquement les paroles et la vidéo de ce morceau.
+- `<id>.txt` : texte brut, aligné automatiquement sur la voix (marche aussi hors ligne) ;
+- `<id>.lrc` : paroles synchronisées, prioritaires sur tout le reste. Pour corriger un
+  calage, copier `sortie/<dossier>/paroles.lrc`, le corriger, et le déposer sous ce nom :
+  sa ligne `[karaoke:decalage=…]` (à garder) indique qu'il est déjà au temps du spectacle.
+  Un `.lrc` sans cette ligne est lu au temps de l'enregistrement d'origine (comme LRCLIB).
+
+La relance refait automatiquement les paroles et la vidéo de ce morceau.
 
 **Statuts du rapport.** `ok`, `alerte` (à vérifier en priorité : tempo instable,
 paroles absentes ou mal calées, dérive du clic), `a_reessayer` (LRCLIB injoignable :

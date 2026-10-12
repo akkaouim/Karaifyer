@@ -82,3 +82,12 @@ def test_query_is_nfc():
         return httpx.Response(200, json={"syncedLyrics": "[00:01.00]a"})
     fetch(unicodedata.normalize("NFD", "Danser"), unicodedata.normalize("NFD", "Loïc Nottet"), "A", 196, client(h))
     assert seen["artist_name"] == "Loïc Nottet"
+
+
+def test_any_4xx_on_get_falls_back_to_search():
+    # Review: a 400/422 (e.g. empty album from tags) must not mean "retry forever".
+    def h(req):
+        if req.url.path == "/api/get":
+            return httpx.Response(400, json={"message": "bad album"})
+        return httpx.Response(200, json=[{"duration": 100, "syncedLyrics": "[00:01.00]a"}])
+    assert fetch("t", "a", "", 100, client(h)).synced == "[00:01.00]a"

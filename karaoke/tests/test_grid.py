@@ -77,3 +77,18 @@ def test_tempo_ignores_20ms_frame_quantization():
     q = [round(t / 0.02) * 0.02 + j for t, j in zip(b, jitter)]
     s = tempo_stats(q)
     assert s["stable"] and s["variation_pct"] < 2.0 and s["bpm"] == pytest.approx(143, abs=0.5)
+
+
+def test_countin_goes_before_first_beat_even_when_first_downbeat_is_late():
+    # Review: beats from 0.5 s but first downbeat detected at 12.5 s. The spec wants the
+    # count-in before the song (silent accompaniment) and every detected beat clicked.
+    p = 0.5
+    beats = [0.5 + i * p for i in range(60)]
+    downbeats = [t for t in beats if t >= 12.5][::4]
+    plan = countin_plan(beats, downbeats, n_bars=2)
+    assert plan.pad_s == pytest.approx(3.5, abs=1 / 44100)
+    assert max(plan.times_in) < beats[0] and plan.times_in[-1] == pytest.approx(beats[0] - p)
+    assert plan.accents == [True, False, False, False] * 2      # 0.5 s is a bar start (6 bars before 12.5)
+    ev = click_events(plan, beats, downbeats)
+    assert len(ev) == 8 + len(beats)
+    assert [a for t, a in ev if abs(t - (12.5 + plan.pad_s)) < 1e-6] == [True]

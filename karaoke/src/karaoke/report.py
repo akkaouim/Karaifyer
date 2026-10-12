@@ -93,5 +93,7 @@ def write_global(rows: list[dict], csv_path: Path, html_path: Path) -> None:
         f"<h1>Rapport karaoké ({len(rows)} morceaux)</h1><table><tr>{head}</tr>{body}</table>", encoding="utf-8")
 
 
-def load_reports(sortie: Path) -> list[dict]:
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(sortie.glob("*/rapport.json"))]
+def load_reports(sortie: Path, folders: list[Path] | None = None) -> list[dict]:
+    """Reports from the given show folders (the current manifest), or every folder."""
+    paths = [f / "rapport.json" for f in folders] if folders is not None else sorted(sortie.glob("*/rapport.json"))
+    return [json.loads(p.read_text(encoding="utf-8")) for p in paths if p.exists()]

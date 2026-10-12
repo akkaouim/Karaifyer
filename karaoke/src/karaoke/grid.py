@@ -41,28 +41,28 @@ class CountIn:
 
 
 def countin_plan(beats, downbeats, n_bars: int, sr: int = 44100) -> CountIn:
+    """Count-in of n_bars placed just before the FIRST DETECTED BEAT (so the music never
+    starts under it), continuing the bar phase given by the first downbeat (accents on 1)."""
     b = np.asarray(beats, float)
-    anchor = float(downbeats[0]) if len(downbeats) else float(b[0])
-    after = b[b >= anchor - 1e-3]
-    period = float(np.median(np.diff(after[:9]))) if len(after) > 2 else 0.5
+    first = float(b[0])
+    period = float(np.median(np.diff(b[:9]))) if len(b) > 2 else 0.5
     bpb = beats_per_bar(beats, downbeats)
-    n = n_bars * bpb
-    times = [anchor - k * period for k in range(n, 0, -1)]
-    accents = [k % bpb == 0 for k in range(n, 0, -1)]
+    anchor = float(downbeats[0]) if len(downbeats) else first
+    # bar position of the first beat: how many beats it lies before the first downbeat
+    m = int(round((anchor - first) / period)) if anchor > first else 0
+    n = max(0, n_bars) * bpb
+    times = [first - j * period for j in range(n, 0, -1)]
+    accents = [(m + j) % bpb == 0 for j in range(n, 0, -1)]
     earliest = min(times) if times else 0.0
     pad = math.ceil(max(0.0, -earliest) * sr) / sr
     return CountIn(pad_s=pad, period_s=period, beats_per_bar=bpb, times_in=times, accents=accents)
 
 
 def click_events(plan: CountIn, beats, downbeats) -> list[tuple[float, bool]]:
-    """Output-time click events: count-in, then detected beats from the anchor on."""
-    if plan.times_in:
-        anchor = plan.times_in[-1] + plan.period_s
-    else:
-        anchor = downbeats[0] if len(downbeats) else beats[0]
+    """Output-time click events: the count-in, then every detected beat (accent on downbeats)."""
     down = {round(d, 4) for d in downbeats}
     ev = [(t + plan.pad_s, a) for t, a in zip(plan.times_in, plan.accents)]
-    ev += [(t + plan.pad_s, round(t, 4) in down) for t in beats if t >= anchor - 1e-3]
+    ev += [(t + plan.pad_s, round(t, 4) in down) for t in beats]
     return sorted(ev)
 
 

@@ -25,3 +25,14 @@ def test_markers_and_log(cfg):
     assert ws.read_marker("ingest")["result"]["offset_s"] == 0.1
     ws.log("bonjour")
     assert "bonjour" in (ws.work / "journal.log").read_text(encoding="utf-8")
+
+
+def test_renamed_song_adopts_its_previous_folder(cfg):
+    # Review: correcting an artist (e.g. Lisa Angell -> Bourvil) must not split the song in two folders.
+    old = Workspace(cfg, song(id="012", artiste="Lisa Angell", titre="Le petit bal perdu"))
+    old.out.mkdir(parents=True)
+    (old.out / "accompagnement.flac").write_bytes(b"audio")
+    new = Workspace(cfg, song(id="012", artiste="Bourvil", titre="Le petit bal perdu"))
+    new.adopt_previous_folder()
+    assert not old.out.exists() and (new.out / "accompagnement.flac").read_bytes() == b"audio"
+    assert [p.name for p in cfg.sortie.iterdir()] == [new.out.name]

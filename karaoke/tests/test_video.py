@@ -29,6 +29,7 @@ def test_video_step_writes_shifted_lrc_and_mp4(cfg):
           "lyrics": {"lines": [{"t": 1.0, "text": "Un", "score": None}, {"t": 3.0, "text": "Deux", "score": None}]},
           "check": {"lines": [{"t": 1.0, "ok": True, "end": 2.5}, {"t": 3.0, "ok": True, "end": 5.0}]}}
     r = VIDEO.run(ws, up)
-    assert (ws.out / "paroles.lrc").read_text(encoding="utf-8") == "[00:03.00]Un\n[00:05.00]Deux\n"
+    assert (ws.out / "paroles.lrc").read_text(encoding="utf-8") == (
+        "[karaoke:decalage=2.000]\n[00:03.00]Un\n[00:05.00]Deux\n")
     assert abs(probe_duration(ws.out / "paroles.mp4") - 10.0) < 0.1 and r["duration_s"] == 10.0
     assert sorted(p.name for p in VIDEO.artifacts(ws)) == ["paroles.lrc", "paroles.mp4"]

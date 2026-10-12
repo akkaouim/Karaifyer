@@ -73,3 +73,15 @@ def test_retry_is_not_a_failure():
     res["video"] = {"status": "bloque", "seconds": 0, "result": {}, "error": "dépend de : lyrics, check"}
     r = song_report(song(), res)
     assert r["statut"] == "a_reessayer" and r["risque"] == 40
+
+
+def test_load_reports_only_current_manifest_folders(cfg):
+    from karaoke.report import load_reports
+    from karaoke.workspace import Workspace
+    keep = Workspace(cfg, song(id="001"))
+    stale = cfg.sortie / "001_ancien-nom_titre"
+    other = cfg.sortie / "099_retire_du-manifeste"
+    for d in (keep.out, stale, other):
+        d.mkdir(parents=True)
+        (d / "rapport.json").write_text(json.dumps({"id": d.name[:3], "risque": 0}), encoding="utf-8")
+    assert [r["id"] for r in load_reports(cfg.sortie, [keep.out])] == ["001"]

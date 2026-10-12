@@ -120,3 +120,30 @@ def test_marker_does_not_collide_with_step_artifacts(cfg):
     run_song(ws, [Step("beats", (), lambda ws: "", run)])
     assert (ws.work / "beats.json").read_text() == '{"beats": [1, 2]}'
     assert ws.read_marker("beats")["result"] == {"n": 2}
+
+
+def test_skip_requires_artifacts_to_exist(cfg):
+    # Review: deleting a show folder must regenerate it, not report "saute"/ok.
+    calls, state = [], {}
+    ws = Workspace(cfg, song())
+    f = ws.work / "out.flac"
+    def write(ws):
+        f.write_bytes(b"x")
+        return {}
+    steps = lambda: [make_steps(calls, state)("package", output=write, artifacts=lambda ws: [f])]
+    run_song(ws, steps())
+    f.unlink()
+    calls.clear()
+    r = run_song(ws, steps())
+    assert calls == ["package"] and r["package"]["status"] == "fait" and f.exists()
+
+
+def test_interrupted_rerun_does_not_leave_a_stale_marker(cfg):
+    # Review: a forced rerun that crashes mid-write must not be skipped next time.
+    calls, state = [], {}
+    ws = Workspace(cfg, song())
+    run_song(ws, [make_steps(calls, state)("separate")])
+    run_song(ws, [make_steps(calls, state)("separate", fail="boom")], force={"separate"})
+    calls.clear()
+    r = run_song(ws, [make_steps(calls, state)("separate")])
+    assert calls == ["separate"] and r["separate"]["status"] == "fait"
