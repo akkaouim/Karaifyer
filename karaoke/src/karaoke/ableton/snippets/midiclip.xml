@@ -1,0 +1,185 @@
+<MidiClip Id="0" Time="0">
+										<LomId Value="0" />
+										<LomIdView Value="0" />
+										<CurrentStart Value="0" />
+										<CurrentEnd Value="4" />
+										<Loop>
+											<LoopStart Value="0" />
+											<LoopEnd Value="4" />
+											<StartRelative Value="0" />
+											<LoopOn Value="true" />
+											<OutMarker Value="4" />
+											<HiddenLoopStart Value="0" />
+											<HiddenLoopEnd Value="4" />
+										</Loop>
+										<Name Value="" />
+										<Annotation Value="" />
+										<Color Value="25" />
+										<LaunchMode Value="0" />
+										<LaunchQuantisation Value="0" />
+										<TimeSignature>
+											<TimeSignatures>
+												<RemoteableTimeSignature Id="0">
+													<Numerator Value="4" />
+													<Denominator Value="4" />
+													<Time Value="0" />
+												</RemoteableTimeSignature>
+											</TimeSignatures>
+										</TimeSignature>
+										<Envelopes>
+											<Envelopes>
+												<ClipEnvelope Id="0">
+													<EnvelopeTarget>
+														<PointeeId Value="22555" />
+													</EnvelopeTarget>
+													<Automation>
+														<Events>
+															<FloatEvent Id="0" Time="-63072000" Value="127" />
+															<FloatEvent Id="31" Time="0" Value="127" />
+															<FloatEvent Id="29" Time="0" Value="57.6453896" />
+															<FloatEvent Id="67" Time="0.25" Value="57.6453896" />
+															<FloatEvent Id="65" Time="0.25" Value="58.5461006" />
+															<FloatEvent Id="139" Time="0.75" Value="58.5461006" />
+															<FloatEvent Id="137" Time="0.75" Value="61.2482262" />
+															<FloatEvent Id="151" Time="1.5" Value="61.2482262" />
+															<FloatEvent Id="149" Time="1.5" Value="59.4468079" />
+															<FloatEvent Id="155" Time="1.75" Value="59.4468079" />
+															<FloatEvent Id="153" Time="1.75" Value="54.943264" />
+															<FloatEvent Id="159" Time="2" Value="54.943264" />
+															<FloatEvent Id="157" Time="2" Value="52.2411346" />
+															<FloatEvent Id="187" Time="2.25" Value="52.2411346" />
+															<FloatEvent Id="185" Time="2.25" Value="45.0354614" />
+															<FloatEvent Id="203" Time="2.5" Value="45.0354614" />
+															<FloatEvent Id="201" Time="2.5" Value="59.4468079" />
+															<FloatEvent Id="215" Time="2.75" Value="59.4468079" />
+															<FloatEvent Id="213" Time="2.75" Value="70.2553177" />
+															<FloatEvent Id="263" Time="3" Value="70.2553177" />
+															<FloatEvent Id="261" Time="3" Value="75.6595764" />
+															<FloatEvent Id="315" Time="3.25" Value="75.6595764" />
+															<FloatEvent Id="313" Time="3.25" Value="72.0567398" />
+															<FloatEvent Id="363" Time="3.5" Value="72.0567398" />
+															<FloatEvent Id="361" Time="3.5" Value="63.9503555" />
+															<FloatEvent Id="483" Time="3.75" Value="63.9503555" />
+															<FloatEvent Id="481" Time="3.75" Value="56.7446823" />
+															<FloatEvent Id="482" Time="4" Value="56.7446823" />
+															<FloatEvent Id="484" Time="4" Value="127" />
+														</Events>
+														<AutomationTransformViewState>
+															<IsTransformPending Value="false" />
+															<TimeAndValueTransforms />
+														</AutomationTransformViewState>
+													</Automation>
+													<LoopSlot>
+														<Value />
+													</LoopSlot>
+													<ScrollerTimePreserver>
+														<LeftTime Value="0" />
+														<RightTime Value="0" />
+													</ScrollerTimePreserver>
+												</ClipEnvelope>
+												<ClipEnvelope Id="1">
+													<EnvelopeTarget>
+														<PointeeId Value="22560" />
+													</EnvelopeTarget>
+													<Automation>
+														<Events>
+															<FloatEvent Id="0" Time="-63072000" Value="0" />
+															<FloatEvent Id="947" Time="0" Value="0" />
+															<FloatEvent Id="945" Time="0" Value="127" />
+															<FloatEvent Id="422" Time="4" Value="127" />
+															<FloatEvent Id="424" Time="4" Value="0" />
+														</Events>
+														<AutomationTransformViewState>
+															<IsTransformPending Value="false" />
+															<TimeAndValueTransforms />
+														</AutomationTransformViewState>
+													</Automation>
+													<LoopSlot>
+														<Value />
+													</LoopSlot>
+													<ScrollerTimePreserver>
+														<LeftTime Value="0" />
+														<RightTime Value="0" />
+													</ScrollerTimePreserver>
+												</ClipEnvelope>
+											</Envelopes>
+										</Envelopes>
+										<ScrollerTimePreserver>
+											<LeftTime Value="0" />
+											<RightTime Value="4" />
+										</ScrollerTimePreserver>
+										<TimeSelection>
+											<AnchorTime Value="0" />
+											<OtherTime Value="0" />
+										</TimeSelection>
+										<Legato Value="false" />
+										<Ram Value="false" />
+										<GrooveSettings>
+											<GrooveId Value="4" />
+										</GrooveSettings>
+										<Disabled Value="false" />
+										<VelocityAmount Value="0" />
+										<FollowAction>
+											<FollowTime Value="4" />
+											<IsLinked Value="true" />
+											<LoopIterations Value="1" />
+											<FollowActionA Value="4" />
+											<FollowActionB Value="0" />
+											<FollowChanceA Value="100" />
+											<FollowChanceB Value="0" />
+											<JumpIndexA Value="1" />
+											<JumpIndexB Value="1" />
+											<FollowActionEnabled Value="false" />
+										</FollowAction>
+										<Grid>
+											<FixedNumerator Value="1" />
+											<FixedDenominator Value="16" />
+											<GridIntervalPixel Value="20" />
+											<Ntoles Value="2" />
+											<SnapToGrid Value="true" />
+											<Fixed Value="true" />
+										</Grid>
+										<FreezeStart Value="0" />
+										<FreezeEnd Value="0" />
+										<IsWarped Value="true" />
+										<TakeId Value="1" />
+										<IsInKey Value="true" />
+										<ScaleInformation>
+											<Root Value="0" />
+											<Name Value="0" />
+										</ScaleInformation>
+										<AutomationEnvelopesListWrapper LomId="0" />
+										<Notes>
+											<KeyTracks />
+											<PerNoteEventStore>
+												<EventLists />
+											</PerNoteEventStore>
+											<NoteProbabilityGroups />
+											<ProbabilityGroupIdGenerator>
+												<NextId Value="1" />
+											</ProbabilityGroupIdGenerator>
+											<NoteIdGenerator>
+												<NextId Value="1" />
+											</NoteIdGenerator>
+										</Notes>
+										<BankSelectCoarse Value="-1" />
+										<BankSelectFine Value="-1" />
+										<ProgramChange Value="-1" />
+										<NoteEditorFoldInZoom Value="-1" />
+										<NoteEditorFoldInScroll Value="0" />
+										<NoteEditorFoldOutZoom Value="867" />
+										<NoteEditorFoldOutScroll Value="-373" />
+										<NoteEditorFoldScaleZoom Value="-1" />
+										<NoteEditorFoldScaleScroll Value="0" />
+										<NoteSpellingPreference Value="0" />
+										<AccidentalSpellingPreference Value="3" />
+										<PreferFlatRootNote Value="false" />
+										<ExpressionGrid>
+											<FixedNumerator Value="1" />
+											<FixedDenominator Value="16" />
+											<GridIntervalPixel Value="20" />
+											<Ntoles Value="2" />
+											<SnapToGrid Value="false" />
+											<Fixed Value="false" />
+										</ExpressionGrid>
+									</MidiClip>
