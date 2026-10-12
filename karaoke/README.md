@@ -17,11 +17,18 @@ uv run karaoke sets                          # un set Ableton par partie de soir
 ```
 
 **Sets Ableton.** `karaoke sets` part du gabarit (`gabarit/gabarit Project/gabarit.als`, jamais modifié) et
-écrit un `.als` par valeur de la colonne `partie` : morceaux enchaînés (4 s d'écart), un repère par titre,
-une piste par canal XR18 (10 clic, 11 voix lead, 12 guitare, 13 basse, 14 piano, 15 batterie,
-16 back vocals, 17–18 accompagnement) et, au début de chaque morceau, un clip MIDI qui place les faders
-de la XR18 : parties de `retirer` à zéro, le reste à 0 dB. Sur la XR18 : X Air → Setup → Mixer →
-MIDI Config → « USB Rx » activé.
+écrit **un `.als` par morceau** dans `sets/<partie>/` : une piste par canal XR18 (10 clic, 11 voix lead,
+12 guitare, 13 basse, 14 piano, 15 batterie, 16 back vocals, 17–18 accompagnement), la vidéo des paroles,
+un clip MIDI au début qui place les faders de la XR18 (parties de `retirer` à zéro, le reste à 0 dB) et,
+à la fin, un clip qui **arrête Live automatiquement**.
+
+Réglages, une seule fois :
+1. XR18 : X Air → Setup → Mixer → MIDI Config → « USB Rx » activé.
+2. Mac : Configuration audio et MIDI → Fenêtre → Studio MIDI → Pilote IAC → « Le périphérique est en ligne ».
+3. Gabarit : ajouter une piste MIDI « Auto stop », sortie MIDI « IAC Driver (Bus 1) ».
+4. Live → Réglages → Tempo & MIDI : entrée « IAC Driver (Bus 1) » → Remote = On.
+5. Live en mode MIDI Map (⌘M), cliquer sur Stop, lancer `uv run karaoke apprendre-stop`, quitter MIDI Map,
+   enregistrer le gabarit.
 
 Colonne `retirer` : les parties jouées en live (`guitar`, `bass`, `piano`, `drums`). Elles restent
 disponibles sur leur canal, fader à zéro au départ du morceau.

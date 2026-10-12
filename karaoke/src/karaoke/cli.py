@@ -9,6 +9,7 @@ from karaoke.config import Config
 from karaoke.manifest import group_by_partie, read_manifest, songs_from_sysrec, write_manifest
 from karaoke.report import load_reports, song_report, write_global
 from karaoke.runner import run_song
+from karaoke.tools import TOOLS_DIR, ToolError, run_tool
 from karaoke.steps import STEPS
 from karaoke.workspace import Workspace, slug
 
@@ -82,27 +83,43 @@ def rapport() -> None:
 
 @app.command()
 def sets(partie: str = typer.Option(None, help="Ne générer que cette partie")) -> None:
-    """Génère un set Ableton (.als) par partie de soirée, à partir du gabarit."""
+    """Génère un set Ableton (.als) par morceau, rangé par partie de soirée, à partir du gabarit."""
     cfg = Config.load()
     groups = group_by_partie(read_manifest(cfg.manifest))
+    warned = False
     for name, songs in groups.items():
         if partie and name != partie:
             continue
-        entries, missing = [], []
-        for s in songs:
-            ws = Workspace(cfg, s)
-            marker = ws.read_marker("package")
-            if not marker or "faders" not in marker["result"]:
-                missing.append(f"{s.id} {s.titre}")
-                continue
-            entries.append(SongEntry(s.id, s.titre, ws.out, marker["result"]["faders"]))
+        missing = [f"{s.id} {s.titre}" for s in songs
+                   if "faders" not in ((Workspace(cfg, s).read_marker("package") or {}).get("result") or {})]
         if missing:
             typer.echo(f"[{name}] pas encore traité (lancer « karaoke traiter ») : " + " ; ".join(missing), err=True)
             raise typer.Exit(1)
-        out = cfg.sets / f"{slug(name)}.als"
-        try:
-            r = build_set(cfg.gabarit, entries, out)
-        except SetError as e:
-            typer.echo(f"[{name}] {e}", err=True)
-            raise typer.Exit(1)
-        typer.echo(f"{out} : {r['songs']} morceaux, {r['duration_s'] / 60:.0f} min")
+        for s in songs:
+            ws = Workspace(cfg, s)
+            entry = SongEntry(s.id, s.titre, ws.out, ws.read_marker("package")["result"]["faders"])
+            out = cfg.sets / slug(name) / f"{ws.out.name}.als"
+            try:
+                r = build_set(cfg.gabarit, [entry], out)
+            except SetError as e:
+                typer.echo(f"[{name}] {e}", err=True)
+                raise typer.Exit(1)
+            typer.echo(f"{out.relative_to(cfg.home)} : {r['duration_s'] / 60:.1f} min")
+            if r["warnings"] and not warned:
+                for w in r["warnings"]:
+                    typer.echo(f"⚠ {w}", err=True)
+                warned = True
+
+
+@app.command(name="apprendre-stop")
+def apprendre_stop(secondes: float = typer.Option(20.0, help="Durée d'envoi")) -> None:
+    """Envoie le signal d'arrêt automatique (CC 119 sur le bus IAC) pour l'assigner au bouton Stop de Live."""
+    typer.echo("Dans Live : passer en mode MIDI Map (⌘M), cliquer sur le bouton Stop (■), puis attendre :\n"
+               "le signal arrive et s'assigne. Quitter le mode MIDI Map (⌘M) et enregistrer le gabarit.")
+    try:
+        run_tool("midi", ["python", str(TOOLS_DIR / "midi" / "send_cc.py"), "--cc", "119", "--value", "127",
+                          "--seconds", str(secondes)], timeout=secondes + 60)
+    except ToolError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1)
+    typer.echo("Terminé.")

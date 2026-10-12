@@ -87,9 +87,12 @@ def test_cli_sets_writes_one_set_per_partie(tmp_path, monkeypatch):
                                     "result": {"faders": src.faders, "pad_s": 0.0, "total_s": 4.0}})
     r = CliRunner().invoke(cli.app, ["sets"])
     assert r.exit_code == 0, r.output
-    assert sorted(p.name for p in cfg.sets.glob("*.als")) == ["apero.als", "diner.als"]
-    ls = load_als(cfg.sets / "apero.als").getroot().find("LiveSet")
-    assert [l.find("Name").get("Value")[:3] for l in ls.findall("Locators/Locators/Locator")] == ["001", "003"]
+    # Michel: one set per song, grouped in a folder per part of the evening
+    names = sorted(str(p.relative_to(cfg.sets)) for p in cfg.sets.rglob("*.als"))
+    assert names == ["apero/001_zazie_je-suis-un-homme.als", "apero/003_zazie_je-suis-un-homme.als",
+                     "diner/002_zazie_je-suis-un-homme.als"]
+    ls = load_als(cfg.sets / "apero" / "003_zazie_je-suis-un-homme.als").getroot().find("LiveSet")
+    assert [l.find("Name").get("Value")[:3] for l in ls.findall("Locators/Locators/Locator")] == ["003"]
 
 
 def test_cli_sets_refuses_unprocessed_song(tmp_path, monkeypatch):
@@ -105,3 +108,51 @@ def test_cli_sets_refuses_unprocessed_song(tmp_path, monkeypatch):
     write_manifest(cfg.manifest, [song(id="001", partie="A")])
     r = CliRunner().invoke(cli.app, ["sets"])
     assert r.exit_code == 1 and "pas encore traité" in r.output
+
+
+def template_with_auto_stop(tmp_path) -> Path:
+    """The fixture template plus a MIDI track named « Auto stop » (as Michel will add it)."""
+    import copy
+    from karaoke.ableton.als import save_als
+    tree = load_als(FIX / "gabarit.als")
+    ls = tree.getroot().find("LiveSet")
+    stop = copy.deepcopy(track(ls, "XR18 faders"))
+    stop.find("Name/EffectiveName").set("Value", "Auto stop")
+    stop.find("Name/UserName").set("Value", "Auto stop")
+    ls.find("Tracks").append(stop)
+    out = tmp_path / "gabarit_auto_stop.als"
+    save_als(tree, out)
+    return out
+
+
+def test_auto_stop_clip_at_song_end(tmp_path):
+    from karaoke.ableton.als import controller_target_id
+    s = make_song(tmp_path, "001", 10.0)
+    out = tmp_path / "sets" / "001.als"
+    r = build_set(template_with_auto_stop(tmp_path), [s], out)
+    ls = load_als(out).getroot().find("LiveSet")
+    stop_track = track(ls, "Auto stop")
+    [clip] = list(arranger_events(stop_track))
+    assert clip.get("Time") == "21"                                     # (10 s + 0.5 s) × 2 beats
+    [env] = clip.findall("Envelopes/Envelopes/ClipEnvelope")
+    assert env.find("EnvelopeTarget/PointeeId").get("Value") == controller_target_id(stop_track, 119)
+    assert [e.get("Value") for e in env.findall("Automation/Events/FloatEvent")] == ["127", "127"]
+    assert r["warnings"] == []
+
+
+def test_missing_auto_stop_track_only_warns(tmp_path):
+    r = build_set(FIX / "gabarit.als", [make_song(tmp_path, "001", 4.0)], tmp_path / "sets" / "001.als")
+    assert any("Auto stop" in w for w in r["warnings"])
+
+
+def test_cli_apprendre_stop_sends_cc119_on_iac(monkeypatch):
+    from typer.testing import CliRunner
+    from karaoke import cli
+    seen = {}
+    def fake_tool(tool, args, **kw):
+        seen.update(tool=tool, args=args)
+    monkeypatch.setattr(cli, "run_tool", fake_tool)
+    r = CliRunner().invoke(cli.app, ["apprendre-stop"])
+    assert r.exit_code == 0, r.output
+    assert seen["tool"] == "midi" and "--cc" in seen["args"] and seen["args"][seen["args"].index("--cc") + 1] == "119"
+    assert "Stop" in r.output
