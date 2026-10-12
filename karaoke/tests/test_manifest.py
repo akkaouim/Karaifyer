@@ -74,3 +74,20 @@ def test_cli_manifeste_builds_and_refuses_overwrite(tmp_path, monkeypatch):
     assert read_manifest(tmp_path / "home" / "manifeste.csv")[0].id == "011"
     r2 = runner.invoke(app, ["manifeste", "--audio", str(audio_dir)])
     assert r2.exit_code != 0 and "existe déjà" in r2.output
+
+
+def test_text_is_nfc_normalised(tmp_path):
+    # Spotify/macOS metadata can be decomposed (NFD): "Loïc" = "Loi" + U+0308. LRCLIB only matches NFC.
+    import unicodedata
+    nfd = unicodedata.normalize("NFD", "Loïc Nottet")
+    assert nfd != "Loïc Nottet"
+    p = tmp_path / "m.csv"
+    write_manifest(p, [song(artiste=nfd, titre=unicodedata.normalize("NFD", "Les blés d’or"))])
+    s = read_manifest(p)[0]
+    assert s.artiste == "Loïc Nottet" and s.titre == "Les blés d’or"
+    wav = write_wav(tmp_path / "a.wav", tone(1.0))
+    flac = tmp_path / "audio" / "05.flac"
+    flac.parent.mkdir()
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-metadata", f"artist={nfd}",
+                    "-metadata", "title=Danser", "-metadata", "track=5", str(flac)], check=True)
+    assert songs_from_sysrec(flac.parent)[0].artiste == "Loïc Nottet"

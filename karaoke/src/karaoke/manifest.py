@@ -6,6 +6,7 @@ retirer (stems played live, `;`-separated, Demucs names), decompte_mesures, lang
 from __future__ import annotations
 import csv
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +19,12 @@ COLUMNS = ["id", "titre", "artiste", "album", "duree_ref_s", "isrc", "fichier",
 
 class ManifestError(ValueError):
     pass
+
+
+def nfc(text: str) -> str:
+    """Composed Unicode. Spotify/macOS metadata can be decomposed ("Loi" + U+0308), which
+    breaks matching (LRCLIB found nothing for « Loïc Nottet » in phase 0)."""
+    return unicodedata.normalize("NFC", text).strip()
 
 
 @dataclass(frozen=True)
@@ -51,8 +58,8 @@ def _parse_row(row: dict, line: int, errors: list[str]) -> Song | None:
     except ValueError as e:
         errors.append(f"ligne {line}: nombre invalide ({e})")
         return None
-    return Song(id=sid, titre=(row.get("titre") or "").strip(), artiste=(row.get("artiste") or "").strip(),
-                album=(row.get("album") or "").strip(), duree_ref_s=duree, isrc=(row.get("isrc") or "").strip(),
+    return Song(id=sid, titre=nfc(row.get("titre") or ""), artiste=nfc(row.get("artiste") or ""),
+                album=nfc(row.get("album") or ""), duree_ref_s=duree, isrc=(row.get("isrc") or "").strip(),
                 fichier=Path((row.get("fichier") or "").strip()), retirer=tuple(retirer),
                 decompte_mesures=decompte, langue=(row.get("langue") or "fr").strip() or "fr",
                 partie=(row.get("partie") or "").strip())
@@ -87,7 +94,7 @@ def write_manifest(path: Path, songs: list[Song]) -> None:
 
 def _tag(audio, key: str) -> str:
     v = audio.tags.get(key) if audio.tags else None
-    return (v[0] if isinstance(v, list) and v else str(v or "")).strip()
+    return nfc(v[0] if isinstance(v, list) and v else str(v or ""))
 
 
 def songs_from_sysrec(audio_dir: Path) -> list[Song]:

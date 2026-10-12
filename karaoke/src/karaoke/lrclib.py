@@ -6,6 +6,7 @@ from typing import Callable
 
 import httpx
 
+from karaoke.manifest import nfc
 from karaoke.runner import StepRetry
 
 BASE = "https://lrclib.net"
@@ -49,6 +50,7 @@ def _get(c: httpx.Client, url: str, params: dict, sleep: Callable[[float], None]
 def fetch(titre: str, artiste: str, album: str, duree_s: float, client: httpx.Client | None = None,
           sleep: Callable[[float], None] = time.sleep) -> LrclibResult:
     c = client or httpx.Client(timeout=15.0)
+    titre, artiste, album = nfc(titre), nfc(artiste), nfc(album)
     r = _get(c, f"{BASE}/api/get", {"track_name": titre, "artist_name": artiste, "album_name": album,
                                     "duration": int(round(duree_s))}, sleep)
     if r.status_code == 200:

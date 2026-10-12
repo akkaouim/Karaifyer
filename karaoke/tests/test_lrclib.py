@@ -72,3 +72,13 @@ def test_gives_up_after_retries():
     with pytest.raises(StepRetry):
         fetch("t", "a", "al", 100, client(lambda req: httpx.Response(503)), sleep=sleeps.append)
     assert sleeps == [2.0, 5.0, 10.0]
+
+
+def test_query_is_nfc():
+    import unicodedata
+    seen = {}
+    def h(req):
+        seen.update(dict(req.url.params))
+        return httpx.Response(200, json={"syncedLyrics": "[00:01.00]a"})
+    fetch(unicodedata.normalize("NFD", "Danser"), unicodedata.normalize("NFD", "Loïc Nottet"), "A", 196, client(h))
+    assert seen["artist_name"] == "Loïc Nottet"
