@@ -9,6 +9,9 @@ an optional 320 kbps MP3).
 For the design, the measurements behind it and the diagnostic tools, see
 [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
 
+**Karaifyer** ([karaifyer/](karaifyer/README.md)) is a copy of SysRec extended with a Karaoké tab that
+drives the karaoke analysis pipeline ([karaoke/](karaoke/README.md)). SysRec itself is unchanged.
+
 ## Build & run
 
 Requires macOS 26, the Xcode Command Line Tools, and `brew install ffmpeg`.
