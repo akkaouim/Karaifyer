@@ -51,3 +51,8 @@ def test_song_url_fully_percent_encoded_like_the_official_example():
     body = song_url("Danser", "Loïc Nottet", "Pop", "C# minor", BARS, 4, 120.0)[len("irealbook://"):]
     assert re.fullmatch(r"[A-Za-z0-9_.~%-]*", body), body        # = [ | , # all as %XX
     assert "%3D" in body and "%7C" in body and "%5B" in body
+
+
+def test_rich_chord_symbols_to_ireal():
+    assert [chord(c) for c in ["Cmaj7", "Dm7", "F#m7b5", "Edim", "Gsus4", "Am/G", "Bb7", "Caug", "Am6"]] == \
+        ["C^7", "D-7", "F#h7", "Eo", "Gsus", "A-/G", "Bb7", "C+", "A-6"]

@@ -1,5 +1,6 @@
 """Pure helpers for chord charts: madmom labels → chart symbols, beat quantisation, bars, text chart."""
 from __future__ import annotations
+import re
 
 FLATS = {"A#": "Bb", "C#": "C#", "D#": "Eb", "F#": "F#", "G#": "Ab"}   # usual chart spelling
 
@@ -54,7 +55,7 @@ def bars_from(beats: list[float], downbeats: list[float], labels: list[str], bea
 
 
 def chart_text(bars: list[dict], beats_per_bar: int, per_line: int = 4) -> str:
-    cells = [" ".join(c for _, c in b["chords"]) for b in bars]
+    cells = [cell_text(b["chords"], beats_per_bar) for b in bars]
     lines = ["| " + " | ".join(cells[i:i + per_line]) + " |" for i in range(0, len(cells), per_line)]
     return "\n".join(lines)
 
@@ -79,4 +80,60 @@ def spell(symbols: list[str], key: str) -> list[str]:
     for s in symbols:
         root = s[:2] if len(s) > 1 and s[1] in "#b" else s
         out.append(table.get(root, root) + s[len(root):] if root in table else s)
+    return out
+
+
+SYMBOL = re.compile(r"^(N\.C\.|[A-G][#b]?(m|maj7|m7b5|m7|m6|7|6|9|dim|aug|sus2|sus4|add9)?(/[A-G][#b]?)?)$")
+
+
+def parse_cell(cell: str, beats_per_bar: int) -> list[list]:
+    """`A B` = even split; `Am . . F` = one token per beat, `.` continues. Raises ValueError (French).
+    Karaifyer's ChordGrid.parseCell implements the same rules."""
+    toks = cell.split()
+    if not toks:
+        raise ValueError("mesure vide")
+    bad = [t for t in toks if t != "." and not SYMBOL.match(t)]
+    if bad:
+        raise ValueError(f"accord non reconnu : {bad[0]}")
+    if "." in toks:
+        if len(toks) != beats_per_bar or toks[0] == ".":
+            raise ValueError(f"« {cell} » : {beats_per_bar} temps attendus, le premier étant un accord")
+        return [[i, t] for i, t in enumerate(toks) if t != "."]
+    if len(toks) > beats_per_bar:
+        raise ValueError(f"« {cell} » : plus d'accords que de temps ({beats_per_bar})")
+    return [[k * beats_per_bar // len(toks), t] for k, t in enumerate(toks)]
+
+
+def cell_text(chords: list, beats_per_bar: int) -> str:
+    """Inverse of parse_cell: even split → `A B`, otherwise one token per beat (`Am . . F`)."""
+    n = len(chords)
+    if all(b == k * beats_per_bar // max(n, 1) for k, (b, _) in enumerate(chords)):
+        return " ".join(l for _, l in chords)
+    toks = ["."] * beats_per_bar
+    for b, l in chords:
+        if b < beats_per_bar:
+            toks[b] = l
+    return " ".join(toks)
+
+
+def parse_chart(text: str) -> tuple[str | None, list[str]]:
+    """Key and bar cells from an accords.txt-style chart."""
+    key, cells = None, []
+    for line in text.splitlines():
+        m = re.match(r"\s*Tonalit[ée]\s*:\s*([^·]+)", line)
+        if m:
+            key = m.group(1).strip()
+        elif line.strip().startswith("|"):
+            cells += [c.strip() for c in line.strip().strip("|").split("|")]
+    return key, cells
+
+
+def expand(bars: list[dict], beats_per_bar: int, lengths: list[int] | None = None) -> list[str]:
+    """Per-beat labels from bars' [[beat, label]] lists; `lengths` = real beats per bar (pickup)."""
+    out = []
+    for k, b in enumerate(bars):
+        cur, marks = None, {i: l for i, l in b["chords"]}
+        for i in range(lengths[k] if lengths else beats_per_bar):
+            cur = marks.get(i, cur)
+            out.append(cur)
     return out
