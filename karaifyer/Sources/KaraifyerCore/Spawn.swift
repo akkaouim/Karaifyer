@@ -2,13 +2,17 @@ import Foundation
 
 /// A child process in its own process group (so SIGSTOP/SIGCONT/SIGTERM reach uv, Python and the
 /// ML tool it starts), with stdout+stderr streamed line by line on the main queue.
-final class SpawnedProcess {
-    private(set) var pid: pid_t = 0
+/// State is only touched on the main queue (all callbacks hop there), hence @unchecked.
+public final class SpawnedProcess: @unchecked Sendable {
+    public private(set) var pid: pid_t = 0
     private let onLine: (String) -> Void
     private let onExit: (Int32) -> Void
     private var buffer = Data()
+    /// Must live as long as the process: a local handle was freed (and its fd closed) right after
+    /// launch, so the child wrote into a closed pipe and died with code 1, printing nothing.
+    private var reader: FileHandle?
 
-    init(args: [String], env: [String: String], cwd: String,
+    public init(args: [String], env: [String: String], cwd: String,
          onLine: @escaping (String) -> Void, onExit: @escaping (Int32) -> Void) throws {
         self.onLine = onLine
         self.onExit = onExit
@@ -40,6 +44,7 @@ final class SpawnedProcess {
             throw POSIXError(POSIXErrorCode(rawValue: rc) ?? .ENOENT)
         }
         let reader = FileHandle(fileDescriptor: fds[0], closeOnDealloc: true)
+        self.reader = reader
         reader.readabilityHandler = { [weak self] h in
             let chunk = h.availableData
             if chunk.isEmpty { h.readabilityHandler = nil }
@@ -68,7 +73,7 @@ final class SpawnedProcess {
     }
 
     /// Signal the whole process group.
-    func signal(_ sig: Int32) {
+    public func signal(_ sig: Int32) {
         if pid > 0 { kill(-pid, sig) }
     }
 }
