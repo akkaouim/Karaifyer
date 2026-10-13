@@ -23,3 +23,6 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 17 | Table: tick Guit. then Basse quickly on one song: `retirer` ends as `guitar;bass` | |
 | 18 | Accept « Mettre en pause » when starting a recording during an analysis: when the recording batch ends, the analysis resumes by itself | |
 | 19 | Quit Karaifyer during an analysis: it asks first; after quitting, no `karaoke traiter` process is left (Moniteur d'activité) | |
+| 20 | During a run: title/artist/partie, Retirer, Langue, Ajouter and Analyser are disabled (a notice says why); « Ouvrir… » still works; everything unlocks at the end or after Arrêter | |
+| 21 | Marker column: spinner on the song being processed (pause symbol while paused), clock on the waiting ones, check/cross when finished; nothing on songs outside the run | |
+| 22 | Hover the Statut cell of an « alerte » song: the reasons are listed; hover a dot: the step's name, what it does, its state and any error | |
