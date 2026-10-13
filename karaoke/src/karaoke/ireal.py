@@ -36,7 +36,7 @@ def song_url(title: str, composer: str, style: str, key: str, bars: list[dict],
     cells = [" ".join(chord(c) for _, c in b["chords"]) for b in bars]
     prog = f"[T{beats_per_bar}4" + " |".join(cells) + " Z"
     body = "=".join([_field(title), _field(composer), _field(style), ireal_key(key), "n", prog])
-    return "irealbook://" + quote(body, safe="=[]|-,")
+    return "irealbook://" + quote(body, safe="")   # spec: percent-encode everything
 
 
 def write_html(path: Path, partie: str, songs: list[tuple[str, str, str]]) -> None:

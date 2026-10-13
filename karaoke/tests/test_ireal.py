@@ -44,3 +44,10 @@ def test_write_pages_groups_by_partie_and_skips_songs_without_chords(cfg):
     assert sorted(p.name for p in pages) == ["apero.html", "sans-partie.html"]
     html = (cfg.home / "ireal" / "apero.html").read_text()
     assert html.count("irealbook://") == 1 and "Je suis un homme" in html
+
+
+def test_song_url_fully_percent_encoded_like_the_official_example():
+    import re
+    body = song_url("Danser", "Loïc Nottet", "Pop", "C# minor", BARS, 4, 120.0)[len("irealbook://"):]
+    assert re.fullmatch(r"[A-Za-z0-9_.~%-]*", body), body        # = [ | , # all as %XX
+    assert "%3D" in body and "%7C" in body and "%5B" in body
