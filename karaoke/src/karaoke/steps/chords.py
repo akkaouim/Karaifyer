@@ -12,7 +12,7 @@ import json
 import numpy as np
 
 from karaoke import audio
-from karaoke.chords import bars_from, changes, chart_text, chords_per_beat, merge_blips
+from karaoke.chords import bars_from, changes, chart_text, chords_per_beat, merge_blips, spell
 from karaoke.grid import beats_per_bar, tempo_stats
 from karaoke.runner import Step
 from karaoke.tools import TOOLS_DIR, run_tool, tool_timeout
@@ -34,7 +34,7 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     data = json.loads(out.read_text())
     beats, downbeats = upstream["beats"]["beats"], upstream["beats"]["downbeats"]
     bpb = beats_per_bar(beats, downbeats)
-    labels = merge_blips(chords_per_beat(data["segments"], beats))
+    labels = spell(merge_blips(chords_per_beat(data["segments"], beats)), data["key"])
     bars = bars_from(beats, downbeats, labels, bpb)
     bpm = tempo_stats(beats)["bpm"]
     ws.out.mkdir(parents=True, exist_ok=True)
@@ -44,5 +44,5 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     return {"key": data["key"], "bpm": bpm, "beats_per_bar": bpb, "bars": bars, "changes": changes(beats, labels)}
 
 
-CHORDS = Step(name="chords", deps=("ingest", "separate", "beats"), key=lambda ws: "madmom-deepchroma-v1",
+CHORDS = Step(name="chords", deps=("ingest", "separate", "beats"), key=lambda ws: "madmom-deepchroma-v1|spell-by-key",
               run=_run, artifacts=lambda ws: [ws.out / "accords.txt"])

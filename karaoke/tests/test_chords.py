@@ -59,3 +59,29 @@ def test_step_mixes_harmony_and_writes_chart(cfg, monkeypatch):
     text = (ws.out / "accords.txt").read_text()
     assert "| C | Am F | G | G |" in text and "C major" in text
     assert [p.name for p in C.CHORDS.artifacts(ws)] == ["accords.txt"]
+
+
+def test_spell_follows_key():
+    from karaoke.chords import spell
+    assert spell(["C#", "Bbm", "Ab", "N.C."], "Db major") == ["Db", "Bbm", "Ab", "N.C."]
+    assert spell(["C#m", "Ebm", "G#"], "B major") == ["C#m", "D#m", "G#"]
+    assert spell(["C#m", "Bb", "Eb", "F#"], "C major") == ["C#m", "Bb", "Eb", "F#"]   # neutral: default
+    assert spell(["F#m", "Gbm"], "Eb minor") == ["Gbm", "Gbm"]
+
+
+def test_step_spells_chords_in_key(cfg, monkeypatch):
+    import json
+    from pathlib import Path
+    from karaoke import audio
+    from karaoke.steps import chords as C
+    from karaoke.workspace import Workspace
+    from conftest import tone
+    from test_manifest import song
+    ws = Workspace(cfg, song())
+    for s in C.HARMONIC:
+        audio.write_wav(ws.stems / f"{s}.wav", tone(8.0))
+    monkeypatch.setattr(C, "run_tool", lambda tool, args, **kw: Path(args[-1]).write_text(
+        json.dumps({"key": "Db major", "segments": [[0.0, 8.0, "C#:maj"]]})))
+    r = C.CHORDS.run(ws, {"ingest": {"duration_s": 8.0}, "separate": {},
+                          "beats": {"beats": BEATS, "downbeats": DOWN}})
+    assert r["changes"] == [{"t": 0.0, "label": "Db"}] and r["bars"][0]["chords"] == [[0, "Db"]]

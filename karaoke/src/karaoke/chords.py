@@ -60,3 +60,21 @@ def chart_text(bars: list[dict], beats_per_bar: int, per_line: int = 4) -> str:
 def changes(beats: list[float], labels: list[str]) -> list[dict]:
     """Chord changes in time: [{t, label}] (first beat included)."""
     return [{"t": b, "label": l} for i, (b, l) in enumerate(zip(beats, labels)) if i == 0 or l != labels[i - 1]]
+
+
+TO_FLAT = {"C#": "Db", "D#": "Eb", "F#": "Gb", "G#": "Ab", "A#": "Bb"}
+TO_SHARP = {v: k for k, v in TO_FLAT.items()}
+FLAT_KEYS = {"F major", "Bb major", "Eb major", "Ab major", "Db major", "Gb major",
+             "D minor", "G minor", "C minor", "F minor", "Bb minor", "Eb minor"}
+SHARP_KEYS = {"E major", "B major", "F# major", "C# major",
+              "C# minor", "G# minor", "D# minor", "A# minor"}   # 4+ sharps: A# beats Bb
+
+
+def spell(symbols: list[str], key: str) -> list[str]:
+    """Respell black-key roots to match the key (Db major → Db, not C#); other keys keep the default."""
+    table = TO_FLAT if key in FLAT_KEYS else TO_SHARP if key in SHARP_KEYS else {}
+    out = []
+    for s in symbols:
+        root = s[:2] if len(s) > 1 and s[1] in "#b" else s
+        out.append(table.get(root, root) + s[len(root):] if root in table else s)
+    return out
