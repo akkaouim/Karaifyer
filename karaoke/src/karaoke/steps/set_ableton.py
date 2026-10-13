@@ -35,5 +35,5 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     return {"set": str(_out(ws)), "warnings": r["warnings"]}
 
 
-SET_ABLETON = Step(name="set", deps=("package", "video"), key=_key, run=_run,
+SET_ABLETON = Step(name="set", deps=("package", "video"), key=_key, run=_run, version="2",   # 2: silent lead-in bar, opens on bar 1
                    artifacts=lambda ws: [_out(ws)])

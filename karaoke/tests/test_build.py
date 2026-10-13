@@ -26,12 +26,13 @@ def test_two_songs_layout(tmp_path):
     r = build_set(FIX / "gabarit.als", songs, out)
     ls = load_als(out).getroot().find("LiveSet")
     acc = arranger_events(track(ls, "Accompagnement"))
-    assert [c.get("Time") for c in acc] == ["0", "28"]            # song 2 at (10 s + 4 s gap) × 2 beats
+    # each song: one silent bar (2 s) first, then the song; song 2 at (2 + 10 + 4 + 2) s × 2 beats
+    assert [c.get("Time") for c in acc] == ["4", "36"]
     assert [l.find("Name").get("Value") for l in ls.findall("Locators/Locators/Locator")] == [
         "001 Titre 001 & co", "002 Titre 002 & co"]
     assert len(arranger_events(track(ls, "Back Vocals"))) == 2
     assert len(arranger_events(track(ls, "Vidéo"))) == 2 and len(arranger_events(track(ls, "XR18 faders"))) == 2
-    assert r["songs"] == 2 and r["duration_s"] == pytest.approx(20.0, abs=0.1)
+    assert r["songs"] == 2 and r["duration_s"] == pytest.approx(24.0, abs=0.1)
     path = acc[1].find("SampleRef/FileRef/RelativePath").get("Value")
     assert path == "../sortie/002_x/accompagnement.flac"
 
@@ -133,7 +134,7 @@ def test_auto_stop_clip_at_song_end(tmp_path):
     ls = load_als(out).getroot().find("LiveSet")
     stop_track = track(ls, "Auto stop")
     [clip] = list(arranger_events(stop_track))
-    assert clip.get("Time") == "21"                                     # (10 s + 0.5 s) × 2 beats
+    assert clip.get("Time") == "25"                                     # (2 s lead-in + 10 s + 0.5 s) × 2 beats
     [env] = clip.findall("Envelopes/Envelopes/ClipEnvelope")
     assert env.find("EnvelopeTarget/PointeeId").get("Value") == controller_target_id(stop_track, 119)
     assert [e.get("Value") for e in env.findall("Automation/Events/FloatEvent")] == ["127", "127"]
@@ -166,3 +167,26 @@ def test_generated_set_starts_at_zero_and_keeps_stop_mapping(tmp_path):
     assert ls.find("Transport/CurrentTime").get("Value") == "0"
     assert ls.find("Transport/StopKeyMidi/NoteOrController").get("Value") == "119"
     assert r["warnings"] == []                                     # the template now has « Auto stop »
+
+
+def test_set_opens_on_bar_one_not_at_the_template_selection(tmp_path):
+    # Michel's template stores an arrangement selection at beat 84: Live opened every set there
+    out = tmp_path / "sets" / "001.als"
+    build_set(FIX / "gabarit.als", [make_song(tmp_path, "001", 4.0)], out)
+    ls = load_als(out).getroot().find("LiveSet")
+    assert ls.find("TimeSelection/AnchorTime").get("Value") == "0"
+    assert ls.find("TimeSelection/OtherTime").get("Value") == "0"
+    assert ls.find("Transport/CurrentTime").get("Value") == "0"
+
+
+def test_faders_in_a_silent_first_bar_song_and_locator_on_bar_two(tmp_path):
+    # Play from bar 1: faders, then the click; back to the locator (bar 2): click again, faders not resent
+    out = tmp_path / "sets" / "001.als"
+    build_set(FIX / "gabarit.als", [make_song(tmp_path, "001", 6.0)], out)
+    ls = load_als(out).getroot().find("LiveSet")
+    [fader] = arranger_events(track(ls, "XR18 faders"))
+    assert float(fader.get("Time")) == 0 and float(fader.find("CurrentEnd").get("Value")) <= 4
+    for name in ["Accompagnement", "Clic", "Guide Voix", "Vidéo"]:
+        assert [c.get("Time") for c in arranger_events(track(ls, name))] == ["4"], name
+    [loc] = ls.findall("Locators/Locators/Locator")
+    assert loc.find("Time").get("Value") == "4"

@@ -1,5 +1,5 @@
 """Assemble an Ableton set from Michel's template: songs in sequence (one per set in practice),
-one locator each, XR18 fader defaults sent by a MIDI clip at each song start, and an automatic
+one locator each, XR18 fader defaults sent by a MIDI clip in a silent bar before each song, and an automatic
 stop at each song's end. The template file is only read.
 
 Automatic stop: if the template has a MIDI track « Auto stop » (output: IAC Driver bus), a clip at
@@ -19,6 +19,10 @@ CLIP_COLOR = 9
 AUTO_STOP_TRACK = "Auto stop"
 AUTO_STOP_CC = 119
 AUTO_STOP_AFTER_S = 0.5
+# One silent bar before each song (Live runs these sets at 120 BPM: a bar = 2 s). The XR18 faders are
+# sent there; the song (click count-in first) and its locator start on the next bar, so jumping back to
+# the locator restarts the click from its first beat without resending the faders.
+LEAD_IN_S = 2.0
 
 
 class SetError(ValueError):
@@ -49,8 +53,12 @@ def build_set(template: Path, songs: list[SongEntry], out: Path, gap_s: float = 
     _check(songs)
     tree = load_als(template)
     ls = tree.getroot().find("LiveSet")
-    # The template may have been saved with the playhead mid-arrangement: open every set at 0.
+    # The template may have been saved with the playhead or a selection mid-arrangement (Michel's had a
+    # selection at beat 84, where Live puts its start marker): open every set on bar 1.
     ls.find("Transport/CurrentTime").set("Value", "0")
+    for k in ("TimeSelection/AnchorTime", "TimeSelection/OtherTime"):
+        if ls.find(k) is not None:
+            ls.find(k).set("Value", "0")
     events = {k: arranger_events(track(ls, name)) for k, name in TRACKS.items()}
     faders_track = track(ls, TRACKS["faders"])
     target_ids = {cc: controller_target_id(faders_track, cc) for ccs in FADER_CC.values() for cc in ccs}
@@ -65,21 +73,22 @@ def build_set(template: Path, songs: list[SongEntry], out: Path, gap_s: float = 
         warnings.append(f"piste MIDI « {AUTO_STOP_TRACK} » absente du gabarit : pas d'arrêt automatique")
     t, names = 0.0, []
     for i, s in enumerate(songs):
+        start = t + LEAD_IN_S
         infos = {n: media_info(s.folder / f"{n}.flac", out.parent) for n in AUDIO_FILES}
-        clips = {n: audio_clip(info, t, n, CLIP_COLOR) for n, info in infos.items()}
-        clips["video"] = video_clip(media_info(s.folder / "paroles.mp4", out.parent), t, "paroles")
+        clips = {n: audio_clip(info, start, n, CLIP_COLOR) for n, info in infos.items()}
+        clips["video"] = video_clip(media_info(s.folder / "paroles.mp4", out.parent), start, "paroles")
         clips["faders"] = midi_clip(t, FADER_CLIP_S, s.faders, target_ids, FADER_CC)
         for k, clip in clips.items():
             clip.set("Id", str(i))          # clips are numbered within each track's list, as Live does
             events[k].append(clip)
         if stop_events is not None:
-            stop = midi_clip(t + infos["accompagnement"].seconds + AUTO_STOP_AFTER_S, FADER_CLIP_S,
+            stop = midi_clip(start + infos["accompagnement"].seconds + AUTO_STOP_AFTER_S, FADER_CLIP_S,
                              {"stop": 127}, stop_ids, {"stop": [AUTO_STOP_CC]})
             stop.set("Id", str(i))
             stop_events.append(stop)
         name = f"{s.id} {s.titre}"
-        loc_list.append(locator(t, name, i))
+        loc_list.append(locator(start, name, i))
         names.append(name)
-        t += infos["accompagnement"].seconds + gap_s
+        t = start + infos["accompagnement"].seconds + gap_s
     save_als(tree, out)
     return {"songs": len(songs), "duration_s": max(0.0, t - gap_s), "locators": names, "warnings": warnings}

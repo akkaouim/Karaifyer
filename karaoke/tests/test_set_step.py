@@ -47,3 +47,8 @@ def test_set_step_removes_stale_sets_of_the_same_song(cfg, tmp_path, monkeypatch
     SET_ABLETON.run(ws, {"package": {"faders": src.faders}, "video": {}})
     assert not any(p.exists() for p in stale) and other.exists()
     assert (cfg.sets / "dessert" / f"{ws.out.name}.als").exists()
+
+
+def test_set_step_version_rebuilds_existing_sets():
+    # lead-in bar + bar-1 start marker: every existing set must be regenerated on the next run
+    assert SET_ABLETON.version == "2"
