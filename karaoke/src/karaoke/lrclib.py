@@ -12,7 +12,7 @@ from karaoke.runner import StepRetry
 BASE = "https://lrclib.net"
 UA = "karaoke-live/0.1 (github.com/akkaouim/mp3-pipeline)"
 DURATION_TOLERANCE_S = 3.0
-BACKOFF_S = (2.0, 5.0, 10.0)   # LRCLIB answers 503 under load; measured several in a row
+BACKOFF_S = (2.0, 5.0, 10.0, 30.0, 60.0)   # LRCLIB answers 503 under load; 043 hit an outage longer than 17 s
 
 
 @dataclass(frozen=True)
