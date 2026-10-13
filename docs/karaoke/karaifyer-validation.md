@@ -9,7 +9,7 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 3 | Karaoké tab: the songs appear; « Ajouter des morceaux… » with an MP3 from outside SysRec adds a row (title from the tags or the file name) | |
 | 4 | Ticking/unticking Retirer, changing Langue and Partie: `manifeste.csv` is updated (open it to check); the package / set dots go grey | |
 | 5 | Analyser (2 new songs): progress bar, current step, time left, live terminal | |
-| 6 | Pause for a few minutes, then Reprendre: the analysis continues where it was | |
+| 6 | Pause for **30 minutes during « separate »**, then Reprendre: the step finishes normally (no « timeout ») and the analysis continues | |
 | 7 | Arrêter après ce morceau: the current song finishes, the next one doesn't start | |
 | 8 | Arrêter maintenant during « separate », then Analyser: the step is redone, no song reported done wrongly | |
 | 9 | Right-click: open folder / video / set / chord grid / journal | |

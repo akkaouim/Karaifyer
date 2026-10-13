@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 import subprocess
+import time
 from pathlib import Path
 
 TOOLS_DIR = Path(__file__).resolve().parents[2] / "tools"
@@ -28,14 +29,36 @@ def run_tool(tool: str, args: list[str], env: dict | None = None,
     project = TOOLS_DIR / tool
     full_env = {**os.environ, "PYTORCH_ENABLE_MPS_FALLBACK": "1", **(env or {})}
     full_env.pop("VIRTUAL_ENV", None)   # don't let the main env leak into the tool's
+    cmd = ["uv", "run", "--project", str(project), *args]
+    proc = subprocess.Popen(cmd, cwd=project, env=full_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        proc = subprocess.run(["uv", "run", "--project", str(project), *args],
-                              cwd=project, env=full_env, capture_output=True, text=True, timeout=timeout)
+        out, err = communicate_active(proc, timeout)
     except subprocess.TimeoutExpired as e:
         raise ToolError(tool, -1, f"timeout after {e.timeout:.0f} s") from e
     if proc.returncode != 0:
-        raise ToolError(tool, proc.returncode, proc.stderr)
-    return proc
+        raise ToolError(tool, proc.returncode, err)
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+
+
+TICK_S = 1.0
+MAX_STEP_S = 2.0   # a longer gap between two ticks means we were SIGSTOPped (Karaifyer's Pause)
+
+
+def communicate_active(proc, timeout: float | None, clock=time.monotonic) -> tuple[str, str]:
+    """communicate() whose timeout counts only time spent running: while the process group is
+    paused (SIGSTOP, maybe for hours) the clock jumps, and each tick counts at most MAX_STEP_S."""
+    active, last = 0.0, clock()
+    while True:
+        try:
+            return proc.communicate(timeout=TICK_S)
+        except subprocess.TimeoutExpired:
+            now = clock()
+            active += min(now - last, MAX_STEP_S)
+            last = now
+            if timeout is not None and active > timeout:
+                proc.kill()
+                proc.communicate()
+                raise subprocess.TimeoutExpired(getattr(proc, "args", "tool"), timeout)
 
 
 def pick_stem(files: list[Path], label: str) -> Path:

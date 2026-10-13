@@ -147,3 +147,20 @@ def test_interrupted_rerun_does_not_leave_a_stale_marker(cfg):
     calls.clear()
     r = run_song(ws, [make_steps(calls, state)("separate")])
     assert calls == ["separate"] and r["separate"]["status"] == "fait"
+
+
+def test_second_run_on_the_same_song_is_refused_while_one_is_active(cfg):
+    # review #3: an orphaned traiter (app quit) and a new one must not write the same files
+    import fcntl
+    from karaoke.runner import Step, run_song
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    ws = Workspace(cfg, song())
+    ws.work.mkdir(parents=True, exist_ok=True)
+    ran = []
+    a = Step(name="a", deps=(), key=lambda ws: "k", run=lambda ws, up: ran.append(1) or {})
+    with open(ws.work / ".lock", "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        res = run_song(ws, [a])
+    assert ran == [] and res["a"]["status"] == "a_reessayer" and "déjà en cours" in res["a"]["error"]
+    assert run_song(ws, [a])["a"]["status"] == "fait"          # lock released → runs

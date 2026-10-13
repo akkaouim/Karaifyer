@@ -6,6 +6,7 @@ the OUTPUT of a dependency changes. Downstream steps depend on what upstream ste
 not on how: updating one step whose output stays identical never ripples down the chain.
 """
 from __future__ import annotations
+import fcntl
 import hashlib
 import json
 import time
@@ -60,6 +61,28 @@ def _entry(status: str, seconds: float = 0.0, result: dict | None = None, error:
 
 def run_song(ws: Workspace, steps: list[Step], force: set[str] = frozenset(),
              only: set[str] | None = None, on_event: Callable[[dict], None] | None = None) -> dict[str, dict]:
+    # One run per song at a time: an orphaned `traiter` (app quit mid-song) or a parallel command-line
+    # run would otherwise write the same stems and markers.
+    ws.work.mkdir(parents=True, exist_ok=True)
+    lock = open(ws.work / ".lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock.close()
+        busy = {s.name: _entry("a_reessayer", error="analyse déjà en cours pour ce morceau") for s in steps}
+        for s in steps:
+            if on_event:
+                on_event({"event": "step_end", "id": ws.song.id, "step": s.name, "status": "a_reessayer",
+                          "seconds": 0.0, "error": busy[s.name]["error"]})
+        return busy
+    try:
+        return _run_song_locked(ws, steps, force, only, on_event)
+    finally:
+        lock.close()   # closing the file releases the flock
+
+
+def _run_song_locked(ws: Workspace, steps: list[Step], force: set[str], only: set[str] | None,
+                     on_event: Callable[[dict], None] | None) -> dict[str, dict]:
     out: dict[str, dict] = {}
 
     def emit(step: str, status: str | None = None) -> None:
