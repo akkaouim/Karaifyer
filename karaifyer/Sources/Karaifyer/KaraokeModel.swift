@@ -20,6 +20,10 @@ final class KaraokeModel: RunDriver {
     var stopAfterCurrentRequested = false
     /// Marker column: what the current / last run did to each song.
     var marks = RunMarks()
+    /// The one automatic retry of « à réessayer » songs has been done for this run.
+    @ObservationIgnored private var retried = false
+    @ObservationIgnored private var userStopped = false
+    @ObservationIgnored private var retrying = false
     /// While a run is in progress (paused included) the manifest can't be edited.
     var locked: Bool { runState != .idle }
     private(set) var doneSteps = 0
@@ -133,7 +137,8 @@ final class KaraokeModel: RunDriver {
         let busy = Set(controller.queue.map(\.id) + [controller.current?.id].compactMap { $0 })
         let jobs = (ids.isEmpty ? songs.map(\.id) : ids).filter { !busy.contains($0) }.map { Job(id: $0, forced: forced) }
         guard !jobs.isEmpty else { return }
-        if runState == .idle { marks.begin(jobs.map(\.id)) } else { marks.add(jobs.map(\.id)) }
+        if runState == .idle && !retrying { marks.begin(jobs.map(\.id)); retried = false; userStopped = false }
+        else { marks.add(jobs.map(\.id)) }
         plannedSongs += jobs.count
         songsLeft += jobs.count
         plannedSteps += jobs.count * max(1, songs.first?.steps.count ?? 10)
@@ -152,8 +157,9 @@ final class KaraokeModel: RunDriver {
         if kill(p.pid, 0) == 0 { p.signal(SIGKILL) }
     }
     func resume() { controller.resume() }
-    func stopAfterCurrent() { controller.requestStopAfterCurrent() }
+    func stopAfterCurrent() { userStopped = true; controller.requestStopAfterCurrent() }
     func stopNow() {
+        userStopped = true
         marks.stopped()
         controller.stopNow()
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in self?.controller.killIfStillStopping() }
@@ -224,6 +230,16 @@ final class KaraokeModel: RunDriver {
         songsLeft = max(0, songsLeft - 1)
         process = nil
         controller.processExited()
+        if controller.state == .idle && !userStopped && !retried {
+            let again = marks.retryCandidates()
+            retried = true
+            if !again.isEmpty {
+                appendLog("Nouvel essai pour : \(again.joined(separator: ", ")) (service en ligne injoignable plus tôt)")
+                retrying = true
+                analyse(ids: again)
+                retrying = false
+            }
+        }
         Task { await refresh() }
     }
 

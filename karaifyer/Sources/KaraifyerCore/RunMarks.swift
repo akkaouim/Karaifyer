@@ -23,6 +23,11 @@ public struct RunMarks: Sendable {
     public mutating func processExited(_ id: String, code: Int32) {
         if marks[id] == .running { marks[id] = code == 0 ? .done(statut: "ok") : .failed }
     }
+    /// Songs that ended « à réessayer » (online service unreachable), in id order: retried once at the end.
+    public func retryCandidates() -> [String] {
+        marks.filter { $0.value == .done(statut: "a_reessayer") }.map(\.key).sorted()
+    }
+
     /// « Arrêter maintenant »: the running song is marked stopped, songs still waiting are unmarked.
     public mutating func stopped() {
         for (id, m) in marks {

@@ -47,3 +47,16 @@ struct RunMarksTests {
         #expect(Help.statut("—", alertes: []).contains("pas encore"))
     }
 }
+
+struct RetryTests {
+    // 043 ended « à réessayer » (LRCLIB 503): Karaifyer gives such songs one more try at the end of the run
+    @Test func songsLeftToRetryAreTheOnesEndedARessayer() {
+        var m = RunMarks()
+        m.begin(["042", "043", "044", "045"])
+        m.running("042"); m.songEnded("042", statut: "ok")
+        m.running("043"); m.songEnded("043", statut: "a_reessayer")
+        m.running("044"); m.processExited("044", code: 1)
+        m.running("045"); m.songEnded("045", statut: "a_reessayer")
+        #expect(m.retryCandidates() == ["043", "045"])
+    }
+}
