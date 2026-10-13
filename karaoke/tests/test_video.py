@@ -114,3 +114,14 @@ def test_chart_row_clears_a_wrapped_title():
     white = np.nonzero((px.min(axis=2) > 240).any(axis=1))[0]
     yellow = np.nonzero(((px[..., 0] > 200) & (px[..., 1] > 180) & (px[..., 2] < 80)).any(axis=1))[0]
     assert yellow.min() > white.max() + 60     # was 28 px: chart glued to the wrapped title
+
+
+def test_renderer_change_is_not_masked_by_cached_frames(tmp_path, monkeypatch):
+    from PIL import Image
+    from karaoke.video import render as R
+    states = [State(0, 1, "titre", "T", "", None)]
+    R.render_video(states, tmp_path / "a.mp4", tmp_path / "frames")
+    monkeypatch.setattr(R, "_frame", lambda s: Image.new("RGB", (R.W, R.H), (255, 0, 0)))
+    R.render_video(states, tmp_path / "b.mp4", tmp_path / "frames")
+    png = next((tmp_path / "frames").glob("*.png"))
+    assert np.asarray(Image.open(png))[0, 0].tolist() == [255, 0, 0]

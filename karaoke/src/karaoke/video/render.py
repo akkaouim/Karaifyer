@@ -1,6 +1,7 @@
 """Lyrics video rendering: one PNG per distinct display state (Pillow), assembled by ffmpeg."""
 from __future__ import annotations
 import hashlib
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -124,6 +125,7 @@ def _frame(s: State) -> Image.Image:
 
 
 def render_video(states: list[State], out_mp4: Path, work: Path, fps: int = 25) -> None:
+    shutil.rmtree(work, ignore_errors=True)   # frames from an older renderer must not be reused
     work.mkdir(parents=True, exist_ok=True)
     entries = []
     for s in states:
