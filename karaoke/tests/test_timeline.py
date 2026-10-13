@@ -99,3 +99,28 @@ def test_instrumental_states_show_current_chart_row():
         (8.0, ("C", "Am F", "N.C.", "G"), 3), (9.0, ("C", "G"), 0), (11.0, ("C", "G"), 1), (13.0, (), None)]
     assert all(s.countdown == 1 for s in inst)                             # other fields preserved
     assert with_chart(states, [], 4) == states
+
+
+def test_gap_of_one_bar_or_more_becomes_instrumental_without_countdown():
+    # Sinsémilia: a lit line stayed on screen through a 20 s break, so no chord row was shown
+    from karaoke.video.timeline import TimedLine, build_states
+    beats = [0.5 * i for i in range(40)]
+    a = TimedLine(1.0, 2.0, "un", [(1.0, 2)])
+    b = TimedLine(5.0, 6.0, "deux", [(5.0, 4)], chords=((0, "G"),))   # 2.8 s gap after a ends ≈ 5 beats
+    states = build_states([a, b], 0.0, 8.0, "T", "A", beats)
+    kinds = [(s.kind, round(s.start, 2), round(s.end, 2)) for s in states]
+    assert max(e for k, s, e in kinds if k == "ligne" and s < 2.5) == 2.5      # « un » leaves at its end + 0.5
+    assert ("instrumental", 2.5, 4.8) in kinds
+    inst = next(s for s in states if s.kind == "instrumental")
+    assert inst.countdown is None and inst.next == "deux" and inst.next_chords == ((0, "G"),)
+
+
+def test_short_gap_keeps_the_line_and_preview_carries_next_chords():
+    from karaoke.video.timeline import TimedLine, build_states
+    beats = [0.5 * i for i in range(40)]
+    a = TimedLine(1.0, 2.0, "un", [(1.0, 2)])
+    b = TimedLine(3.0, 4.0, "deux", [(3.0, 4)], chords=((0, "Am"),))   # 1 s gap = 2 beats < one bar
+    states = build_states([a, b], 0.0, 6.0, "T", "A", beats)
+    assert not any(s.kind == "instrumental" for s in states)
+    first = [s for s in states if s.kind == "ligne" and s.current == "un"]
+    assert first and all(s.next_chords == ((0, "Am"),) for s in first)

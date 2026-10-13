@@ -29,6 +29,7 @@ class State:
     chords: tuple = ()
     chart: tuple = ()               # instrumental parts: the 4-bar chart row being played
     chart_pos: int | None = None    # index of the current bar in `chart`
+    next_chords: tuple = ()         # chords of the next-line preview
 
 
 def line_chords(line: TimedLine, changes: list[dict]) -> list[tuple[int, str]]:
@@ -54,17 +55,17 @@ def _beats_between(beats, a: float, b: float) -> int:
     return sum(1 for t in beats if a < t < b)
 
 
-def _with_countdown(start, end, kind, current, nxt, beats, n=4) -> list[State]:
+def _with_countdown(start, end, kind, current, nxt, beats, n=4, next_chords=()) -> list[State]:
     marks = [b for b in beats if start <= b < end][-n:]
     if len(marks) < n:
-        return [State(start, end, kind, current, nxt, None)]
-    out = [State(start, marks[0], kind, current, nxt, None)] if marks[0] > start else []
+        return [State(start, end, kind, current, nxt, None, next_chords=next_chords)]
+    out = [State(start, marks[0], kind, current, nxt, None, next_chords=next_chords)] if marks[0] > start else []
     for k, b in enumerate(marks):
-        out.append(State(b, marks[k + 1] if k + 1 < n else end, kind, current, nxt, n - k))
+        out.append(State(b, marks[k + 1] if k + 1 < n else end, kind, current, nxt, n - k, next_chords=next_chords))
     return out
 
 
-def _line_states(line: TimedLine, show: float, stop: float, nxt: str) -> list[State]:
+def _line_states(line: TimedLine, show: float, stop: float, nxt: str, nc: tuple = ()) -> list[State]:
     out, t, lit = [], show, 0
     for start, chars in line.syllables:
         if start <= show:
@@ -72,14 +73,14 @@ def _line_states(line: TimedLine, show: float, stop: float, nxt: str) -> list[St
             continue
         if start >= stop:
             break
-        out.append(State(t, start, "ligne", line.text, nxt, None, lit, line.chords))
+        out.append(State(t, start, "ligne", line.text, nxt, None, lit, line.chords, next_chords=nc))
         t, lit = start, chars
-    out.append(State(t, stop, "ligne", line.text, nxt, None, lit, line.chords))
+    out.append(State(t, stop, "ligne", line.text, nxt, None, lit, line.chords, next_chords=nc))
     return out
 
 
 def build_states(lines: list[TimedLine], pad_s: float, total_s: float, titre: str, artiste: str,
-                 beats: list[float], lead_s: float = 0.2, gap_beats: int = 8) -> list[State]:
+                 beats: list[float], lead_s: float = 0.2, gap_beats: int = 8, bar_beats: int = 4) -> list[State]:
     title = f"{titre} — {artiste}"
     if not lines:
         return [State(0.0, total_s, "titre", title, "", None)]
@@ -92,12 +93,18 @@ def build_states(lines: list[TimedLine], pad_s: float, total_s: float, titre: st
     for i, line in enumerate(lines):
         nxt = lines[i + 1] if i + 1 < len(lines) else None
         stop = shows[i + 1] if nxt else min(total_s, max(line.end, line.start) + 2.0)
-        if nxt and _beats_between(beats, line.end, nxt.start) > gap_beats:
-            sing_end = min(stop, line.end + 0.5)
-            states += _line_states(line, shows[i], sing_end, nxt.text)
-            states += _with_countdown(sing_end, stop, "instrumental", "", nxt.text, beats)
+        nc = nxt.chords if nxt else ()
+        gap = _beats_between(beats, line.end, nxt.start) if nxt else 0
+        sing_end = min(stop, line.end + 0.5)
+        if nxt and gap > gap_beats:
+            states += _line_states(line, shows[i], sing_end, nxt.text, nc)
+            states += _with_countdown(sing_end, stop, "instrumental", "", nxt.text, beats, next_chords=nc)
+        elif nxt and gap >= bar_beats and sing_end < stop:
+            # A break of a bar or more: show the chord row (instrumental) instead of a finished line.
+            states += _line_states(line, shows[i], sing_end, nxt.text, nc)
+            states.append(State(sing_end, stop, "instrumental", "", nxt.text, None, next_chords=nc))
         else:
-            states += _line_states(line, shows[i], stop, nxt.text if nxt else "")
+            states += _line_states(line, shows[i], stop, nxt.text if nxt else "", nc)
     if states[-1].end < total_s:
         states.append(State(states[-1].end, total_s, "fin", "", "", None))
     return [s for s in states if s.end - s.start > 1e-6]

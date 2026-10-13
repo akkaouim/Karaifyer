@@ -105,7 +105,7 @@ def test_video_step_passes_bars_for_instrumentals(cfg, monkeypatch):
                      "bars": [{"start": 0.0, "chords": [[0, "Am"], [2, "F"]]}, {"start": 2.0, "chords": [[0, "G"]]}]}}
     V.VIDEO.run(ws, up)
     assert any(s.chart == ("Am F", "G") and s.chart_pos == 0 and s.start == 2.0 for s in seen["states"])
-    assert V.VIDEO.version == "5"
+    assert V.VIDEO.version == "6"
 
 
 def test_chart_row_clears_a_wrapped_title():
@@ -125,3 +125,20 @@ def test_renderer_change_is_not_masked_by_cached_frames(tmp_path, monkeypatch):
     R.render_video(states, tmp_path / "b.mp4", tmp_path / "frames")
     png = next((tmp_path / "frames").glob("*.png"))
     assert np.asarray(Image.open(png))[0, 0].tolist() == [255, 0, 0]
+
+
+def test_line_ends_at_its_last_word_not_at_vocal_activity():
+    from karaoke.steps.video import _timed_line
+    words = [{"text": "Un", "start": 1.0, "end": 1.4, "syllables": [{"text": "Un", "start": 1.0}]},
+             {"text": "deux", "start": 1.5, "end": 2.2, "syllables": [{"text": "deux", "start": 1.5}]}]
+    line = {"t": 1.0, "text": "Un deux", "words": words}
+    assert _timed_line(line, end=20.0, pad=2.0).end == 4.2        # backing vocals kept "voice" on to 20 s
+    assert _timed_line({"t": 1.0, "text": "Un"}, end=3.0, pad=2.0).end == 5.0   # no word timing: as before
+
+
+def test_next_line_preview_draws_its_chords():
+    def chord_rows(next_chords):
+        px = np.asarray(_frame(State(0, 1, "ligne", "dan ser", "la suite", None, 0, (), (), None, next_chords)))
+        blue = (px[..., 2] > 150) & (px[..., 0] < 140) & (px[..., 1] > 110)
+        return np.nonzero(blue[600:].any(axis=1))[0]
+    assert len(chord_rows(())) == 0 and len(chord_rows(((0, "Am"),))) > 0

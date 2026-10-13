@@ -37,7 +37,7 @@ def _wrap(draw, text, font, width):
 YELLOW, WHITE, GREY, CHORD = (255, 214, 0), (255, 255, 255), (150, 150, 150), (120, 200, 255)
 
 
-def _karaoke_line(draw, y, text, lit, font, chords=(), chord_font=None):
+def _karaoke_line(draw, y, text, lit, font, chords=(), chord_font=None, base=None, chord_fill=None):
     """Current line, centered and wrapped; its first `lit` characters (sung syllables) in yellow.
     Chord labels (char offset, label) sit above their syllable, pushed right to avoid overlaps."""
     words, offsets, pos = text.split(" "), [], 0
@@ -67,7 +67,7 @@ def _karaoke_line(draw, y, text, lit, font, chords=(), chord_font=None):
                 if i in starts:
                     k = min(off - offsets[i], len(words[i]))
                     lx = max(starts[i] + draw.textlength(words[i][:k], font=font), right)
-                    draw.text((lx, y), label, font=chord_font, fill=CHORD)
+                    draw.text((lx, y), label, font=chord_font, fill=chord_fill or CHORD)
                     right = lx + draw.textlength(label + " ", font=chord_font)
             y += chord_h
         for i in row:
@@ -75,7 +75,7 @@ def _karaoke_line(draw, y, text, lit, font, chords=(), chord_font=None):
             if n:
                 draw.text((x, y), w[:n], font=font, fill=YELLOW)
             if n < len(w):
-                draw.text((x + draw.textlength(w[:n], font=font), y), w[n:], font=font, fill=WHITE)
+                draw.text((x + draw.textlength(w[:n], font=font), y), w[n:], font=font, fill=base or WHITE)
             x += draw.textlength(w, font=font) + space
         y += int(font.size * 1.25)
     return y
@@ -99,6 +99,16 @@ def _chart_row(draw, y, chart, pos, font):
         x += draw.textlength(txt, font=font)
 
 
+PREVIEW_CHORD = (90, 140, 190)   # dimmed light blue: chords of the coming line
+
+
+def _preview(draw, y, text, chords, font):
+    """Next line in grey, with its chords above (smaller, dimmed) so the changes are seen coming."""
+    if not chords:
+        return _centered(draw, y, text, font, GREY)
+    return _karaoke_line(draw, y, text, 0, font, chords, _font(BOLD, 48), base=GREY, chord_fill=PREVIEW_CHORD)
+
+
 def _frame(s: State) -> Image.Image:
     img = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -110,13 +120,13 @@ def _frame(s: State) -> Image.Image:
             _chart_row(d, max(520, y + 60), s.chart, s.chart_pos, chart_font)
     elif s.kind == "ligne":
         y = _karaoke_line(d, 380 - (60 if s.chords else 0), s.current, s.lit, big, s.chords, _font(BOLD, 72))
-        _centered(d, max(y + 60, 640), s.next, mid, GREY)
+        _preview(d, max(y + 60, 640), s.next, s.next_chords, mid)
     elif s.kind == "instrumental":
         if s.chart:
             _chart_row(d, 400, s.chart, s.chart_pos, chart_font)
         else:
             _centered(d, 300, "♪", sym, (90, 90, 90))
-        _centered(d, 640, s.next, mid, GREY)
+        _preview(d, 640, s.next, s.next_chords, mid)
     elif s.kind == "fin" and s.chart:
         _chart_row(d, 450, s.chart, s.chart_pos, chart_font)
     if s.countdown:     # 4-3-2-1 on the last beats before the next line
@@ -129,7 +139,7 @@ def render_video(states: list[State], out_mp4: Path, work: Path, fps: int = 25) 
     work.mkdir(parents=True, exist_ok=True)
     entries = []
     for s in states:
-        h = hashlib.sha1(repr((s.kind, s.current, s.next, s.countdown, s.lit, s.chords, s.chart, s.chart_pos)).encode()).hexdigest()[:16]
+        h = hashlib.sha1(repr((s.kind, s.current, s.next, s.countdown, s.lit, s.chords, s.chart, s.chart_pos, s.next_chords)).encode()).hexdigest()[:16]
         png = work / f"{h}.png"
         if not png.exists():
             _frame(s).save(png)

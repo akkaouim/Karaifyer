@@ -29,6 +29,9 @@ def _timed_line(line: dict, end: float, pad: float) -> TimedLine:
         offset += len(word["text"]) + 1
     if not syllables:                     # no word timing: light the whole line at its start
         syllables = [(line["t"] + pad, len(text))]
+    word_ends = [w["end"] for w in line.get("words", []) if w.get("end") is not None]
+    if word_ends:   # the last word is precise; vocal activity runs on with backing vocals and reverb
+        end = min(end, max(word_ends))
     return TimedLine(line["t"] + pad, end + pad, text, syllables)
 
 
@@ -54,4 +57,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 VIDEO = Step(name="video", deps=("package", "beats", "lyrics", "check", "chords"),
              key=lambda ws: f"{ws.song.titre}|{ws.song.artiste}", run=_run,
              artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4"],
-             version="5")   # 3: syllable colouring, 4-3-2-1 countdown; 4: chords above the line; 5: chart row in instrumentals
+             version="6")   # … 5: chart row in instrumentals; 6: line ends at last word, chart row from a 1-bar gap, chords on the preview
