@@ -51,3 +51,14 @@ def test_etat_cli_prints_json_list(cfg, monkeypatch):
     assert r.exit_code == 0, r.output
     data = json.loads(r.output)
     assert [d["id"] for d in data] == ["001", "002"] and data[0]["statut"] == "—"
+
+
+def test_song_state_includes_the_report_alerts(cfg):
+    # hover help on the Statut column explains why a song is « alerte » / « echec »
+    s = song()
+    ws = Workspace(cfg, s)
+    ws.out.mkdir(parents=True, exist_ok=True)
+    (ws.out / "rapport.json").write_text(json.dumps({"statut": "alerte", "etapes": {},
+                                                      "alertes": ["calage des paroles 82%", "dérive du clic 44 ms"]}))
+    assert song_state(cfg, s, steps({}))["alertes"] == ["calage des paroles 82%", "dérive du clic 44 ms"]
+    assert song_state(cfg, song(id="002"), steps({}))["alertes"] == []

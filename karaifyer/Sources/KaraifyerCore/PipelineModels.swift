@@ -37,6 +37,7 @@ public struct SongPaths: Codable, Equatable, Sendable {
 /// One manifest row plus its pipeline state, as printed by `karaoke etat --json`.
 public struct SongState: Codable, Equatable, Identifiable, Sendable {
     public var id, titre, artiste, album, fichier, langue, partie, statut: String
+    public var alertes: [String]?         // why « alerte » / « echec » (rapport.json)
     public var retirer: [String]
     public var decompteMesures: Int
     public var steps: [StepState]

@@ -18,6 +18,10 @@ final class KaraokeModel: RunDriver {
     var currentID: String?
     var currentStep: String?
     var stopAfterCurrentRequested = false
+    /// Marker column: what the current / last run did to each song.
+    var marks = RunMarks()
+    /// While a run is in progress (paused included) the manifest can't be edited.
+    var locked: Bool { runState != .idle }
     private(set) var doneSteps = 0
     private(set) var plannedSteps = 0
     private var plannedSongs = 0
@@ -129,6 +133,7 @@ final class KaraokeModel: RunDriver {
         let busy = Set(controller.queue.map(\.id) + [controller.current?.id].compactMap { $0 })
         let jobs = (ids.isEmpty ? songs.map(\.id) : ids).filter { !busy.contains($0) }.map { Job(id: $0, forced: forced) }
         guard !jobs.isEmpty else { return }
+        if runState == .idle { marks.begin(jobs.map(\.id)) } else { marks.add(jobs.map(\.id)) }
         plannedSongs += jobs.count
         songsLeft += jobs.count
         plannedSteps += jobs.count * max(1, songs.first?.steps.count ?? 10)
@@ -149,6 +154,7 @@ final class KaraokeModel: RunDriver {
     func resume() { controller.resume() }
     func stopAfterCurrent() { controller.requestStopAfterCurrent() }
     func stopNow() {
+        marks.stopped()
         controller.stopNow()
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in self?.controller.killIfStillStopping() }
     }
@@ -159,6 +165,7 @@ final class KaraokeModel: RunDriver {
         MainActor.assumeIsolated {
             currentID = job.id
             currentStep = nil
+            marks.running(job.id)
             songStarted = Date()
             appendLog("$ karaoke " + pipeline.traiterArgs(job).drop(while: { $0 != "traiter" }).joined(separator: " "))
             do {
@@ -203,6 +210,7 @@ final class KaraokeModel: RunDriver {
             }
         case .songEnd(let id, let statut):
             appendLog("■ \(id) → \(statut)")
+            marks.songEnded(id, statut: statut)
             if let i = songs.firstIndex(where: { $0.id == id }) { songs[i].statut = statut }
         case .log(let id, let l):
             if !l.hasPrefix("début ") && !l.hasPrefix("fin ") { appendLog("[\(id)] \(l)") }
@@ -211,6 +219,7 @@ final class KaraokeModel: RunDriver {
 
     private func exited(_ code: Int32) {
         if code != 0 { appendLog("[\(currentID ?? "?")] processus terminé (code \(code))") }
+        if let id = currentID, runState != .stopping { marks.processExited(id, code: code) }
         if code == 0 { measured.append(Date().timeIntervalSince(songStarted)) }
         songsLeft = max(0, songsLeft - 1)
         process = nil

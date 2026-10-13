@@ -23,6 +23,11 @@ struct KaraokeView: View {
         VStack(spacing: 0) {
             if let b = model.banner { bannerView(b) }
             toolbar.padding(8)
+            if model.locked {
+                Label("Analyse en cours : modifications désactivées jusqu'à la fin ou l'arrêt", systemImage: "lock.fill")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.bottom, 4)
+            }
             table
             footer
         }
@@ -51,13 +56,13 @@ struct KaraokeView: View {
             Button("Ajouter des morceaux…", systemImage: "plus") {
                 pickFiles { urls in Task { await model.add(files: urls) } }
             }
-            .disabled(!model.pipeline.problems().isEmpty)
+            .disabled(!model.pipeline.problems().isEmpty || model.locked)
             Divider().frame(height: 18)
             Button(model.selection.isEmpty ? "Analyser tout" : "Analyser la sélection", systemImage: "play.fill") {
                 endEditing()
                 model.analyse(ids: Array(model.selection))
             }
-            .disabled(model.banner != nil || model.songs.isEmpty)
+            .disabled(model.banner != nil || model.songs.isEmpty || model.locked)
             switch model.runState {
             case .running: Button("Pause", systemImage: "pause.fill") { model.pause() }
             case .paused: Button("Reprendre", systemImage: "playpause.fill") { model.resume() }
@@ -84,9 +89,10 @@ struct KaraokeView: View {
 
     var table: some View {
         Table(model.songs, selection: $model.selection) {
+            TableColumn("") { s in MarkView(mark: model.marks[s.id], paused: model.runState == .paused) }.width(22)
             TableColumn("id") { s in Text(s.id).monospacedDigit() }.width(36)
-            TableColumn("Titre") { s in CommitField(value: s.titre) { commit(s, "titre", $0) } }
-            TableColumn("Artiste") { s in CommitField(value: s.artiste) { commit(s, "artiste", $0) } }
+            TableColumn("Titre") { s in CommitField(value: s.titre, enabled: !model.locked) { commit(s, "titre", $0) } }
+            TableColumn("Artiste") { s in CommitField(value: s.artiste, enabled: !model.locked) { commit(s, "artiste", $0) } }
             TableColumn("Retirer (joué en live)") { s in
                 HStack(spacing: 6) {
                     ForEach(RETIRER, id: \.0) { stem, label in
@@ -94,6 +100,7 @@ struct KaraokeView: View {
                             commit(s, "retirer", Retirer.toggled(current(s).retirer, stem, on: on, order: RETIRER.map(\.0)))
                         }))
                         .toggleStyle(.checkbox).font(.caption)
+                        .disabled(model.locked)
                     }
                 }
             }.width(min: 300)
@@ -102,16 +109,21 @@ struct KaraokeView: View {
                     ForEach(Array(Set(LANGUES + [s.langue])).sorted(), id: \.self) { Text($0) }
                 }
                 .labelsHidden()
+                .disabled(model.locked)
             }.width(64)
-            TableColumn("Partie") { s in CommitField(value: s.partie) { commit(s, "partie", $0) } }.width(110)
-            TableColumn("Statut") { s in Text(s.statut).foregroundStyle(color(statut: s.statut)) }.width(70)
+            TableColumn("Partie") { s in CommitField(value: s.partie, enabled: !model.locked) { commit(s, "partie", $0) } }.width(110)
+            TableColumn("Statut") { s in
+                Text(s.statut).foregroundStyle(color(statut: s.statut))
+                    .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    .help(Help.statut(s.statut, alertes: s.alertes ?? []))
+            }.width(70)
             TableColumn("Étapes") { s in
                 HStack(spacing: 3) {
                     ForEach(s.steps, id: \.name) { st in
                         Circle()
                             .fill(color(step: st, running: model.currentID == s.id && model.currentStep == st.name))
                             .frame(width: 9, height: 9)
-                            .help("\(st.name) : \(st.status)" + ((st.error ?? "").isEmpty ? "" : "\n\(st.error!)"))
+                            .help(Help.step(st))
                     }
                 }
             }.width(130)
@@ -124,11 +136,14 @@ struct KaraokeView: View {
                 Button("Ouvrir la grille d'accords") { open(s.paths.accords) }
                 Button("Voir le journal") { open(model.pipeline.karaokeHome + "/travail/\(s.id)/journal.log") }
                 Divider()
-                Button("Corriger paroles et accords…") { openWindow(id: "editor", value: s.id) }
-                Button("Refaire le morceau") { model.analyse(ids: Array(ids), forced: "ingest") }
-                Menu("Refaire une étape") {
-                    ForEach(STEP_NAMES, id: \.self) { st in Button(st) { model.analyse(ids: Array(ids), forced: st) } }
+                Group {
+                    Button("Corriger paroles et accords…") { openWindow(id: "editor", value: s.id) }
+                    Button("Refaire le morceau") { model.analyse(ids: Array(ids), forced: "ingest") }
+                    Menu("Refaire une étape") {
+                        ForEach(STEP_NAMES, id: \.self) { st in Button(st) { model.analyse(ids: Array(ids), forced: st) } }
+                    }
                 }
+                .disabled(model.locked)
             }
         }
     }
@@ -161,6 +176,7 @@ struct KaraokeView: View {
 /// AppKit text field that commits on Return / focus loss (SwiftUI's TextField needs @State for a draft).
 struct CommitField: NSViewRepresentable {
     let value: String
+    var enabled = true
     let onCommit: (String) -> Void
 
     func makeNSView(context: Context) -> NSTextField {
@@ -174,6 +190,8 @@ struct CommitField: NSViewRepresentable {
 
     func updateNSView(_ f: NSTextField, context: Context) {
         if f.currentEditor() == nil { f.stringValue = value }
+        f.isEditable = enabled
+        f.textColor = enabled ? .labelColor : .secondaryLabelColor
         context.coordinator.onCommit = onCommit
         context.coordinator.original = value
     }
@@ -219,6 +237,29 @@ struct TerminalView: NSViewRepresentable {
         let atBottom = sv.contentView.bounds.maxY >= tv.bounds.height - 20
         tv.string = lines.joined(separator: "\n")
         if atBottom { tv.scrollToEndOfDocument(nil) }
+    }
+}
+
+/// Marker column: spinner = being processed, clock = waiting, check/cross = finished in this run.
+struct MarkView: View {
+    let mark: RunMark?
+    let paused: Bool
+    var body: some View {
+        switch mark {
+        case .running?:
+            if paused {
+                Image(systemName: "pause.circle.fill").foregroundStyle(.orange).help("En pause")
+            } else {
+                ProgressView().controlSize(.small).help("En cours d'analyse")
+            }
+        case .queued?: Image(systemName: "clock").foregroundStyle(.secondary).help("En attente dans cette analyse")
+        case .done(let statut)?:
+            Image(systemName: statut == "echec" ? "xmark.circle.fill" : "checkmark.circle.fill")
+                .foregroundStyle(color(statut: statut)).help("Terminé dans cette analyse : \(statut)")
+        case .failed?: Image(systemName: "xmark.circle.fill").foregroundStyle(.red).help("Arrêté sur une erreur (voir le terminal)")
+        case .stopped?: Image(systemName: "stop.circle.fill").foregroundStyle(.orange).help("Arrêté pendant l'analyse : sera repris à la prochaine")
+        case nil: Color.clear
+        }
     }
 }
 
