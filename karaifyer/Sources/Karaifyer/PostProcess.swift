@@ -21,6 +21,12 @@ struct GlitchError: Error, LocalizedError {
     }
 }
 
+/// So many silences that the capture itself is broken (never kept, whatever the take count).
+struct CaptureFaultError: Error, LocalizedError {
+    let gaps: [(at: Double, ms: Double)]
+    var errorDescription: String? { "Capture défectueuse : " + CaptureCheck.summary(gaps) }
+}
+
 struct PostProcessError: Error, LocalizedError {
     let message: String
     var errorDescription: String? { message }
@@ -54,6 +60,9 @@ enum PostProcess {
         let range = TrimMath.trimRange(firstLoud: firstLoud, totalFrames: Int(segment.frames),
                                        sampleRate: segment.sampleRate, durationMs: durationMs)
         let found = try dropouts(in: segment.url, range: range, sampleRate: segment.sampleRate)
+        if CaptureCheck.isFault(gaps: found, durationS: Double(durationMs) / 1000) {
+            throw CaptureFaultError(gaps: found)
+        }
         // A gap found at the same spot with the same length in an earlier take
         // is silence in the master itself, not a playback accident.
         let partOfTrack = found.filter { g in knownSilences.contains { Self.sameGap(g, $0) } }

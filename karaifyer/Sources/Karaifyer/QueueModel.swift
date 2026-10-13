@@ -118,6 +118,7 @@ final class QueueModel {
     private var sleepAssertion: IOPMAssertionID = 0
     private var shortRetries: [Int: Int] = [:]
     private var glitchRetries: [Int: Int] = [:]
+    private var faultRetries: [Int: Int] = [:]
     /// Gaps seen in earlier takes of each row; a gap seen again is part of the track.
     private var gapHistory: [Int: [(at: Double, ms: Double)]] = [:]
 
@@ -359,6 +360,14 @@ final class QueueModel {
         }
         stopRequested = false
         log(banner ?? "")
+        // Recap: rows that failed or finished with a warning, so nothing hides in a long log.
+        let review = rows.compactMap { row -> String? in
+            guard let s = states[row.index] else { return nil }
+            if case .failed(let m) = s.status { return "Row \(row.number) ✗ \(m)" }
+            if s.status == .done, let note = s.note { return "Row \(row.number) ⚠ \(note)" }
+            return nil
+        }
+        if !review.isEmpty { log("À vérifier (\(review.count)) : " + review.joined(separator: " | ")) }
         if quitWhenDone {
             tap?.stop(); tap = nil
             NSApp.terminate(nil)
@@ -617,6 +626,17 @@ final class QueueModel {
             glitchRetries[row.index] = glitchTries + 1
             gapHistory[row.index, default: []] += g.gaps
             throw RowFailure(message: g.localizedDescription, requeue: true, glitch: true)
+        } catch let c as CaptureFaultError {
+            // Row 19: a broken capture repeats identically, so rebuild the capture (and Spotify) before
+            // retrying; after two rebuilds, mark the row failed rather than keep a damaged file.
+            let n = (faultRetries[row.index] ?? 0) + 1
+            faultRetries[row.index] = n
+            if seg.halfEmptyBuffers > 0 { log("Row \(row.number): \(seg.halfEmptyBuffers) half-empty IO buffers in this take") }
+            if n <= 2 {
+                throw RowFailure(message: c.localizedDescription + " — capture reconstruite", requeue: true,
+                                 restartSpotify: true, glitch: true)
+            }
+            throw RowFailure(message: c.localizedDescription + " — ligne non enregistrée, à relancer")
         }
         if r.warning != nil, (shortRetries[row.index] ?? 0) < 1 {
             // Missing audio at the end; a second take is cheap insurance.
@@ -628,9 +648,10 @@ final class QueueModel {
                    row.number, r.flac.lastPathComponent, seg.sampleRate, Double(durMs) / 1000,
                    r.trimmedSeconds, 20 * log10(max(seg.peak, 1e-9)), seg.discontinuities,
                    r.warning.map { " — WARNING: \($0)" } ?? ""))
-        for g in r.trackSilences {
-            log(String(format: "Row %@: %.0f ms silence at %.2fs is in the track itself (identical in two takes)", row.number, g.ms, g.at))
+        if !r.trackSilences.isEmpty {
+            log("Row \(row.number): \(CaptureCheck.summary(r.trackSilences)) identical in two takes: part of the track, kept")
         }
+        if seg.halfEmptyBuffers > 0 { log("Row \(row.number): WARNING \(seg.halfEmptyBuffers) half-empty IO buffers") }
     }
 
     /// Loose title comparison for relinked tracks (sheet titles have typos/case/accents).

@@ -11,6 +11,9 @@ struct SegmentInfo {
     let peak: Float
     /// Number of gaps/overlaps detected in the input timestamps (0 = gapless).
     let discontinuities: Int
+    /// IO buffers whose second half was digital silence while the first half had sound (row 19's
+    /// fault): a diagnostic for the next time it happens.
+    var halfEmptyBuffers: Int = 0
 }
 
 /// Captures one app's audio (by bundle-ID prefix) through a Core Audio process
@@ -44,6 +47,7 @@ final class SystemAudioTap {
     private var writeError: Error?
     private var nextSampleTime: Float64?
     private var discontinuities = 0
+    private var halfEmpty = 0
 
     init(bundlePrefix: String) {
         self.bundlePrefix = bundlePrefix
@@ -202,7 +206,7 @@ final class SystemAudioTap {
                                 commonFormat: .pcmFormatFloat32, interleaved: fmt.isInterleaved)
         ioQueue.sync {
             file = f; fileURL = url; frames = 0; peak = 0; writeError = nil
-            nextSampleTime = nil; discontinuities = 0
+            nextSampleTime = nil; discontinuities = 0; halfEmpty = 0
         }
     }
 
@@ -210,15 +214,15 @@ final class SystemAudioTap {
     @discardableResult
     func endSegment() throws -> SegmentInfo? {
         // ioQueue is FIFO, so this runs after every buffer captured so far is written.
-        let (f, url, n, pk, err, gaps): (AVAudioFile?, URL?, Int64, Float, Error?, Int) = ioQueue.sync {
+        let (f, url, n, pk, err, gaps, half): (AVAudioFile?, URL?, Int64, Float, Error?, Int, Int) = ioQueue.sync {
             defer { file = nil; fileURL = nil }
-            return (file, fileURL, frames, peak, writeError, discontinuities)
+            return (file, fileURL, frames, peak, writeError, discontinuities, halfEmpty)
         }
         guard let f, let url, let fmt = format else { return nil }
         f.close()
         if let err { throw err }
         return SegmentInfo(url: url, frames: n, sampleRate: fmt.sampleRate, channels: Int(fmt.channelCount),
-                           peak: pk, discontinuities: gaps)
+                           peak: pk, discontinuities: gaps, halfEmptyBuffers: half)
     }
 
     /// Live stats for the current segment (frames written, peak level).
@@ -273,6 +277,13 @@ final class SystemAudioTap {
         do {
             try file.write(from: buf)
             frames += Int64(buf.frameLength)
+            let n = Int(buf.frameLength)
+            if n >= 1024, let p = buf.floatChannelData?[0] {     // interleaved stereo: 2 floats per frame
+                var firstSound = false, secondSilent = true
+                for i in 0..<n { if p[i] != 0 { firstSound = true; break } }
+                for i in n..<(2 * n) where p[i] != 0 { secondSilent = false; break }
+                if firstSound && secondSilent { halfEmpty += 1 }
+            }
             if let p = buf.floatChannelData?[0] {
                 for i in 0..<Int(buf.frameLength) * 2 { let v = abs(p[i]); if v > peak { peak = v } }
             }
