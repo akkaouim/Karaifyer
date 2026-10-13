@@ -185,6 +185,15 @@ final class QueueModel {
 
     func start() {
         guard !isRunning, !rows.isEmpty else { return }
+        // Analysis load caused recording glitches before: offer to pause it (default).
+        if KaraokeModel.shared.runState == .running {
+            let a = NSAlert()
+            a.messageText = "Une analyse karaoké est en cours"
+            a.informativeText = "La mettre en pause pendant l'enregistrement ? (la charge peut provoquer des coupures)"
+            a.addButton(withTitle: "Mettre en pause")
+            a.addButton(withTitle: "Continuer les deux")
+            if a.runModal() == .alertFirstButtonReturn { KaraokeModel.shared.pause() }
+        }
         stopRequested = false
         skipRequested = false
         runTask = Task { await runBatch() }

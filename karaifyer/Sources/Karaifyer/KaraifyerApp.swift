@@ -20,10 +20,22 @@ struct KaraifyerApp: App {
         }
 
         Window("Karaifyer", id: "queue") {
-            QueueView(model: model)
-                .onAppear { delegate.model = model }
+            TabView {
+                QueueView(model: model)
+                    .tabItem { Label("Enregistrement", systemImage: "record.circle") }
+                KaraokeView(model: KaraokeModel.shared)
+                    .tabItem { Label("Karaoké", systemImage: "music.mic") }
+            }
+            .onAppear { delegate.model = model }
         }
-        .defaultSize(width: 980, height: 600)
+        .defaultSize(width: 1180, height: 720)
+
+        WindowGroup("Corriger", id: "editor", for: String.self) { $songID in
+            if let id = songID { EditorView(model: EditorModel(songID: id, karaoke: KaraokeModel.shared)) }
+        }
+        .defaultSize(width: 1100, height: 700)
+
+        Settings { SettingsView() }
     }
 }
 
@@ -122,6 +134,15 @@ struct MenuContent: View {
         }
         let c = model.counts
         Text("\(c.done)/\(c.total) done" + (c.failed > 0 ? " · \(c.failed) failed" : ""))
+        let k = KaraokeModel.shared
+        if k.runState != .idle {
+            Divider()
+            Text(k.statusLine)
+            if k.runState == .running { Button("Pause de l'analyse") { k.pause() } }
+            if k.runState == .paused { Button("Reprendre l'analyse") { k.resume() } }
+            Button("Arrêter l'analyse après ce morceau") { k.stopAfterCurrent() }
+            Button("Arrêter l'analyse maintenant") { k.stopNow() }
+        }
         Divider()
         Button("Open Queue…") {
             openWindow(id: "queue")
