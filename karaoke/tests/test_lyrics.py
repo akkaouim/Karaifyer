@@ -114,3 +114,39 @@ def test_offline_uses_supplied_text(cfg, monkeypatch):
     (cfg.paroles / "013.txt").write_text("A\nB\n", encoding="utf-8")
     r = L.LYRICS.run(Workspace(cfg, song(id="013")), UP)
     assert r["source"] == "texte-fourni+alignement" and calls == [["A", "B"]]
+
+
+def _pinned_align(calls):
+    """Windowed: first words pinned at each window's start (043). Whole song: the real times (1 s earlier)."""
+    def fake(vocals, lines, language, work, duration_s=600.0, segments=None):
+        calls.append(segments)
+        out = []
+        for i, l in enumerate(lines):
+            s = segments[i][0] if segments else 10.0 + 3 * i - 1.0
+            out.append({"start": s, "score": 0.9,
+                        "words": [{"w": w, "s": s + 0.3 * k, "e": s + 0.3 * k + 0.2} for k, w in enumerate(l.split())]})
+        return out
+    return fake
+
+
+SYNC = "".join(f"[00:{10 + 3 * i:02d}.00]ligne numero {i}\n" for i in range(6))
+
+
+def test_lrclib_times_off_for_this_recording_realign_on_the_whole_song(cfg, monkeypatch):
+    # 043: LRCLIB's version differs; first words pinned at « 0.5 s before the line » on 43 % of lines
+    calls = []
+    monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: LrclibResult(False, False, SYNC, "x"))
+    monkeypatch.setattr(L, "align_lines", _pinned_align(calls))
+    r = L.LYRICS.run(Workspace(cfg, song(id="009")), {"ingest": {"offset_s": 0.0}, "separate": {}})
+    assert r["source"] == "lrclib-synchro+realignement"
+    assert calls[0] is not None and calls[-1] is None                    # windowed first, then whole song
+    assert [round(l["t"], 2) for l in r["lines"]] == [9.0 + 3 * i for i in range(6)]
+
+
+def test_corrected_file_is_never_realigned(cfg, monkeypatch):
+    calls = []
+    monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: pytest.fail("LRCLIB must not be asked"))
+    monkeypatch.setattr(L, "align_lines", _pinned_align(calls))
+    (cfg.paroles / "009.lrc").write_text("[karaoke:decalage=0.000]\n" + SYNC, encoding="utf-8")
+    r = L.LYRICS.run(Workspace(cfg, song(id="009")), {"ingest": {"offset_s": 0.0}, "separate": {}})
+    assert r["source"] == "fichier-lrc" and None not in calls

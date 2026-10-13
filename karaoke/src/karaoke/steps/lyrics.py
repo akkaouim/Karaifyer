@@ -22,6 +22,9 @@ from karaoke.workspace import Workspace
 
 LINE_TAIL_S = 10.0     # window after the last synced line
 LINE_LEAD_S = 0.5      # a synced line's window starts slightly before its timestamp
+# LRCLIB's timings can come from another version of the song (043): the first word then gets pinned at
+# its window's earliest point on many lines. Measured: 5–25 % on well-synced songs, 43 % on 043.
+PINNED_MAX = 0.35
 
 
 def align_lines(vocals: Path, lines: list[str], language: str, work: Path, duration_s: float = 600.0,
@@ -60,6 +63,14 @@ def _interpolate(times: list[float | None]) -> list[float]:
         else:
             out.append((before[-1] if before else after[0])[1])
     return [round(t, 3) for t in out]
+
+
+def _pinned_share(lines: list[dict]) -> float:
+    """Share of lines whose first word sits at the very start of its window (t − LINE_LEAD_S)."""
+    timed = [l for l in lines if l.get("words")]
+    if not timed:
+        return 0.0
+    return sum(1 for l in timed if abs(l["words"][0]["start"] - (l["t"] - LINE_LEAD_S)) <= 0.02) / len(timed)
 
 
 def _paths(ws: Workspace) -> tuple[Path, Path]:
@@ -116,7 +127,15 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     if res.instrumental:
         return {"source": "instrumental", "language": s.langue, "lines": []}
     if res.synced:
-        return synced(res.synced, "lrclib-synchro")
+        out = synced(res.synced, "lrclib-synchro")
+        if _pinned_share(out["lines"]) <= PINNED_MAX:
+            return out
+        # The times don't fit this recording: keep LRCLIB's text, align it on the whole song.
+        texts = [l["text"] for l in out["lines"]]
+        aligned = align_lines(vocals, texts, s.langue, ws.work, duration)
+        times = _interpolate([a["start"] for a in aligned])
+        return {"source": "lrclib-synchro+realignement", "language": s.langue,
+                "lines": with_words(times, texts, aligned)}
     if res.plain:
         text, source = res.plain, "lrclib-texte+alignement"
     elif user_txt.exists():
@@ -130,4 +149,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 
 
 LYRICS = Step(name="lyrics", deps=("ingest", "separate"), key=_key, run=_run,
-              version="2")   # 2: word/syllable alignment for every song
+              version="3")   # 2: word/syllable alignment for every song; 3: realign when LRCLIB's times don't fit
