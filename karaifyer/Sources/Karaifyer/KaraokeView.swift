@@ -54,6 +54,7 @@ struct KaraokeView: View {
             .disabled(!model.pipeline.problems().isEmpty)
             Divider().frame(height: 18)
             Button(model.selection.isEmpty ? "Analyser tout" : "Analyser la sélection", systemImage: "play.fill") {
+                endEditing()
                 model.analyse(ids: Array(model.selection))
             }
             .disabled(model.banner != nil || model.songs.isEmpty)
@@ -89,10 +90,8 @@ struct KaraokeView: View {
             TableColumn("Retirer (joué en live)") { s in
                 HStack(spacing: 6) {
                     ForEach(RETIRER, id: \.0) { stem, label in
-                        Toggle(label, isOn: Binding(get: { s.retirer.contains(stem) }, set: { on in
-                            var r = s.retirer.filter { $0 != stem }
-                            if on { r.append(stem) }
-                            commit(s, "retirer", RETIRER.map(\.0).filter(r.contains).joined(separator: ";"))
+                        Toggle(label, isOn: Binding(get: { current(s).retirer.contains(stem) }, set: { on in
+                            commit(s, "retirer", Retirer.toggled(current(s).retirer, stem, on: on, order: RETIRER.map(\.0)))
                         }))
                         .toggleStyle(.checkbox).font(.caption)
                     }
@@ -151,6 +150,9 @@ struct KaraokeView: View {
         .padding(8)
     }
 
+    /// The row as it is now (a quick second click must not build on a stale snapshot).
+    func current(_ s: SongState) -> SongState { model.songs.first { $0.id == s.id } ?? s }
+
     func commit(_ s: SongState, _ field: String, _ value: String) {
         Task { if let err = await model.set(id: s.id, field: field, value: value) { KaraokeUI.shared.alert = err } }
     }
@@ -182,10 +184,20 @@ struct CommitField: NSViewRepresentable {
         var onCommit: (String) -> Void
         var original: String
         init(onCommit: @escaping (String) -> Void, original: String) { self.onCommit = onCommit; self.original = original }
+        private var target: ((String) -> Void)?
+        private var startValue = ""
+        /// Commit to the row where editing began, even if the cell was reused for another row since.
+        func controlTextDidBeginEditing(_ n: Notification) {
+            target = onCommit
+            startValue = original
+        }
         func controlTextDidEndEditing(_ n: Notification) {
-            guard let f = n.object as? NSTextField, f.stringValue != original else { return }
-            original = f.stringValue
-            onCommit(f.stringValue)
+            guard let f = n.object as? NSTextField else { return }
+            let commit = target ?? onCommit
+            let before = target == nil ? original : startValue
+            target = nil
+            guard f.stringValue != before else { return }
+            commit(f.stringValue)
         }
     }
 }
@@ -233,6 +245,11 @@ func color(step: StepState, running: Bool) -> Color {
 func open(_ path: String) {
     if FileManager.default.fileExists(atPath: path) { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
     else { KaraokeUI.shared.alert = "Introuvable : \(path)" }
+}
+
+/// End any in-progress text edit so it commits before a button acts (buttons don't take focus).
+func endEditing() {
+    if let w = NSApp.keyWindow, !w.makeFirstResponder(nil) { w.endEditing(for: nil) }
 }
 
 func copy(_ s: String) {

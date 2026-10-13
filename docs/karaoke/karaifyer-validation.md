@@ -17,3 +17,9 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 11 | Re-run « Refaire le morceau »: the corrections from #10 are still there | |
 | 12 | Start a recording while an analysis runs: Karaifyer proposes to pause the analysis | |
 | 13 | Réglages (⌘,): the three paths; choosing a wrong karaoke folder shows the orange banner and disables Analyser; « Défaut » restores it | |
+| 14 | Editor: type in a lyric or chord cell and click **Enregistrer** straight away (no Return): the typed text is saved | |
+| 15 | Editor: type « je t'aime » in a lyric line — spaces type normally (Lecture/Pause is **⌥ Espace**) | |
+| 16 | Editor: start editing one line's text, click ⏱ on another line (it moves), then press Return: the text lands on the line you were editing | |
+| 17 | Table: tick Guit. then Basse quickly on one song: `retirer` ends as `guitar;bass` | |
+| 18 | Accept « Mettre en pause » when starting a recording during an analysis: when the recording batch ends, the analysis resumes by itself | |
+| 19 | Quit Karaifyer during an analysis: it asks first; after quitting, no `karaoke traiter` process is left (Moniteur d'activité) | |

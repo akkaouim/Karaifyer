@@ -17,12 +17,13 @@ struct EditorView: View {
             HStack {
                 Text("Enregistrer réanalyse le morceau (vidéo, set, iReal).").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("Annuler") { closeAsking() }
+                Button("Annuler") { endEditing(); closeAsking() }
                 Button("Enregistrer") {
+                    endEditing()          // commit the field being typed in first
+                    guard model.dirty else { return }
                     do { try model.save(); dismiss() } catch { KaraokeUI.shared.alert = error.localizedDescription }
                 }
                 .keyboardShortcut("s")
-                .disabled(!model.dirty)
             }
             .padding(8)
         }
@@ -36,7 +37,8 @@ struct EditorView: View {
             Button(model.playing ? "Pause" : "Lecture", systemImage: model.playing ? "pause.fill" : "play.fill") {
                 model.playing ? model.pause() : model.play()
             }
-            .keyboardShortcut(.space, modifiers: [])
+            .keyboardShortcut(.space, modifiers: .option)   // a bare Space would be stolen from text fields
+            .help("Lecture / pause (⌥ Espace)")
             Slider(value: Binding(get: { model.position }, set: { model.seek(input: $0) }), in: 0...max(model.duration, 1))
             Text(LRC.timecode(model.showTime)).monospacedDigit().frame(width: 70)
         }
@@ -47,22 +49,23 @@ struct EditorView: View {
             HStack {
                 Text("Paroles").font(.headline)
                 Spacer()
-                Button("Ligne", systemImage: "plus") { model.addLine() }
+                Button("Ligne", systemImage: "plus") { endEditing(); model.addLine() }
             }
             List {
-                ForEach(Array(model.lines.enumerated()), id: \.offset) { i, line in
+                ForEach(model.lines) { line in
+                    let id = line.id
                     HStack {
-                        Button("Caler", systemImage: "stopwatch") { model.stampLine(i) }
+                        Button("Caler", systemImage: "stopwatch") { endEditing(); model.stampLine(id) }
                             .labelStyle(.iconOnly).help("Caler le début de la ligne sur la lecture")
-                        CommitField(value: LRC.timecode(line.time)) { model.setTime(i, $0) }.frame(width: 70)
-                        CommitField(value: line.text) { model.setText(i, $0) }
-                        Button("Supprimer", systemImage: "trash") { model.deleteLine(i) }
+                        CommitField(value: LRC.timecode(line.time)) { model.setTime(id, $0) }.frame(width: 70)
+                        CommitField(value: line.text) { model.setText(id, $0) }
+                        Button("Supprimer", systemImage: "trash") { endEditing(); model.deleteLine(id) }
                             .labelStyle(.iconOnly).buttonStyle(.borderless)
                     }
                     .padding(2)
-                    .background(i == model.currentLine ? Color.yellow.opacity(0.25) : Color.clear)
+                    .background(model.currentLine.map { model.lines[$0].id == id } == true ? Color.yellow.opacity(0.25) : Color.clear)
                     .contentShape(Rectangle())
-                    .onTapGesture { model.seekLine(i) }
+                    .onTapGesture { model.seekLine(id) }
                 }
             }
         }
@@ -75,6 +78,7 @@ struct EditorView: View {
                 Text("Accords").font(.headline)
                 Text("Tonalité :")
                 CommitField(value: model.key) { model.setKey($0) }.frame(width: 110)
+                    .help("ex. C# minor, Db major")
                 Text("\(model.bpb)/4").foregroundStyle(.secondary)
             }
             Text("« A B » = moitié-moitié · « Am . . F » = un symbole par temps · N.C. = sans accord · ex. Cmaj7 Dm7 G7 Am/G")

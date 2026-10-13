@@ -95,14 +95,37 @@ final class KaraokeModel: RunDriver {
         await refresh()
     }
 
-    /// Returns an error message (French) or nil.
+    @ObservationIgnored private var edits: Task<Void, Never>?
+
+    /// Shows the edit at once, then writes it through `modifier`; edits run one after another so a
+    /// quick second click builds on the first. Returns an error message (French) or nil.
     func set(id: String, field: String, value: String) async -> String? {
-        let r = await pipeline.run(["modifier", "--id", id, "--champ", field, "--valeur", value])
+        if let i = songs.firstIndex(where: { $0.id == id }) {
+            switch field {
+            case "titre": songs[i].titre = value
+            case "artiste": songs[i].artiste = value
+            case "partie": songs[i].partie = value
+            case "langue": songs[i].langue = value
+            case "retirer": songs[i].retirer = value.split(separator: ";").map(String.init)
+            default: break
+            }
+        }
+        let previous = edits
+        let task = Task { @MainActor () -> String? in
+            await previous?.value
+            let r = await pipeline.run(["modifier", "--id", id, "--champ", field, "--valeur", value])
+            if r.code == 0 { return nil }
+            let lines = r.err.split(separator: "\n").map(String.init)
+            return lines.last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? "Modification refusée"
+        }
+        edits = Task { _ = await task.value }
+        let err = await task.value
         await refresh()
-        return r.code == 0 ? nil : r.err.trimmingCharacters(in: .whitespacesAndNewlines)
+        return err
     }
 
     func analyse(ids: [String], forced: String? = nil) {
+        endEditing()
         let busy = Set(controller.queue.map(\.id) + [controller.current?.id].compactMap { $0 })
         let jobs = (ids.isEmpty ? songs.map(\.id) : ids).filter { !busy.contains($0) }.map { Job(id: $0, forced: forced) }
         guard !jobs.isEmpty else { return }
@@ -112,6 +135,17 @@ final class KaraokeModel: RunDriver {
         controller.start(jobs)
     }
     func pause() { controller.pause() }
+    func pauseForRecording() { controller.pauseForRecording() }
+    func recordingEnded() { controller.recordingEnded() }
+    /// App quitting: continue (if paused) then terminate the process group, and wait briefly.
+    func terminateRun() {
+        guard let p = process else { return }
+        p.signal(SIGCONT)
+        p.signal(SIGTERM)
+        let deadline = Date().addingTimeInterval(3)
+        while kill(p.pid, 0) == 0 && Date() < deadline { usleep(100_000) }
+        if kill(p.pid, 0) == 0 { p.signal(SIGKILL) }
+    }
     func resume() { controller.resume() }
     func stopAfterCurrent() { controller.requestStopAfterCurrent() }
     func stopNow() {

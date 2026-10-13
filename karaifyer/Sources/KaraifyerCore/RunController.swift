@@ -22,6 +22,8 @@ public protocol RunDriver: AnyObject {
     public private(set) var current: Job?
     public private(set) var queue: [Job] = []
     public private(set) var stopAfterCurrent = false
+    /// Paused by the recording-conflict prompt (not by Michel): resumed when the recording ends.
+    public private(set) var pausedForRecording = false
     public var onChange: (() -> Void)?
     private let driver: RunDriver
 
@@ -41,7 +43,20 @@ public protocol RunDriver: AnyObject {
         onChange?()
     }
 
+    public func pauseForRecording() {
+        guard state == .running else { return }
+        pause()
+        pausedForRecording = true
+    }
+
+    public func recordingEnded() {
+        guard pausedForRecording else { return }
+        pausedForRecording = false
+        resume()
+    }
+
     public func resume() {
+        pausedForRecording = false
         guard state == .paused else { return }
         driver.signal(.cont)
         state = .running

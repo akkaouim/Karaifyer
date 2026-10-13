@@ -120,8 +120,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        MainActor.assumeIsolated {
+            let k = KaraokeModel.shared
+            guard k.runState != .idle, !(model?.quitWhenDone ?? false) else { return .terminateNow }
+            let a = NSAlert()
+            a.messageText = "Une analyse karaoké est en cours"
+            a.informativeText = "Quitter l'arrête ; l'étape en cours sera refaite à la prochaine analyse."
+            a.addButton(withTitle: "Quitter")
+            a.addButton(withTitle: "Annuler")
+            return a.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated { model?.shutdown() }
+        MainActor.assumeIsolated {
+            model?.shutdown()
+            KaraokeModel.shared.terminateRun()   // never leave an orphaned `traiter` behind
+        }
     }
 }
 

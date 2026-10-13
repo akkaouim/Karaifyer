@@ -192,7 +192,7 @@ final class QueueModel {
             a.informativeText = "La mettre en pause pendant l'enregistrement ? (la charge peut provoquer des coupures)"
             a.addButton(withTitle: "Mettre en pause")
             a.addButton(withTitle: "Continuer les deux")
-            if a.runModal() == .alertFirstButtonReturn { KaraokeModel.shared.pause() }
+            if a.runModal() == .alertFirstButtonReturn { KaraokeModel.shared.pauseForRecording() }
         }
         stopRequested = false
         skipRequested = false
@@ -260,6 +260,7 @@ final class QueueModel {
             currentIndex = nil
             isRunning = false
             releaseSleep()
+            KaraokeModel.shared.recordingEnded()   // resumes an analysis paused for this recording
         }
 
         if AudioCapturePermission.status != .authorized {

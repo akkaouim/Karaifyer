@@ -9,13 +9,17 @@ import Observation
 final class EditorModel {
     let song: SongState
     let karaoke: KaraokeModel
-    var lines: [LyricLine] = []
+    var doc = LyricsDoc(lines: [])
+    var lines: [LyricLine] { doc.lines }
     var cells: [String] = []
     var key: String
+    /// Saved separately: a lyrics-only fix must not pin the chords to a correction (and vice versa).
+    var lyricsDirty = false
+    var chordsDirty = false
+    var dirty: Bool { lyricsDirty || chordsDirty }
     var position: Double = 0
     var playing = false
-    var dirty = false
-    var selectedLine: Int?
+    var selectedLine: UUID?
     var loadError: String?
     var pad: Double { song.padS ?? 0 }
     var bpb: Int { song.beatsPerBar ?? 4 }
@@ -29,9 +33,7 @@ final class EditorModel {
         let fm = FileManager.default
         let lrcPath = fm.fileExists(atPath: song.paths.lrcCorrige) ? song.paths.lrcCorrige : song.paths.lrc
         if let t = try? String(contentsOfFile: lrcPath, encoding: .utf8) {
-            let (l, dec) = LRC.parse(t)
-            // A file without the decalage tag is in recording (input) time, like LRCLIB's.
-            lines = dec == nil ? l.map { LyricLine(time: $0.time + pad, text: $0.text) } : l
+            doc = LyricsDoc(lines: LRC.showTimeLines(t, pad: song.padS ?? 0))   // converts with the file's own decalage
         }
         cells = song.bars.map { ChordGrid.cellText($0.chords, beatsPerBar: bpb) }
         var problems: [String] = []
@@ -79,31 +81,24 @@ final class EditorModel {
         player?.currentTime = max(0, min(t, duration))
         position = player?.currentTime ?? 0
     }
-    func seekLine(_ i: Int) { selectedLine = i; seek(input: lines[i].time - pad) }
+    func seekLine(_ id: UUID) {
+        guard let l = lines.first(where: { $0.id == id }) else { return }
+        selectedLine = id
+        seek(input: l.time - pad)
+    }
     func seekBar(_ i: Int) { seek(input: song.bars[i].start) }
 
-    private func rounded(_ t: Double) -> Double { (t * 100).rounded() / 100 }
-
-    func stampLine(_ i: Int) {
-        lines[i].time = rounded(showTime)
-        lines.sort { $0.time < $1.time }
-        dirty = true
+    func stampLine(_ id: UUID) { doc.stamp(id, at: showTime); lyricsDirty = true }
+    func setText(_ id: UUID, _ text: String) { doc.setText(id, text); lyricsDirty = true }
+    func setTime(_ id: UUID, _ s: String) { doc.setTime(id, s); lyricsDirty = true }
+    func addLine() { selectedLine = doc.add(at: showTime); lyricsDirty = true }
+    func deleteLine(_ id: UUID) { doc.delete(id); lyricsDirty = true }
+    func setCell(_ i: Int, _ text: String) {
+        guard cells.indices.contains(i), cells[i] != text else { return }
+        cells[i] = text
+        chordsDirty = true
     }
-    func setText(_ i: Int, _ text: String) { lines[i].text = text; dirty = true }
-    func setTime(_ i: Int, _ s: String) {
-        guard let t = LRC.parseTimecode(s) else { return }
-        lines[i].time = t
-        lines.sort { $0.time < $1.time }
-        dirty = true
-    }
-    func addLine() {
-        lines.append(LyricLine(time: rounded(showTime), text: ""))
-        lines.sort { $0.time < $1.time }
-        dirty = true
-    }
-    func deleteLine(_ i: Int) { lines.remove(at: i); dirty = true }
-    func setCell(_ i: Int, _ text: String) { cells[i] = text; dirty = true }
-    func setKey(_ k: String) { key = k; dirty = true }
+    func setKey(_ k: String) { guard k != key else { return }; key = k; chordsDirty = true }
 
     struct SaveError: LocalizedError { let errorDescription: String? }
 
@@ -116,13 +111,20 @@ final class EditorModel {
             throw SaveError(errorDescription: "Analyser le morceau avant de le corriger.")
         }
         let fm = FileManager.default
-        for p in [song.paths.lrcCorrige, song.paths.accordsCorrige] {
+        func ensureDir(_ p: String) throws {
             try fm.createDirectory(atPath: (p as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         }
-        try LRC.format(lines, decalage: pad).write(toFile: song.paths.lrcCorrige, atomically: true, encoding: .utf8)
-        try ChordGrid.chartText(title: song.titre, artist: song.artiste, key: key, bpm: nil, beatsPerBar: bpb, cells: cells)
-            .write(toFile: song.paths.accordsCorrige, atomically: true, encoding: .utf8)
-        dirty = false
+        if lyricsDirty {
+            try ensureDir(song.paths.lrcCorrige)
+            try LRC.format(lines, decalage: pad).write(toFile: song.paths.lrcCorrige, atomically: true, encoding: .utf8)
+        }
+        if chordsDirty {
+            try ensureDir(song.paths.accordsCorrige)
+            try ChordGrid.chartText(title: song.titre, artist: song.artiste, key: key, bpm: nil, beatsPerBar: bpb, cells: cells)
+                .write(toFile: song.paths.accordsCorrige, atomically: true, encoding: .utf8)
+        }
+        lyricsDirty = false
+        chordsDirty = false
         karaoke.analyse(ids: [song.id])
     }
 }
