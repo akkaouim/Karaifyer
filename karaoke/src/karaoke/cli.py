@@ -6,6 +6,7 @@ import typer
 
 from karaoke.ableton.build import SetError, SongEntry, build_set
 from karaoke.config import Config
+from karaoke.ireal import write_pages
 from karaoke.manifest import group_by_partie, read_manifest, songs_from_sysrec, write_manifest
 from karaoke.report import load_reports, song_report, write_global
 from karaoke.runner import run_song
@@ -69,6 +70,8 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
     write_global(load_reports(cfg.sortie, [Workspace(cfg, s).out for s in songs]),
                  cfg.home / "rapport.csv", cfg.home / "rapport.html")
     typer.echo(f"Rapport : {cfg.home / 'rapport.html'}")
+    for page in write_pages(cfg, songs):
+        typer.echo(f"iReal Pro : {page}")
 
 
 @app.command()
