@@ -1,6 +1,7 @@
 # SwiftPM build output and the assembled app bundle
 .build/
 SysRec.app/
+Karaifyer.app/
 .swiftpm/
 
 # macOS
