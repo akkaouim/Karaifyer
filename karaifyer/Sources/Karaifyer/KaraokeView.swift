@@ -254,6 +254,3 @@ func pickFolder(_ done: @escaping (URL) -> Void) {
     p.canChooseFiles = false
     if p.runModal() == .OK, let u = p.url { done(u) }
 }
-
-// Temporary stub, replaced in Task 13.
-struct SettingsView: View { var body: some View { Text("Réglages") } }
