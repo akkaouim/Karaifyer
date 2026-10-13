@@ -1,0 +1,53 @@
+import json
+from karaoke.runner import Step, inspect_song, run_song
+from karaoke.state import song_state
+from karaoke.workspace import Workspace
+from test_manifest import song
+
+
+def steps(calls):
+    a = Step(name="a", deps=(), key=lambda ws: calls.get("ka", "k"), run=lambda ws, up: {"x": 1})
+    b = Step(name="b", deps=("a",), key=lambda ws: "k", run=lambda ws, up: {"y": 2})
+    return [a, b]
+
+
+def test_inspect_song_matches_runner(cfg):
+    ws, calls = Workspace(cfg, song()), {}
+    assert inspect_song(ws, steps(calls)) == {"a": "absent", "b": "absent"}
+    run_song(ws, steps(calls))
+    assert inspect_song(ws, steps(calls)) == {"a": "a_jour", "b": "a_jour"}
+    calls["ka"] = "changed"                       # a's parameters changed → a and b out of date
+    assert inspect_song(ws, steps(calls)) == {"a": "perime", "b": "perime"}
+
+
+def test_song_state_reports_paths_failures_and_chords(cfg):
+    s = song(id="005", titre="Danser", artiste="Loïc Nottet", partie="Apéro")
+    ws = Workspace(cfg, s)
+    run_song(ws, steps({}))
+    ws.write_marker("package", {"result": {"pad_s": 2.5}})
+    ws.write_marker("chords", {"result": {"key": "C# minor", "beats_per_bar": 4,
+                                          "bars": [{"start": 0.0, "chords": [[0, "C#m"]]}]}})
+    ws.out.mkdir(parents=True, exist_ok=True)
+    (ws.out / "rapport.json").write_text(json.dumps({"statut": "echec", "etapes": {"a": "fait", "b": "echec"},
+                                                      "alertes": ["b : echec ValueError: boom"]}))
+    st = song_state(cfg, s, steps({"ka": "new"}))
+    assert st["statut"] == "echec" and st["retirer"] == ["guitar"] and st["pad_s"] == 2.5
+    assert [(x["name"], x["status"]) for x in st["steps"]] == [("a", "perime"), ("b", "echec")]
+    assert "boom" in st["steps"][1]["error"]
+    assert st["paths"]["video"].endswith("005_loic-nottet_danser/paroles.mp4")
+    assert st["paths"]["set"].endswith("sets/apero/005_loic-nottet_danser.als")
+    assert st["paths"]["accords_corrige"].endswith("accords/005.txt")
+    assert st["paths"]["audio"].endswith("travail/005/input.wav")
+    assert st["key"] == "C# minor" and st["bars"][0]["chords"] == [[0, "C#m"]]
+
+
+def test_etat_cli_prints_json_list(cfg, monkeypatch):
+    from typer.testing import CliRunner
+    from karaoke import cli
+    from karaoke.manifest import write_manifest
+    monkeypatch.setenv("KARAOKE_HOME", str(cfg.home))
+    write_manifest(cfg.manifest, [song(), song(id="002", titre="B")])
+    r = CliRunner().invoke(cli.app, ["etat", "--json"])
+    assert r.exit_code == 0, r.output
+    data = json.loads(r.output)
+    assert [d["id"] for d in data] == ["001", "002"] and data[0]["statut"] == "—"

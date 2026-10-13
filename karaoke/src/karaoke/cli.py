@@ -10,6 +10,7 @@ from karaoke.ireal import write_pages
 from karaoke.manifest import group_by_partie, read_manifest, songs_from_sysrec, write_manifest
 from karaoke.report import load_reports, song_report, write_global
 from karaoke.runner import run_song
+from karaoke.state import song_state
 from karaoke.steps.set_ableton import remove_stale_sets
 from karaoke.tools import TOOLS_DIR, ToolError, run_tool
 from karaoke.steps import STEPS
@@ -88,6 +89,13 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
         typer.echo(f"Rapport : {cfg.home / 'rapport.html'}")
         for page in pages:
             typer.echo(f"iReal Pro : {page}")
+
+
+@app.command()
+def etat(json_out: bool = typer.Option(True, "--json", help="Sortie JSON (toujours)")) -> None:
+    """État de chaque morceau du manifeste (pour Karaifyer) : étapes, statut, chemins."""
+    cfg = Config.load()
+    typer.echo(json.dumps([song_state(cfg, s, STEPS) for s in read_manifest(cfg.manifest)], ensure_ascii=False))
 
 
 @app.command()

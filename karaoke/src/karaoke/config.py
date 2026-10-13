@@ -25,6 +25,11 @@ class Config:
         return self.home / "paroles"
 
     @property
+    def accords(self) -> Path:
+        """Michel's corrected chord charts (accords/<id>.txt), never overwritten."""
+        return self.home / "accords"
+
+    @property
     def travail(self) -> Path:
         return self.home / "travail"
 
@@ -43,5 +48,5 @@ class Config:
         return self.home / "sets"
 
     def ensure_dirs(self) -> None:
-        for d in (self.paroles, self.travail, self.sortie):
+        for d in (self.paroles, self.accords, self.travail, self.sortie):
             d.mkdir(parents=True, exist_ok=True)

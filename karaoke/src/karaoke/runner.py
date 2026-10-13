@@ -120,3 +120,22 @@ def run_song(ws: Workspace, steps: list[Step], force: set[str] = frozenset(),
             emit(step.name, out[step.name]["status"])
             ws.log(f"échec {step.name}: {traceback.format_exc()}")
     return out
+
+
+def inspect_song(ws: Workspace, steps: list[Step]) -> dict[str, str]:
+    """Up-to-date-ness of each step as run_song would judge it (same key), without running anything:
+    a_jour | perime (a marker exists but is stale) | absent (never run)."""
+    hashes: dict[str, str | None] = {}
+    out: dict[str, str] = {}
+    for step in steps:
+        marker = ws.read_marker(step.name)
+        deps = [hashes.get(d) for d in step.deps]
+        if any(h is None for h in deps):
+            hashes[step.name] = None
+            out[step.name] = "perime" if marker else "absent"
+            continue
+        key = hashlib.sha1("|".join([step.name, step.version, step.key(ws), *deps]).encode()).hexdigest()
+        ok = marker is not None and marker.get("key") == key and all(p.exists() for p in step.artifacts(ws))
+        hashes[step.name] = marker["output_hash"] if ok else None
+        out[step.name] = "a_jour" if ok else ("perime" if marker else "absent")
+    return out
