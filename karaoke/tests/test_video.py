@@ -106,3 +106,11 @@ def test_video_step_passes_bars_for_instrumentals(cfg, monkeypatch):
     V.VIDEO.run(ws, up)
     assert any(s.chart == ("Am F", "G") and s.chart_pos == 0 and s.start == 2.0 for s in seen["states"])
     assert V.VIDEO.version == "5"
+
+
+def test_chart_row_clears_a_wrapped_title():
+    px = np.asarray(_frame(State(0, 1, "titre", "La chanson des blés d’or — Fabienne Thibeault", "", None, 0, (),
+                                 ("Eb", "Db"), 0)))
+    white = np.nonzero((px.min(axis=2) > 240).any(axis=1))[0]
+    yellow = np.nonzero(((px[..., 0] > 200) & (px[..., 1] > 180) & (px[..., 2] < 80)).any(axis=1))[0]
+    assert yellow.min() > white.max() + 60     # was 28 px: chart glued to the wrapped title

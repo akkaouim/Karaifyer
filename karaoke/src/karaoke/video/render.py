@@ -104,9 +104,9 @@ def _frame(s: State) -> Image.Image:
     big, mid, sym = _font(BOLD, 96), _font(REG, 64), _font(SYM, 160)
     chart_font = _font(BOLD, 80)
     if s.kind == "titre":
-        _centered(d, 300 if s.chart else 380, s.current, big, (255, 255, 255))
+        y = _centered(d, 300 if s.chart else 380, s.current, big, (255, 255, 255))
         if s.chart:
-            _chart_row(d, 520, s.chart, s.chart_pos, chart_font)
+            _chart_row(d, max(520, y + 60), s.chart, s.chart_pos, chart_font)
     elif s.kind == "ligne":
         y = _karaoke_line(d, 380 - (60 if s.chords else 0), s.current, s.lit, big, s.chords, _font(BOLD, 72))
         _centered(d, max(y + 60, 640), s.next, mid, GREY)
