@@ -158,3 +158,24 @@ def songs_from_files(paths: list[Path], existing: list[Song]) -> tuple[list[Song
                           retirer=(), decompte_mesures=2, langue="fr", partie=""))
         known.add(p)
     return added, skipped
+
+
+EDITABLE = ("titre", "artiste", "retirer", "langue", "partie", "decompte_mesures")
+
+
+def set_field(path: Path, sid: str, champ: str, valeur: str) -> Song:
+    """Change one cell, validated exactly like read_manifest; the file is untouched on error."""
+    if champ not in EDITABLE:
+        raise ManifestError(f"champ « {champ} » non modifiable (modifiables : {', '.join(EDITABLE)})")
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+    row = next((r for r in rows if (r.get("id") or "").strip() == sid), None)
+    if row is None:
+        raise ManifestError(f"morceau {sid} introuvable dans le manifeste")
+    row[champ] = valeur
+    errors: list[str] = []
+    songs = [_parse_row(r, i, errors) for i, r in enumerate(rows, start=2)]
+    if errors or any(s is None for s in songs):
+        raise ManifestError("; ".join(errors) or f"valeur invalide pour {champ} : « {valeur} »")
+    write_manifest(path, songs)
+    return next(s for s in songs if s.id == sid)

@@ -7,7 +7,7 @@ import typer
 from karaoke.ableton.build import SetError, SongEntry, build_set
 from karaoke.config import Config
 from karaoke.ireal import write_pages
-from karaoke.manifest import group_by_partie, read_manifest, songs_from_files, songs_from_sysrec, write_manifest
+from karaoke.manifest import ManifestError, group_by_partie, set_field, read_manifest, songs_from_files, songs_from_sysrec, write_manifest
 from karaoke.report import load_reports, song_report, write_global
 from karaoke.runner import run_song
 from karaoke.state import song_state
@@ -108,6 +108,21 @@ def ajouter(fichiers: list[Path] = typer.Argument(..., help="Fichiers audio à a
     write_manifest(cfg.manifest, songs + added)
     typer.echo(json.dumps({"ajoutes": [{"id": s.id, "titre": s.titre, "artiste": s.artiste} for s in added],
                            "ignores": skipped}, ensure_ascii=False))
+
+
+@app.command()
+def modifier(id: str = typer.Option(..., help="Id du morceau"), champ: str = typer.Option(..., help="Colonne"),
+             valeur: str = typer.Option(..., help="Nouvelle valeur")) -> None:
+    """Modifie une case du manifeste (avec les mêmes vérifications que la lecture)."""
+    cfg = Config.load()
+    try:
+        s = set_field(cfg.manifest, id, champ, valeur)
+    except ManifestError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1)
+    typer.echo(json.dumps({"id": s.id, "titre": s.titre, "artiste": s.artiste, "retirer": list(s.retirer),
+                           "langue": s.langue, "partie": s.partie, "decompte_mesures": s.decompte_mesures},
+                          ensure_ascii=False))
 
 
 @app.command()
