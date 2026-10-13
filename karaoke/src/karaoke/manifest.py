@@ -5,6 +5,7 @@ retirer (stems played live, `;`-separated, Demucs names), decompte_mesures, lang
 """
 from __future__ import annotations
 import csv
+import os
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -84,12 +85,15 @@ def read_manifest(path: Path) -> list[Song]:
 
 
 def write_manifest(path: Path, songs: list[Song]) -> None:
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    """Atomic: the app and the command line may read it at any moment."""
+    tmp = path.with_suffix(".csv.tmp")
+    with open(tmp, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(COLUMNS)
         for s in songs:
             w.writerow([s.id, s.titre, s.artiste, s.album, f"{s.duree_ref_s:.3f}", s.isrc, str(s.fichier),
                         ";".join(s.retirer), s.decompte_mesures, s.langue, s.partie])
+    os.replace(tmp, path)
 
 
 def _tag(audio, key: str) -> str:
@@ -118,3 +122,39 @@ def group_by_partie(songs: list[Song]) -> dict[str, list[Song]]:
     for s in songs:
         groups.setdefault(s.partie or "sans-partie", []).append(s)
     return groups
+
+
+AUDIO_EXT = {".flac", ".wav", ".mp3", ".m4a", ".aac", ".aiff", ".aif"}
+
+
+def next_id(songs: list[Song]) -> str:
+    return f"{max((int(s.id) for s in songs), default=0) + 1:03d}"
+
+
+def songs_from_files(paths: list[Path], existing: list[Song]) -> tuple[list[Song], list[str]]:
+    """Manifest rows for audio files from anywhere (not only SysRec): tags when present, else the
+    file name as title. Files already in the manifest (same resolved path) are skipped."""
+    known = {Path(s.fichier).resolve() for s in existing}
+    added: list[Song] = []
+    skipped: list[str] = []
+    for p in paths:
+        p = Path(p).expanduser()
+        if not p.exists():
+            skipped.append(f"{p} : introuvable")
+            continue
+        p = p.resolve()
+        if p in known:
+            skipped.append(f"{p.name} : déjà dans le manifeste")
+            continue
+        if p.suffix.lower() not in AUDIO_EXT:
+            skipped.append(f"{p.name} : format non pris en charge")
+            continue
+        audio = MutagenFile(p, easy=True)
+        ok = audio is not None   # a tagless file is falsy (dict-like), but still has a duration
+        added.append(Song(id=next_id(existing + added), titre=(_tag(audio, "title") if ok else "") or nfc(p.stem),
+                          artiste=_tag(audio, "artist") if ok else "",
+                          album=_tag(audio, "album") if ok else "",
+                          duree_ref_s=float(audio.info.length) if ok else 0.0, isrc="", fichier=p,
+                          retirer=(), decompte_mesures=2, langue="fr", partie=""))
+        known.add(p)
+    return added, skipped

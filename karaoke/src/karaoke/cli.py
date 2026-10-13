@@ -7,7 +7,7 @@ import typer
 from karaoke.ableton.build import SetError, SongEntry, build_set
 from karaoke.config import Config
 from karaoke.ireal import write_pages
-from karaoke.manifest import group_by_partie, read_manifest, songs_from_sysrec, write_manifest
+from karaoke.manifest import group_by_partie, read_manifest, songs_from_files, songs_from_sysrec, write_manifest
 from karaoke.report import load_reports, song_report, write_global
 from karaoke.runner import run_song
 from karaoke.state import song_state
@@ -96,6 +96,18 @@ def etat(json_out: bool = typer.Option(True, "--json", help="Sortie JSON (toujou
     """État de chaque morceau du manifeste (pour Karaifyer) : étapes, statut, chemins."""
     cfg = Config.load()
     typer.echo(json.dumps([song_state(cfg, s, STEPS) for s in read_manifest(cfg.manifest)], ensure_ascii=False))
+
+
+@app.command()
+def ajouter(fichiers: list[Path] = typer.Argument(..., help="Fichiers audio à ajouter")) -> None:
+    """Ajoute des morceaux au manifeste depuis n'importe quels fichiers audio (pas seulement SysRec)."""
+    cfg = Config.load()
+    cfg.ensure_dirs()
+    songs = read_manifest(cfg.manifest) if cfg.manifest.exists() else []
+    added, skipped = songs_from_files(fichiers, songs)
+    write_manifest(cfg.manifest, songs + added)
+    typer.echo(json.dumps({"ajoutes": [{"id": s.id, "titre": s.titre, "artiste": s.artiste} for s in added],
+                           "ignores": skipped}, ensure_ascii=False))
 
 
 @app.command()
