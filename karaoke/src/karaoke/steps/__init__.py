@@ -9,5 +9,6 @@ from karaoke.steps.separate import SEPARATE
 from karaoke.steps.set_ableton import SET_ABLETON
 from karaoke.steps.video import VIDEO
 from karaoke.steps.vocals_split import VOCALS_SPLIT
+from karaoke.steps.chords import CHORDS
 
-STEPS: list[Step] = [INGEST, SEPARATE, BEATS, VOCALS_SPLIT, PACKAGE, LYRICS, CHECK, VIDEO, SET_ABLETON]
+STEPS: list[Step] = [INGEST, SEPARATE, BEATS, VOCALS_SPLIT, CHORDS, PACKAGE, LYRICS, CHECK, VIDEO, SET_ABLETON]
