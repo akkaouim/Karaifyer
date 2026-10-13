@@ -31,7 +31,11 @@ struct KaraifyerApp: App {
         .defaultSize(width: 1180, height: 720)
 
         WindowGroup("Corriger", id: "editor", for: String.self) { $songID in
-            if let id = songID { EditorView(model: EditorModel(songID: id, karaoke: KaraokeModel.shared)) }
+            if let id = songID, let m = KaraokeModel.shared.editor(for: id) {
+                EditorView(model: m).onDisappear { KaraokeModel.shared.closeEditor(id) }
+            } else {
+                Text("Morceau introuvable (actualiser l'onglet Karaoké).").padding()
+            }
         }
         .defaultSize(width: 1100, height: 700)
 

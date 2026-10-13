@@ -24,6 +24,7 @@ final class KaraokeModel: RunDriver {
     private var songsLeft = 0
     private var songStarted = Date()
     private var measured: [Double] = []
+    @ObservationIgnored private var editors: [String: EditorModel] = [:]
     @ObservationIgnored private var controller: RunController!
     @ObservationIgnored private var process: SpawnedProcess?
     @ObservationIgnored private var sleepAssertion: IOPMAssertionID = 0
@@ -48,6 +49,17 @@ final class KaraokeModel: RunDriver {
         let pause = runState == .paused ? "En pause · " : runState == .stopping ? "Arrêt… · " : ""
         return "\(pause)Morceau \(n)/\(plannedSongs) · \(id) \(title) · étape : \(currentStep ?? "…") · \(etaText)"
     }
+
+    /// One editor model per open window: SwiftUI re-evaluates the WindowGroup body often, and a fresh
+    /// model there would reset playback and edits. Dropped on close so a reopen reloads the files.
+    func editor(for id: String) -> EditorModel? {
+        if let e = editors[id] { return e }
+        guard let s = songs.first(where: { $0.id == id }) else { return nil }
+        let e = EditorModel(song: s, karaoke: self)
+        editors[id] = e
+        return e
+    }
+    func closeEditor(_ id: String) { editors[id]?.pause(); editors[id] = nil }
 
     func appendLog(_ line: String) {
         log.append(line)

@@ -255,7 +255,5 @@ func pickFolder(_ done: @escaping (URL) -> Void) {
     if p.runModal() == .OK, let u = p.url { done(u) }
 }
 
-// Temporary stubs, replaced in Tasks 12–13.
-@MainActor final class EditorModel { init(songID: String, karaoke: KaraokeModel) {} }
-struct EditorView: View { let model: EditorModel; var body: some View { Text("Éditeur") } }
+// Temporary stub, replaced in Task 13.
 struct SettingsView: View { var body: some View { Text("Réglages") } }
