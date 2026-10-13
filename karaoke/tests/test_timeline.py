@@ -56,3 +56,28 @@ def test_no_lines_is_title_only():
     st = build_states([], pad_s=2.0, total_s=30.0, titre="Instru", artiste="X", beats=BEATS)
     contiguous(st, 30.0)
     assert {s.kind for s in st} == {"titre"}
+
+
+def test_line_chords_places_changes_on_sung_syllable():
+    from karaoke.video.timeline import TimedLine, line_chords
+    # "dan ser en core": syllables dan(10.0) ser(10.5) en(11.0) core(11.5)
+    line = TimedLine(10.0, 12.5, "dan ser en core", [(10.0, 3), (10.5, 7), (11.0, 10), (11.5, 15)])
+    changes = [{"t": 2.0, "label": "C"}, {"t": 10.7, "label": "Am"}, {"t": 11.6, "label": "F"},
+               {"t": 13.0, "label": "G"}]
+    # chord sounding at line start at 0; Am during « ser » (starts at char 4); F during « core » (char 11)
+    assert line_chords(line, changes) == [(0, "C"), (4, "Am"), (11, "F")]
+
+
+def test_line_chords_skips_no_chord_and_keeps_last_change_per_syllable():
+    from karaoke.video.timeline import TimedLine, line_chords
+    line = TimedLine(10.0, 12.0, "dan ser", [(10.0, 3), (10.5, 7)])
+    assert line_chords(line, [{"t": 0.0, "label": "N.C."}, {"t": 10.6, "label": "C"}, {"t": 10.8, "label": "G"}]) \
+        == [(4, "G")]
+    assert line_chords(line, []) == []
+
+
+def test_line_states_carry_chords():
+    from karaoke.video.timeline import TimedLine, build_states
+    line = TimedLine(1.0, 2.0, "la", [(1.0, 2)], chords=((0, "C"),))
+    states = build_states([line], 0.0, 4.0, "T", "A", [])
+    assert all(s.chords == ((0, "C"),) for s in states if s.kind == "ligne")

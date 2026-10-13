@@ -33,11 +33,12 @@ def _wrap(draw, text, font, width):
     return lines + ([cur] if cur else [])
 
 
-YELLOW, WHITE, GREY = (255, 214, 0), (255, 255, 255), (150, 150, 150)
+YELLOW, WHITE, GREY, CHORD = (255, 214, 0), (255, 255, 255), (150, 150, 150), (120, 200, 255)
 
 
-def _karaoke_line(draw, y, text, lit, font):
-    """Current line, centered and wrapped; its first `lit` characters (sung syllables) in yellow."""
+def _karaoke_line(draw, y, text, lit, font, chords=(), chord_font=None):
+    """Current line, centered and wrapped; its first `lit` characters (sung syllables) in yellow.
+    Chord labels (char offset, label) sit above their syllable, pushed right to avoid overlaps."""
     words, offsets, pos = text.split(" "), [], 0
     for w in words:
         offsets.append(pos)
@@ -53,8 +54,21 @@ def _karaoke_line(draw, y, text, lit, font):
     if cur:
         rows.append(cur)
     space = draw.textlength(" ", font=font)
+    chord_h = int(chord_font.size * 1.1) if chords else 0
     for row in rows:
         x = (W - draw.textlength(" ".join(words[i] for i in row), font=font)) / 2
+        if chords:
+            starts = {i: x + draw.textlength(" ".join(words[j] for j in row[:row.index(i)]) + (" " if i != row[0] else ""), font=font)
+                      for i in row}
+            right = -1e9
+            for off, label in chords:
+                i = max(j for j in range(len(words)) if offsets[j] <= off)   # word holding the syllable
+                if i in starts:
+                    k = min(off - offsets[i], len(words[i]))
+                    lx = max(starts[i] + draw.textlength(words[i][:k], font=font), right)
+                    draw.text((lx, y), label, font=chord_font, fill=CHORD)
+                    right = lx + draw.textlength(label + " ", font=chord_font)
+            y += chord_h
         for i in row:
             w, n = words[i], max(0, min(len(words[i]), lit - offsets[i]))
             if n:
@@ -80,7 +94,7 @@ def _frame(s: State) -> Image.Image:
     if s.kind == "titre":
         _centered(d, 380, s.current, big, (255, 255, 255))
     elif s.kind == "ligne":
-        y = _karaoke_line(d, 380, s.current, s.lit, big)
+        y = _karaoke_line(d, 380 - (60 if s.chords else 0), s.current, s.lit, big, s.chords, _font(BOLD, 72))
         _centered(d, max(y + 60, 640), s.next, mid, GREY)
     elif s.kind == "instrumental":
         _centered(d, 300, "♪", sym, (90, 90, 90))
@@ -94,7 +108,7 @@ def render_video(states: list[State], out_mp4: Path, work: Path, fps: int = 25) 
     work.mkdir(parents=True, exist_ok=True)
     entries = []
     for s in states:
-        h = hashlib.sha1(repr((s.kind, s.current, s.next, s.countdown, s.lit)).encode()).hexdigest()[:16]
+        h = hashlib.sha1(repr((s.kind, s.current, s.next, s.countdown, s.lit, s.chords)).encode()).hexdigest()[:16]
         png = work / f"{h}.png"
         if not png.exists():
             _frame(s).save(png)

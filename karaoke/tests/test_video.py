@@ -49,3 +49,32 @@ def test_video_step_writes_shifted_lrc_and_mp4(cfg):
     assert abs(probe_duration(ws.out / "paroles.mp4") - 10.0) < 0.1 and r["duration_s"] == 10.0
     assert sorted(p.name for p in VIDEO.artifacts(ws)) == ["paroles.lrc", "paroles.mp4"]
     assert r["states"] >= 4
+
+
+def test_chords_drawn_light_blue_above_line():
+    def blue_rows(chords):
+        px = np.asarray(_frame(State(0, 1, "ligne", "dan ser", "", None, 0, chords)))
+        mask = (px[..., 2] > 200) & (px[..., 0] < 180) & (px[..., 1] > 150) & (px[..., 1] < 240)
+        return np.nonzero(mask.any(axis=1))[0]
+    assert len(blue_rows(())) == 0
+    rows = blue_rows(((0, "C"), (4, "Am")))
+    white = np.nonzero((np.asarray(_frame(State(0, 1, "ligne", "dan ser", "", None, 0, ((0, "C"),))))
+                        .min(axis=2) > 240).any(axis=1))[0]
+    assert len(rows) and rows.max() < white.min()     # labels sit above the lyric row
+
+
+def test_video_step_passes_chords_to_lines(cfg, monkeypatch):
+    from karaoke.steps import video as V
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    seen = {}
+    monkeypatch.setattr(V, "render_video", lambda states, *a: seen.setdefault("states", states))
+    ws = Workspace(cfg, song())
+    words = [{"text": "Un", "start": 1.0, "end": 1.4, "syllables": [{"text": "Un", "start": 1.0}]}]
+    up = {"package": {"pad_s": 2.0, "total_s": 10.0}, "beats": {"beats": BEATS, "downbeats": []},
+          "lyrics": {"lines": [{"t": 1.0, "text": "Un", "score": None, "words": words}]},
+          "check": {"lines": [{"t": 1.0, "ok": True, "end": 2.5}]},
+          "chords": {"changes": [{"t": 0.0, "label": "Am"}]}}
+    V.VIDEO.run(ws, up)
+    assert any(s.chords == ((0, "Am"),) for s in seen["states"])
+    assert "chords" in V.VIDEO.deps and V.VIDEO.version == "4"

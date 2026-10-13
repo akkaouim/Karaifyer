@@ -14,6 +14,7 @@ class TimedLine:
     end: float                            # end of singing (from the vocal activity check)
     text: str                             # whitespace-normalised
     syllables: list[tuple[float, int]]    # (start, characters of `text` lit once it starts)
+    chords: tuple = ()                    # ((char offset, label), …) drawn above the line
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,26 @@ class State:
     next: str
     countdown: int | None
     lit: int = 0
+    chords: tuple = ()
+
+
+def line_chords(line: TimedLine, changes: list[dict]) -> list[tuple[int, str]]:
+    """Chord sounding when the line starts (offset 0), then each change during the line placed at
+    the first character of the syllable being sung at that moment. N.C. is not shown; when several
+    changes fall on one syllable, the last wins."""
+    starts, prev = [], 0
+    for s, chars in line.syllables:
+        starts.append((s, prev + 1 if line.text[prev:prev + 1] == " " else prev))
+        prev = chars
+    out: dict[int, str] = {}
+    before = [c for c in changes if c["t"] <= line.start]
+    if before:
+        out[0] = before[-1]["label"]
+    for c in changes:
+        if line.start < c["t"] < line.end:
+            off = max([o for s, o in starts if s <= c["t"]], default=0)
+            out[off] = c["label"]
+    return [(o, l) for o, l in sorted(out.items()) if l != "N.C."]
 
 
 def _beats_between(beats, a: float, b: float) -> int:
@@ -49,9 +70,9 @@ def _line_states(line: TimedLine, show: float, stop: float, nxt: str) -> list[St
             continue
         if start >= stop:
             break
-        out.append(State(t, start, "ligne", line.text, nxt, None, lit))
+        out.append(State(t, start, "ligne", line.text, nxt, None, lit, line.chords))
         t, lit = start, chars
-    out.append(State(t, stop, "ligne", line.text, nxt, None, lit))
+    out.append(State(t, stop, "ligne", line.text, nxt, None, lit, line.chords))
     return out
 
 
