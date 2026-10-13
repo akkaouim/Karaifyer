@@ -17,6 +17,98 @@ def beats_per_bar(beats: Sequence[float], downbeats: Sequence[float]) -> int:
     return int(min(7, max(2, round(float(np.median(counts))))))
 
 
+REGULAR_SHARE = 0.85
+
+
+def regularize(beats: Sequence[float], downbeats: Sequence[float]) -> tuple[list[float], list[float], dict]:
+    """Clean a detected beat grid where the music is regular (Beat This! errors seen in Michel's run):
+    - a gap of ≈2 or ≈3 beats is filled (half/third tempo in quiet parts: the click skipped beats);
+    - a beat less than 0.6 beat after another is dropped (stray detection);
+    - bar lines are rebuilt every N beats on the phase most detected bar lines agree on, when they all
+      sit on that phase or half a bar from it (« beat 3 » taken for a new bar).
+    Longer gaps (real stops), gradual tempo changes and genuinely shifting bar lines are kept as is."""
+    b = [float(x) for x in beats]
+    info = {"added": 0, "removed": 0, "bars_regularized": False}
+    if len(b) < 8:
+        return b, list(downbeats), info
+    m = float(np.median(np.diff(b)))
+    # Only for regular music: nearly every gap is 1, 2 or 3 beats (or a stray). Measured on Michel's
+    # songs: regular ones 94–100 %, the drifting Speed 49 %, the free-tempo Blés d'or 58 %.
+    r = np.diff(b) / m
+    on_grid = np.mean([x < 0.6 or min(abs(x - k) / k for k in (1, 2, 3)) < 0.12 for x in r])
+    if on_grid < REGULAR_SHARE:
+        return b, list(downbeats), info
+    dn0 = sorted(downbeats)
+    # Beats per bar from bar DURATION: a half-tempo bar holds 2 detected beats but lasts a full bar.
+    bpb0 = (int(min(7, max(2, round(float(np.median(np.diff(dn0))) / m)))) if len(dn0) >= 2
+            else beats_per_bar(b, downbeats))
+
+    def short_bar(x: float) -> bool:
+        """The detected bar holding x has fewer beats than a bar: beats were skipped there. (A slower
+        section with full bars has real beats — Speed.) Outside any bar (intro/outro): allowed."""
+        k = int(np.searchsorted(dn0, x + 1e-3)) - 1
+        if k < 0 or k + 1 >= len(dn0):
+            return True
+        return sum(1 for t in beats if dn0[k] - 1e-3 <= t < dn0[k + 1] - 1e-3) < bpb0
+
+    i = 0                                       # stray beats
+    while i < len(b) - 1:
+        if b[i + 1] - b[i] < 0.6 * m:
+            def err(j):                         # dropping j merges its two intervals: that one should be a beat
+                prev = b[j - 1] if j > 0 else b[j] - m
+                nxt = b[j + 1] if j + 1 < len(b) else b[j] + m
+                return abs((nxt - prev) - m)
+            drop = i + 1 if err(i + 1) <= err(i) else i
+            del b[drop]
+            info["removed"] += 1
+        else:
+            i += 1
+    out = [b[0]]                                # skipped beats
+    for x, y in zip(b, b[1:]):
+        q = (y - x) / m
+        k = round(q)
+        if k in (2, 3) and abs(q - k) < 0.15 * k and short_bar(x):
+            out += [x + (y - x) * j / k for j in range(1, k)]
+            info["added"] += k - 1
+        out.append(y)
+    b = out
+    down = sorted(downbeats)
+    # Bar lines, stretch by stretch: a badly tracked passage (e.g. locked at 3/4 tempo) can shift the
+    # detected bar lines after it, so each regular stretch votes on its own phase.
+    gaps_ok = [abs((y - x) / m - 1) <= 0.15 for x, y in zip(b, b[1:])]
+    stretches, s = [], 0
+    for j, ok in enumerate(gaps_ok):
+        if not ok:
+            stretches.append((s, j))
+            s = j + 1
+    stretches.append((s, len(b) - 1))
+    tol = 0.35 * m
+    kept = list(down)
+    rebuilt: list[float] = []
+    for s, e in stretches:
+        inside = [d for d in down if b[s] - tol <= d <= b[e] + tol]
+        if e - s < 8 or len(inside) < 3:
+            continue
+        idx = [s + int(np.argmin([abs(x - d) for x in b[s:e + 1]])) for d in inside]
+        best = None
+        for n in (4, 3):
+            counts = np.bincount([j % n for j in idx], minlength=n)
+            p = int(np.argmax(counts))
+            ok_phases = {p, (p + n // 2) % n} if n % 2 == 0 else {p}
+            on = sum(1 for j in idx if j % n in ok_phases) / len(idx)
+            share = counts[p] / len(idx)
+            if share >= 0.5 and on >= 0.9 and (best is None or share > best[0]):
+                best = (share, n, p)
+        if best:
+            _, n, p = best
+            kept = [d for d in kept if d not in inside]
+            rebuilt += [b[j] for j in range(s, e + 1) if j % n == p]
+    new = sorted(set(kept) | set(rebuilt))
+    if new != down:
+        down, info["bars_regularized"] = new, True
+    return b, down, info
+
+
 TEMPO_WINDOW = 16   # beats; averaging over a span cancels Beat This!'s ±1 frame (20 ms) jitter
 
 
