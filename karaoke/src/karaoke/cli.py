@@ -39,6 +39,10 @@ def manifeste(audio: Path = typer.Option(..., help="Dossier des FLAC enregistré
     typer.echo(f"{len(songs)} morceaux écrits dans {out}. Compléter les colonnes retirer, langue et partie.")
 
 
+def _emit(ev: dict) -> None:
+    typer.echo(json.dumps(ev, ensure_ascii=False))
+
+
 def _csv_set(v: str | None) -> set[str] | None:
     return {x.strip() for x in v.split(",") if x.strip()} if v else None
 
@@ -46,7 +50,8 @@ def _csv_set(v: str | None) -> set[str] | None:
 @app.command()
 def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,066"),
             etape: str = typer.Option(None, help="N'exécuter que cette étape"),
-            forcer: str = typer.Option(None, help="Étapes à refaire, ex. package,video")) -> None:
+            forcer: str = typer.Option(None, help="Étapes à refaire, ex. package,video"),
+            json_out: bool = typer.Option(False, "--json", help="Événements JSON, un par ligne (pour Karaifyer)")) -> None:
     """Traite les morceaux du manifeste (reprend là où il s'est arrêté)."""
     cfg = Config.load()
     cfg.ensure_dirs()
@@ -62,17 +67,27 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
             continue
         ws = Workspace(cfg, s)
         ws.adopt_previous_folder()
-        typer.echo(f"▶ {s.id} {s.artiste} – {s.titre}")
-        res = run_song(ws, STEPS, force=_csv_set(forcer) or set(), only={etape} if etape else None)
+        if json_out:
+            ws.on_log = lambda line, sid=s.id: _emit({"event": "log", "id": sid, "line": line})
+            _emit({"event": "song_start", "id": s.id})
+        else:
+            typer.echo(f"▶ {s.id} {s.artiste} – {s.titre}")
+        res = run_song(ws, STEPS, force=_csv_set(forcer) or set(), only={etape} if etape else None,
+                       on_event=_emit if json_out else None)
         rep = song_report(s, res)
         ws.out.mkdir(parents=True, exist_ok=True)
         (ws.out / "rapport.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
-        typer.echo("   " + "  ".join(f"{n}:{r['status']}" for n, r in res.items()) + f"  → {rep['statut']}")
+        if json_out:
+            _emit({"event": "song_end", "id": s.id, "statut": rep["statut"]})
+        else:
+            typer.echo("   " + "  ".join(f"{n}:{r['status']}" for n, r in res.items()) + f"  → {rep['statut']}")
     write_global(load_reports(cfg.sortie, [Workspace(cfg, s).out for s in songs]),
                  cfg.home / "rapport.csv", cfg.home / "rapport.html")
-    typer.echo(f"Rapport : {cfg.home / 'rapport.html'}")
-    for page in write_pages(cfg, songs):
-        typer.echo(f"iReal Pro : {page}")
+    pages = write_pages(cfg, songs)
+    if not json_out:
+        typer.echo(f"Rapport : {cfg.home / 'rapport.html'}")
+        for page in pages:
+            typer.echo(f"iReal Pro : {page}")
 
 
 @app.command()

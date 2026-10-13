@@ -59,14 +59,25 @@ def _entry(status: str, seconds: float = 0.0, result: dict | None = None, error:
 
 
 def run_song(ws: Workspace, steps: list[Step], force: set[str] = frozenset(),
-             only: set[str] | None = None) -> dict[str, dict]:
+             only: set[str] | None = None, on_event: Callable[[dict], None] | None = None) -> dict[str, dict]:
     out: dict[str, dict] = {}
+
+    def emit(step: str, status: str | None = None) -> None:
+        if on_event is None:
+            return
+        ev = {"event": "step_end" if status else "step_start", "id": ws.song.id, "step": step}
+        if status:
+            e = out[step]
+            ev.update(status=status, seconds=round(e.get("seconds", 0.0), 2), error=e.get("error", ""))
+        on_event(ev)
+
     forced = set(force)
     for step in steps:
         t0 = time.monotonic()
         bad = [d for d in step.deps if out.get(d, {}).get("status") not in ("fait", "saute")]
         if bad:
             out[step.name] = _entry("bloque", error=f"dépend de : {', '.join(bad)}")
+            emit(step.name, out[step.name]["status"])
             continue
         key = hashlib.sha1("|".join([step.name, step.version, step.key(ws),
                                      *(out[d]["output_hash"] for d in step.deps)]).encode()).hexdigest()
@@ -81,25 +92,31 @@ def run_song(ws: Workspace, steps: list[Step], force: set[str] = frozenset(),
         if not step.always and (not selected or (up_to_date and step.name not in forced)):
             if up_to_date:
                 out[step.name] = _entry("saute", result=marker["result"], out_hash=marker["output_hash"])
+                emit(step.name, out[step.name]["status"])
             else:
                 out[step.name] = _entry("bloque", error="étape non sélectionnée et pas à jour")
+                emit(step.name, out[step.name]["status"])
             continue
         upstream = {d: out[d]["result"] for d in step.deps}
         # Drop the old marker first: an interrupted rerun (Ctrl-C, full disk) leaves
         # half-written outputs that must not be mistaken for a finished step.
         ws.marker(step.name).unlink(missing_ok=True)
         try:
+            emit(step.name)
             ws.log(f"début {step.name}")
             result = step.run(ws, upstream)
             secs = time.monotonic() - t0
             oh = output_hash(result, step.artifacts(ws))
             ws.write_marker(step.name, {"key": key, "result": result, "output_hash": oh, "seconds": secs})
             out[step.name] = _entry("fait", secs, result, out_hash=oh)
+            emit(step.name, out[step.name]["status"])
             ws.log(f"fin {step.name} ({secs:.1f} s)")
         except StepRetry as e:
             out[step.name] = _entry("a_reessayer", time.monotonic() - t0, error=str(e))
+            emit(step.name, out[step.name]["status"])
             ws.log(f"à réessayer {step.name}: {e}")
         except Exception as e:  # one song's failure must never stop the batch
             out[step.name] = _entry("echec", time.monotonic() - t0, error=f"{type(e).__name__}: {e}")
+            emit(step.name, out[step.name]["status"])
             ws.log(f"échec {step.name}: {traceback.format_exc()}")
     return out

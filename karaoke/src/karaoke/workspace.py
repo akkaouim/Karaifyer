@@ -27,6 +27,7 @@ class Workspace:
         self.work = cfg.travail / song.id
         self.out = cfg.sortie / f"{song.id}_{slug(song.artiste)}_{slug(song.titre)}"
         self.stems = self.work / "stems"
+        self.on_log = None   # optional listener (Karaifyer's live terminal via traiter --json)
         self.work.mkdir(parents=True, exist_ok=True)
 
     def adopt_previous_folder(self) -> None:
@@ -57,3 +58,5 @@ class Workspace:
     def log(self, msg: str) -> None:
         with open(self.work / "journal.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().isoformat(timespec='seconds')}] {msg}\n")
+        if self.on_log:
+            self.on_log(msg)
