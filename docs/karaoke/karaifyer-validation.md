@@ -26,3 +26,4 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 20 | During a run: title/artist/partie, Retirer, Langue, Ajouter and Analyser are disabled (a notice says why); « Ouvrir… » still works; everything unlocks at the end or after Arrêter | |
 | 21 | Marker column: spinner on the song being processed (pause symbol while paused), clock on the waiting ones, check/cross when finished; nothing on songs outside the run | |
 | 22 | Hover the Statut cell of an « alerte » song: the reasons are listed; hover a dot: the step's name, what it does, its state and any error | |
+| 23 | Video: in an instrumental break of a bar or more the chord row appears (current bar yellow) instead of a frozen lit line; the grey next-line preview shows its chords above it | |
