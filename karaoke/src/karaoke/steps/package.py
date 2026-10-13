@@ -83,12 +83,14 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     return {"pad_s": pad / sr, "total_s": total / sr, "beats_per_bar": plan.beats_per_bar,
             "bpm": stats["bpm"], "variation_pct": stats["variation_pct"], "stable": stats["stable"],
             "gain_db": float(20 * np.log10(gain)),
-            "live": [n for n, stem in CHANNEL_FILES.items() if stem in ws.song.retirer],
+            "live": [n for n, stem in CHANNEL_FILES.items() if stem in ws.song.retirer]
+                    + (["accompagnement"] if "other" in ws.song.retirer else []),
             # XR18 fader defaults: parts played live start at zero, everything else at 0 dB
             "faders": {**{n: (0 if stem in ws.song.retirer else xair_cc(0.0)) for n, stem in CHANNEL_FILES.items()},
-                       "back_vocals": xair_cc(0.0), "accompagnement": xair_cc(0.0)}}
+                       "back_vocals": xair_cc(0.0),
+                       "accompagnement": 0 if "other" in ws.song.retirer else xair_cc(0.0)}}
 
 
 PACKAGE = Step(name="package", deps=("ingest", "separate", "beats", "vocals_split"), key=_key, run=_run,
                artifacts=_artifacts,
-               version="4")   # 4: XR18 channel files, accompaniment = other, fader defaults
+               version="5")   # 4: XR18 channel files, accompaniment = other, fader defaults; 5: retirer=other

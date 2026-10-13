@@ -31,7 +31,8 @@ Réglages, une seule fois :
 5. Live en mode MIDI Map (⌘M), cliquer sur Stop, lancer `uv run karaoke apprendre-stop`, quitter MIDI Map,
    enregistrer le gabarit.
 
-Colonne `retirer` : les parties jouées en live (`guitar`, `bass`, `piano`, `drums`). Elles restent
+Colonne `retirer` : les parties jouées en live (`guitar`, `bass`, `piano`, `drums`, et `other` pour
+l'accompagnement 17–18, ex. claviers joués en live). Elles restent
 disponibles sur leur canal, fader à zéro au départ du morceau.
 
 **Accords et iReal Pro.** Les accords sont détectés sur les pistes harmoniques (basse, guitare, piano,

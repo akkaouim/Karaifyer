@@ -85,3 +85,33 @@ def test_step_spells_chords_in_key(cfg, monkeypatch):
     r = C.CHORDS.run(ws, {"ingest": {"duration_s": 8.0}, "separate": {},
                           "beats": {"beats": BEATS, "downbeats": DOWN}})
     assert r["changes"] == [{"t": 0.0, "label": "Db"}] and r["bars"][0]["chords"] == [[0, "Db"]]
+
+
+def test_chords_failure_does_not_block_video(cfg, monkeypatch):
+    # review #2: the chart is a draft; a tool failure must leave video/set running, and be retried next run
+    from karaoke import audio
+    from karaoke.steps import chords as C
+    from karaoke.tools import ToolError
+    from karaoke.workspace import Workspace
+    from conftest import tone
+    from test_manifest import song
+    ws = Workspace(cfg, song())
+    for s in C.HARMONIC:
+        audio.write_wav(ws.stems / f"{s}.wav", tone(8.0))
+    def boom(*a, **kw):
+        raise ToolError("chords", 1, "madmom crashed")
+    monkeypatch.setattr(C, "run_tool", boom)
+    r = C.CHORDS.run(ws, {"ingest": {"duration_s": 8.0}, "separate": {},
+                          "beats": {"beats": BEATS, "downbeats": DOWN}})
+    assert r["bars"] == [] and r["changes"] == [] and "madmom crashed" in r["erreur"]
+    assert not all(p.exists() for p in C.CHORDS.artifacts(ws))      # → rerun next time
+    assert bars_from([], [], [], 4) == []
+
+
+def test_ireal_pages_skip_songs_without_bars(cfg):
+    from karaoke.ireal import write_pages
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    s = song()
+    Workspace(cfg, s).write_marker("chords", {"result": {"key": None, "bpm": 0, "beats_per_bar": 4, "bars": []}})
+    assert write_pages(cfg, [s]) == []

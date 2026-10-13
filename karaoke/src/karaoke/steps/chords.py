@@ -15,7 +15,7 @@ from karaoke import audio
 from karaoke.chords import bars_from, changes, chart_text, chords_per_beat, merge_blips, spell
 from karaoke.grid import beats_per_bar, tempo_stats
 from karaoke.runner import Step
-from karaoke.tools import TOOLS_DIR, run_tool, tool_timeout
+from karaoke.tools import TOOLS_DIR, ToolError, run_tool, tool_timeout
 from karaoke.workspace import Workspace
 
 HARMONIC = ("bass", "guitar", "piano", "other")
@@ -29,10 +29,15 @@ def _run(ws: Workspace, upstream: dict) -> dict:
         mix = x if mix is None else mix[:len(x)] + x[:len(mix)]
     harm, out = ws.work / "harmonie.wav", ws.work / "chords.json"
     audio.write_wav(harm, mix / len(HARMONIC), sr)
-    run_tool("chords", ["python", str(TOOLS_DIR / "chords" / "chords_tool.py"), str(harm), str(out)],
-             timeout=tool_timeout("chords", upstream["ingest"]["duration_s"]))
-    data = json.loads(out.read_text())
     beats, downbeats = upstream["beats"]["beats"], upstream["beats"]["downbeats"]
+    (ws.out / "accords.txt").unlink(missing_ok=True)
+    try:
+        run_tool("chords", ["python", str(TOOLS_DIR / "chords" / "chords_tool.py"), str(harm), str(out)],
+                 timeout=tool_timeout("chords", upstream["ingest"]["duration_s"]))
+        data = json.loads(out.read_text())
+    except (ToolError, OSError, ValueError) as e:
+        # The chart is a draft: never block the video or the set. No accords.txt → retried next run.
+        return {"key": None, "bpm": 0.0, "beats_per_bar": 4, "bars": [], "changes": [], "erreur": str(e)[-300:]}
     bpb = beats_per_bar(beats, downbeats)
     labels = spell(merge_blips(chords_per_beat(data["segments"], beats)), data["key"])
     bars = bars_from(beats, downbeats, labels, bpb)

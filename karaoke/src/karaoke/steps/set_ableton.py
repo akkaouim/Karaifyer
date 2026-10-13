@@ -21,7 +21,15 @@ def _key(ws: Workspace) -> str:
     return f"{tpl}|{mtime}|{ws.song.partie}|{ws.song.titre}"
 
 
+def remove_stale_sets(ws: Workspace, keep) -> None:
+    """Older sets of this song (another partie, or a renamed folder) would open the wrong version."""
+    for p in ws.cfg.sets.glob(f"*/{ws.song.id}_*.als"):
+        if p != keep:
+            p.unlink()
+
+
 def _run(ws: Workspace, upstream: dict) -> dict:
+    remove_stale_sets(ws, _out(ws))
     entry = SongEntry(ws.song.id, ws.song.titre, ws.out, upstream["package"]["faders"])
     r = build_set(ws.cfg.gabarit, [entry], _out(ws))
     return {"set": str(_out(ws)), "warnings": r["warnings"]}

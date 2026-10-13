@@ -86,3 +86,11 @@ def test_key_depends_on_retirer_and_decompte(cfg):
     b = PACKAGE.key(Workspace(cfg, song(retirer=("guitar",), decompte_mesures=2)))
     c = PACKAGE.key(Workspace(cfg, song(retirer=("bass",), decompte_mesures=1)))
     assert len({a, b, c}) == 3
+
+
+def test_retirer_other_starts_accompaniment_at_zero(cfg):
+    # review #1: Michel plays keys live; synths/strings sit in `other` → accompaniment fader down
+    ws, up, _ = setup(cfg, retirer=("guitar", "other"))
+    r = PACKAGE.run(ws, up)
+    assert r["faders"]["accompagnement"] == 0 and r["faders"]["guitare"] == 0
+    assert r["live"] == ["guitare", "accompagnement"]

@@ -36,6 +36,8 @@ def merge_blips(labels: list[str]) -> list[str]:
 def bars_from(beats: list[float], downbeats: list[float], labels: list[str], beats_per_bar: int) -> list[dict]:
     """Bars starting at each downbeat (a pickup before the first one becomes its own bar);
     each bar lists [beat_index, symbol] for its first beat and every change inside it."""
+    if not beats:
+        return []
     down = set(round(d, 3) for d in downbeats)
     starts = [i for i, b in enumerate(beats) if round(b, 3) in down] or list(range(0, len(beats), beats_per_bar))
     if starts[0] != 0:

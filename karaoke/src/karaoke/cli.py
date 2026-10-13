@@ -10,6 +10,7 @@ from karaoke.ireal import write_pages
 from karaoke.manifest import group_by_partie, read_manifest, songs_from_sysrec, write_manifest
 from karaoke.report import load_reports, song_report, write_global
 from karaoke.runner import run_song
+from karaoke.steps.set_ableton import remove_stale_sets
 from karaoke.tools import TOOLS_DIR, ToolError, run_tool
 from karaoke.steps import STEPS
 from karaoke.workspace import Workspace, slug
@@ -102,6 +103,7 @@ def sets(partie: str = typer.Option(None, help="Ne générer que cette partie"))
             ws = Workspace(cfg, s)
             entry = SongEntry(s.id, s.titre, ws.out, ws.read_marker("package")["result"]["faders"])
             out = cfg.sets / slug(name) / f"{ws.out.name}.als"
+            remove_stale_sets(ws, out)
             try:
                 r = build_set(cfg.gabarit, [entry], out)
             except SetError as e:

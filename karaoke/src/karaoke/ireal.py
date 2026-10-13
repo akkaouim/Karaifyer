@@ -64,7 +64,7 @@ def write_pages(cfg, songs: list) -> list[Path]:
         links = []
         for s in group:
             r = (Workspace(cfg, s).read_marker("chords") or {}).get("result")
-            if r:
+            if r and r.get("bars"):
                 style = "Waltz" if r["beats_per_bar"] == 3 else "Pop"
                 links.append((s.titre, s.artiste, song_url(s.titre, s.artiste, style, r["key"], r["bars"],
                                                            r["beats_per_bar"], r["bpm"])))
