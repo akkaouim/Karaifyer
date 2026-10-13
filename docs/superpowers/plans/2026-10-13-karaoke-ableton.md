@@ -1263,3 +1263,31 @@ He asked for these to be implemented directly. Each task follows the same rules 
   - the auto stop;
   - the syllable colours and the countdown;
   - the separation by ear (optional).
+
+---
+
+## Part 3 (requested by Michel, 2026-10-13): chord charts, iReal Pro, chords in the video
+
+Spike (005, 012 harmonic mix = bass + guitar + piano + other): madmom DeepChroma vs CNN-CRF chord recognisers agree on 85–87 % of the time. DeepChroma takes 0.3–1 s per song, CNN-CRF about 60 s. Key detection (madmom CNN): 005 → C# minor (chords C#m–A–B, plausible).
+
+### Task 13: `chords` step
+- Tool env `tools/chords` (madmom git, numpy < 2, soundfile). `chords_tool.py wav out.json` writes `{segments: [[start, end, label]], key}` using DeepChroma + `CNNKeyRecognitionProcessor`.
+- The step:
+  - deps `("ingest", "separate", "beats")`;
+  - the harmonic mix is `stems/{bass,guitar,piano,other}` summed to mono in `travail/<id>/harmonie.wav`;
+  - chords are quantised to the beat grid: the label covering each beat's centre, with one-beat blips merged into their neighbours;
+  - labels become chart symbols (`C#:min` → `C#m`, `A:maj` → `A`, `N` → `N.C.`).
+- Result: `{key, bpm, beats_per_bar, bars: [{start, chords: [[beat_index, label]]}], changes: [{t, label}]}` (`t` in trimmed-input time).
+- Writes `sortie/<dossier>/accords.txt`: a readable grid, 4 bars per line.
+
+### Task 14: iReal Pro export
+- `ireal.song_url(title, composer, style, key, bars, beats_per_bar, bpm)` builds an `irealbook://` link: `Title=Composer=Style=Key=n=ChordProgression`, with time signature `T44`/`T34`, bars separated by `|`, `Z` at the end, and the chord syntax `C-` (minor) / `n` (N.C.).
+- After each `traiter` run: `$KARAOKE_HOME/ireal/<partie>.html`, one link per song, opened on the device where iReal Pro is installed.
+- Michel's import test decides whether the obfuscated `irealb://` format is needed instead.
+
+### Task 15: Chords above the current line in the video
+- `TimedLine.chords: [(char_offset, label)]`: the chord sounding when the line appears (offset 0), plus every change during the line, each placed at the start of the syllable being sung at that moment.
+- The renderer draws the chord labels above their syllables, in a smaller font (72 vs 96) in light blue, pushing a label right if it would overlap the previous one. Rows get extra spacing when chords are shown.
+- `video` deps gain `chords`. VIDEO version 4.
+
+### Task 16: Real run, Michel's check (iReal import, chords in the video), final review.
