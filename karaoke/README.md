@@ -2,8 +2,9 @@
 
 Transforme les fichiers enregistrés par SysRec en un dossier prêt à jouer par morceau :
 accompagnement (sans voix ni parties jouées en live), clic avec décompte, voix guide,
-6 pistes séparées, paroles synchronisées (`.lrc`) et vidéo de paroles (`.mp4`), plus un
-rapport global trié par risque.
+6 pistes séparées, grille d'accords (`accords.txt`), paroles synchronisées (`.lrc`) et vidéo
+de paroles (`.mp4`, accords au-dessus des syllabes), plus un rapport global trié par risque et
+des liens d'import iReal Pro.
 
 ```sh
 export KARAOKE_HOME=/Volumes/Hypermnesia/karaoke     # disque externe (≈ 0,7 Go par morceau)
@@ -32,6 +33,14 @@ Réglages, une seule fois :
 
 Colonne `retirer` : les parties jouées en live (`guitar`, `bass`, `piano`, `drums`). Elles restent
 disponibles sur leur canal, fader à zéro au départ du morceau.
+
+**Accords et iReal Pro.** Les accords sont détectés sur les pistes harmoniques (basse, guitare, piano,
+autres ; madmom DeepChroma), calés sur les temps : `sortie/<dossier>/accords.txt` (4 mesures par ligne)
+et, dans la vidéo, au-dessus de la syllabe chantée au changement. Après chaque `traiter`,
+`$KARAOKE_HOME/ireal/<partie>.html` contient un lien par morceau : l'ouvrir sur l'appareil où iReal Pro
+est installé et toucher un titre pour l'importer (tonalité incluse ; le tempo se règle dans iReal).
+Détection automatique : à vérifier à l'oreille, surtout les accords enrichis (7e, sus), notés en
+majeur/mineur simple.
 
 **Paroles manquantes ou à corriger.** Déposer dans `$KARAOKE_HOME/paroles/` :
 - `<id>.txt` : texte brut, aligné automatiquement sur la voix (marche aussi hors ligne) ;
