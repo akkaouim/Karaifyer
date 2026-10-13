@@ -77,4 +77,32 @@ def test_video_step_passes_chords_to_lines(cfg, monkeypatch):
           "chords": {"changes": [{"t": 0.0, "label": "Am"}]}}
     V.VIDEO.run(ws, up)
     assert any(s.chords == ((0, "Am"),) for s in seen["states"])
-    assert "chords" in V.VIDEO.deps and V.VIDEO.version == "4"
+    assert "chords" in V.VIDEO.deps
+
+
+def test_instrumental_chart_drawn_with_current_bar_yellow():
+    def count(chart, pos, kind="instrumental"):
+        px = np.asarray(_frame(State(0, 1, kind, "", "suite", None, 0, (), chart, pos)))
+        yellow = ((px[..., 0] > 200) & (px[..., 1] > 180) & (px[..., 2] < 80)).sum()
+        blue = ((px[..., 2] > 200) & (px[..., 0] < 180) & (px[..., 1] > 150) & (px[..., 1] < 240)).sum()
+        return int(yellow), int(blue)
+    assert count((), None) == (0, 0)
+    y, b = count(("C#m", "A", "A", "A B"), 1)
+    assert y > 0 and b > 0
+    assert count(("C#m", "A"), 0, "titre")[0] > 0
+
+
+def test_video_step_passes_bars_for_instrumentals(cfg, monkeypatch):
+    from karaoke.steps import video as V
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    seen = {}
+    monkeypatch.setattr(V, "render_video", lambda states, *a: seen.setdefault("states", states))
+    ws = Workspace(cfg, song())
+    up = {"package": {"pad_s": 2.0, "total_s": 10.0}, "beats": {"beats": BEATS, "downbeats": []},
+          "lyrics": {"lines": []}, "check": {"lines": []},
+          "chords": {"beats_per_bar": 4, "changes": [],
+                     "bars": [{"start": 0.0, "chords": [[0, "Am"], [2, "F"]]}, {"start": 2.0, "chords": [[0, "G"]]}]}}
+    V.VIDEO.run(ws, up)
+    assert any(s.chart == ("Am F", "G") and s.chart_pos == 0 and s.start == 2.0 for s in seen["states"])
+    assert V.VIDEO.version == "5"

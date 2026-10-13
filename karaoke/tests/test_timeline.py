@@ -81,3 +81,21 @@ def test_line_states_carry_chords():
     line = TimedLine(1.0, 2.0, "la", [(1.0, 2)], chords=((0, "C"),))
     states = build_states([line], 0.0, 4.0, "T", "A", [])
     assert all(s.chords == ((0, "C"),) for s in states if s.kind == "ligne")
+
+
+def test_instrumental_states_show_current_chart_row():
+    from karaoke.video.timeline import State, with_chart
+    # 6 bars of 2 s from t=1; rows of 4: [C Am F G] then [C G]
+    bars = [(1.0 + 2 * i, c) for i, c in enumerate(["C", "Am F", "N.C.", "G", "C", "G"])]
+    states = [State(0.0, 4.0, "titre", "T", "", None), State(4.0, 8.0, "ligne", "la", "", None),
+              State(8.0, 14.0, "instrumental", "", "x", 1)]
+    out = with_chart(states, bars, 4)
+    titre = [s for s in out if s.kind == "titre"]
+    assert [(s.start, s.end, s.chart_pos) for s in titre] == [(0.0, 1.0, None), (1.0, 3.0, 0), (3.0, 4.0, 1)]
+    assert titre[0].chart == () and titre[1].chart == ("C", "Am F", "N.C.", "G")
+    assert [s for s in out if s.kind == "ligne"][0].chart == ()            # sung lines keep chords above
+    inst = [s for s in out if s.kind == "instrumental"]
+    assert [(s.start, s.chart, s.chart_pos) for s in inst] == [
+        (8.0, ("C", "Am F", "N.C.", "G"), 3), (9.0, ("C", "G"), 0), (11.0, ("C", "G"), 1), (13.0, (), None)]
+    assert all(s.countdown == 1 for s in inst)                             # other fields preserved
+    assert with_chart(states, [], 4) == states

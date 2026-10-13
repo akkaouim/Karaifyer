@@ -5,7 +5,7 @@ of characters of the line already sung). When more than `gap_beats` beats of sil
 the last 4 beats before it show a 4-3-2-1 countdown.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,8 @@ class State:
     countdown: int | None
     lit: int = 0
     chords: tuple = ()
+    chart: tuple = ()               # instrumental parts: the 4-bar chart row being played
+    chart_pos: int | None = None    # index of the current bar in `chart`
 
 
 def line_chords(line: TimedLine, changes: list[dict]) -> list[tuple[int, str]]:
@@ -99,3 +101,30 @@ def build_states(lines: list[TimedLine], pad_s: float, total_s: float, titre: st
     if states[-1].end < total_s:
         states.append(State(states[-1].end, total_s, "fin", "", "", None))
     return [s for s in states if s.end - s.start > 1e-6]
+
+
+CHART_KINDS = ("titre", "instrumental", "fin")
+
+
+def with_chart(states: list[State], bars: list[tuple[float, str]], per_row: int = 4) -> list[State]:
+    """Split the non-sung states (intro, instrumental gaps, outro) at bar starts and attach the chart
+    row (bars grouped by `per_row`, as in accords.txt) with the current bar. `bars` = (start, cell)."""
+    if not bars:
+        return states
+    last_len = bars[-1][0] - bars[-2][0] if len(bars) > 1 else 2.0
+    edges = [b for b, _ in bars] + [bars[-1][0] + last_len]
+    out = []
+    for s in states:
+        if s.kind not in CHART_KINDS:
+            out.append(s)
+            continue
+        cuts = [s.start] + [e for e in edges if s.start < e < s.end] + [s.end]
+        for a, b in zip(cuts, cuts[1:]):
+            i = max((k for k in range(len(bars)) if bars[k][0] <= a + 1e-6), default=None)
+            if i is None or a >= edges[-1] - 1e-6:
+                out.append(replace(s, start=a, end=b))
+            else:
+                row = i // per_row * per_row
+                out.append(replace(s, start=a, end=b, chart=tuple(c for _, c in bars[row:row + per_row]),
+                                   chart_pos=i - row))
+    return out

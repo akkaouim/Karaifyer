@@ -1,7 +1,7 @@
 """Step `video` — synced lyrics file and lyrics video on the output timeline.
 
 Inputs:  package result {pad_s, total_s}; beats result {beats}; lyrics result {lines[].words[].syllables};
-         check result {lines[].end}; chords result {changes} (drawn above each line); manifest row.
+         check result {lines[].end}; chords result {changes, bars} (above each line; 4-bar row in instrumentals); manifest row.
 Outputs: sortie/<dossier>/paroles.lrc (line times + pad_s), paroles.mp4 (1920x1080, no audio,
          exactly total_s long); result {duration_s, states}.
 """
@@ -11,7 +11,7 @@ from dataclasses import replace
 from karaoke import lrc
 from karaoke.runner import Step
 from karaoke.video.render import render_video
-from karaoke.video.timeline import TimedLine, build_states, line_chords
+from karaoke.video.timeline import TimedLine, build_states, line_chords, with_chart
 from karaoke.workspace import Workspace
 
 
@@ -44,6 +44,9 @@ def _run(ws: Workspace, upstream: dict) -> dict:
                                                    decalage=pad), encoding="utf-8")
     beats = [b + pad for b in upstream["beats"]["beats"]]
     states = build_states(timed, pad, total, ws.song.titre, ws.song.artiste, beats)
+    chords = upstream.get("chords", {})
+    bars = [(b["start"] + pad, " ".join(c for _, c in b["chords"])) for b in chords.get("bars", [])]
+    states = with_chart(states, bars, 4)
     render_video(states, ws.out / "paroles.mp4", ws.work / "frames")
     return {"duration_s": total, "states": len(states)}
 
@@ -51,4 +54,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 VIDEO = Step(name="video", deps=("package", "beats", "lyrics", "check", "chords"),
              key=lambda ws: f"{ws.song.titre}|{ws.song.artiste}", run=_run,
              artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4"],
-             version="4")   # 3: syllable colouring, 4-3-2-1 beat countdown; 4: chords above the line
+             version="5")   # 3: syllable colouring, 4-3-2-1 countdown; 4: chords above the line; 5: chart row in instrumentals

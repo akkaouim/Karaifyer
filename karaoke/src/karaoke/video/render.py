@@ -87,18 +87,37 @@ def _centered(draw, y, text, font, fill):
     return y
 
 
+def _chart_row(draw, y, chart, pos, font):
+    """`| C#m | A | A | A B |` centred: bar lines grey, chords light blue, the current bar yellow."""
+    parts = [("|", GREY)]
+    for i, cell in enumerate(chart):
+        parts += [(f" {cell} ", YELLOW if i == pos else CHORD), ("|", GREY)]
+    x = (W - sum(draw.textlength(txt, font=font) for txt, _ in parts)) / 2
+    for txt, fill in parts:
+        draw.text((x, y), txt, font=font, fill=fill)
+        x += draw.textlength(txt, font=font)
+
+
 def _frame(s: State) -> Image.Image:
     img = Image.new("RGB", (W, H), (0, 0, 0))
     d = ImageDraw.Draw(img)
     big, mid, sym = _font(BOLD, 96), _font(REG, 64), _font(SYM, 160)
+    chart_font = _font(BOLD, 80)
     if s.kind == "titre":
-        _centered(d, 380, s.current, big, (255, 255, 255))
+        _centered(d, 300 if s.chart else 380, s.current, big, (255, 255, 255))
+        if s.chart:
+            _chart_row(d, 520, s.chart, s.chart_pos, chart_font)
     elif s.kind == "ligne":
         y = _karaoke_line(d, 380 - (60 if s.chords else 0), s.current, s.lit, big, s.chords, _font(BOLD, 72))
         _centered(d, max(y + 60, 640), s.next, mid, GREY)
     elif s.kind == "instrumental":
-        _centered(d, 300, "♪", sym, (90, 90, 90))
+        if s.chart:
+            _chart_row(d, 400, s.chart, s.chart_pos, chart_font)
+        else:
+            _centered(d, 300, "♪", sym, (90, 90, 90))
         _centered(d, 640, s.next, mid, GREY)
+    elif s.kind == "fin" and s.chart:
+        _chart_row(d, 450, s.chart, s.chart_pos, chart_font)
     if s.countdown:     # 4-3-2-1 on the last beats before the next line
         _centered(d, 90, str(s.countdown), _font(BOLD, 200), (255, 80, 80))
     return img
@@ -108,7 +127,7 @@ def render_video(states: list[State], out_mp4: Path, work: Path, fps: int = 25) 
     work.mkdir(parents=True, exist_ok=True)
     entries = []
     for s in states:
-        h = hashlib.sha1(repr((s.kind, s.current, s.next, s.countdown, s.lit, s.chords)).encode()).hexdigest()[:16]
+        h = hashlib.sha1(repr((s.kind, s.current, s.next, s.countdown, s.lit, s.chords, s.chart, s.chart_pos)).encode()).hexdigest()[:16]
         png = work / f"{h}.png"
         if not png.exists():
             _frame(s).save(png)
