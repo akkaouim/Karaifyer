@@ -1,6 +1,6 @@
 # Karaifyer
 
-Application Mac (barre des menus) pour préparer le spectacle karaoké :
+Application Mac (fenêtre, icône dans le Dock et dans la barre des menus) pour préparer le spectacle karaoké :
 - **Enregistrement** : l'enregistreur Spotify de SysRec, à l'identique (copié, SysRec n'est pas modifié) ;
 - **Karaoké** : le manifeste en tableau, l'analyse (séparation, temps, accords, paroles, vidéo, set
   Ableton) lancée et suivie depuis l'app, l'ouverture des résultats et la correction des paroles et

@@ -13,6 +13,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Karaifyer"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/Karaifyer.icns "$APP/Contents/Resources/Karaifyer.icns"
 
 # macOS ties permissions (System Audio Recording, Automation) to the signing
 # identity. With the self-signed "SysRec Local Signing" certificate in the

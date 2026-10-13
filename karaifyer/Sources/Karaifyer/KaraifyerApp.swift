@@ -27,8 +27,10 @@ struct KaraifyerApp: App {
                     .tabItem { Label("Karaoké", systemImage: "music.mic") }
             }
             .onAppear { delegate.model = model }
+            .background(WindowOpener())
         }
         .defaultSize(width: 1180, height: 720)
+        .defaultLaunchBehavior(.presented)   // a regular app now: the window opens at launch
 
         WindowGroup("Corriger", id: "editor", for: String.self) { $songID in
             if let id = songID, let m = KaraokeModel.shared.editor(for: id) {
@@ -131,6 +133,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             a.addButton(withTitle: "Annuler")
             return a.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
         }
+    }
+
+    /// Dock icon clicked with the window closed: bring it back (closing it never quits the app,
+    /// so an analysis keeps running).
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { MainActor.assumeIsolated { WindowOpener.open?() } }
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -349,4 +358,14 @@ func timecode(_ s: Double) -> String {
 func openFolder(_ url: URL) {
     try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     NSWorkspace.shared.open(url)
+}
+
+
+/// Keeps SwiftUI's openWindow action so the app delegate can reopen the main window.
+struct WindowOpener: View {
+    @MainActor static var open: (() -> Void)?
+    @Environment(\.openWindow) private var openWindow
+    var body: some View {
+        Color.clear.onAppear { WindowOpener.open = { openWindow(id: "queue") } }
+    }
 }
