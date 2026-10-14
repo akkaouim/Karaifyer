@@ -193,3 +193,23 @@ def test_bar_lines_are_rebuilt_per_regular_stretch():
     assert [d for d in down if d <= a[-1]] == a[::4]
     assert [d for d in down if odd[0] <= d <= odd[-1]] == down_odd
     assert [d for d in down if d >= c[0]] == c[1::4]
+
+
+def test_steady_song_with_free_intro_and_ritardando_is_stable():
+    # Michel's run: 29 steady songs flagged « tempo instable » because of an intro or a final slowdown
+    from karaoke.grid import tempo_stats
+    intro = list(np.cumsum(np.linspace(0.9, 0.6, 12)))                 # free intro, 12 beats
+    body = [intro[-1] + 0.5 * (i + 1) for i in range(200)]               # steady 120 BPM
+    end = list(body[-1] + np.cumsum(np.linspace(0.55, 0.9, 10)))         # ritardando, 10 beats
+    s = tempo_stats(intro + body + end)
+    assert s["stable"] and s["steady_share"] >= 0.85 and s["variation_pct"] > 3.0   # old measure would flag it
+
+
+def test_drift_not_judged_on_songs_with_few_drum_hits():
+    # ballads: 3–15 % of beats near a drum hit — the « worst window » rested on one or two stray hits
+    b, _ = grid(bpm=120, start=0.5, n=200)
+    stray = np.array(b[::25]) + 0.06                                     # 8 hits, 60 ms off
+    assert drift_ms(b, stray) is None
+    dense = np.array(b) + 0.004
+    dense[100:120] += 0.05                                               # a real 10 s stretch 54 ms off
+    assert drift_ms(b, dense) > 30

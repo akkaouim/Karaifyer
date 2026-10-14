@@ -30,7 +30,8 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
         alerts.append(f"écart de durée {ing.get('ref_delta_s', 0):+.1f} s")
     if pkg and not pkg.get("stable", True):
         risk += 20
-        alerts.append(f"tempo instable ({pkg.get('variation_pct', 0):.1f} %)")
+        hors = (1 - pkg["steady_share"]) * 100 if pkg.get("steady_share") is not None else pkg.get("variation_pct", 0)
+        alerts.append(f"tempo instable ({hors:.0f} % du morceau hors tempo)")
     if (chk.get("drift_ms") or 0) > 30:
         risk += 20
         alerts.append(f"dérive du clic {chk['drift_ms']:.0f} ms")
@@ -60,7 +61,7 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
             "statut": statut,
             "etapes": statuses, "secondes": {n: round(r.get("seconds", 0), 1) for n, r in results.items()},
             "duree_ecart_s": ing.get("ref_delta_s"),
-            "tempo": {k: pkg.get(k) for k in ("bpm", "variation_pct", "stable")},
+            "tempo": {k: pkg.get(k) for k in ("bpm", "variation_pct", "steady_share", "stable")},
             "clic_derive_ms": chk.get("drift_ms"),
             "paroles": {"source": lyr.get("source"), "lignes": len(lyr.get("lines", [])), "taux_calage": rate,
                         "taux_mots": word_rate},

@@ -109,7 +109,9 @@ def regularize(beats: Sequence[float], downbeats: Sequence[float]) -> tuple[list
     return b, down, info
 
 
-TEMPO_WINDOW = 16   # beats; averaging over a span cancels Beat This!'s ±1 frame (20 ms) jitter
+TEMPO_WINDOW = 16
+STEADY_TOL = 0.05     # a 16-beat stretch within ±5 % of the main tempo counts as « in tempo »
+STEADY_SHARE = 0.85   # stable when at least 85 % of the song is in tempo   # beats; averaging over a span cancels Beat This!'s ±1 frame (20 ms) jitter
 
 
 def tempo_stats(beats: Sequence[float]) -> dict:
@@ -120,7 +122,11 @@ def tempo_stats(beats: Sequence[float]) -> dict:
     local = (b[w:] - b[:-w]) / w          # mean interval over each w-beat span
     local_bpm = 60.0 / local
     var = float((np.percentile(local_bpm, 95) - np.percentile(local_bpm, 5)) / np.median(local_bpm) * 100)
-    return {"bpm": 60.0 / med, "variation_pct": var, "stable": var <= STABLE_PCT}
+    # Stable = most of the song holds its main tempo. A free intro or a final slowdown no longer flags a
+    # steady song (Michel's run: 29 of 49 alerts were that); the old spread stays as information.
+    ratios = np.array([w * med / (b[i + w] - b[i]) for i in range(0, len(b) - w, 4)]) if len(b) > w else np.ones(1)
+    steady = float(np.mean(np.abs(ratios - 1) <= STEADY_TOL))
+    return {"bpm": 60.0 / med, "variation_pct": var, "steady_share": steady, "stable": steady >= STEADY_SHARE}
 
 
 @dataclass(frozen=True)
@@ -190,11 +196,16 @@ def onsets(x: np.ndarray, sr: int, hop: int = 256, frame: int = 1024) -> np.ndar
     return (np.array(peaks) * hop + frame // 2) / sr
 
 
-def drift_ms(beats, onset_times, window_s: float = 10.0, max_dist: float = 0.07) -> float:
-    """Worst 10-second-window median |beat - nearest onset|, in ms (0 if nothing matched)."""
+DRIFT_MIN_MATCHED = 0.2    # under 20 % of beats near a drum hit (ballads), the click can't be judged
+DRIFT_MIN_PER_WINDOW = 8
+
+
+def drift_ms(beats, onset_times, window_s: float = 10.0, max_dist: float = 0.07) -> float | None:
+    """Worst 10-second-window median |beat - nearest onset|, in ms. None when the drums can't judge
+    the click: too few beats land on a drum hit, or no window has enough of them."""
     on = np.sort(np.asarray(onset_times, float))
-    if on.size == 0:
-        return 0.0
+    if on.size == 0 or len(beats) == 0:
+        return None
     rows = []
     for t in beats:
         j = np.searchsorted(on, t)
@@ -202,8 +213,9 @@ def drift_ms(beats, onset_times, window_s: float = 10.0, max_dist: float = 0.07)
         d = cands[np.argmin(np.abs(cands - t))] - t
         if abs(d) <= max_dist:
             rows.append((t, abs(d)))
-    if not rows:
-        return 0.0
+    if len(rows) < DRIFT_MIN_MATCHED * len(beats):
+        return None
     arr = np.array(rows)
     windows = np.floor(arr[:, 0] / window_s)
-    return float(max(np.median(arr[windows == w, 1]) for w in np.unique(windows)) * 1000)
+    vals = [np.median(arr[windows == w, 1]) for w in np.unique(windows) if np.sum(windows == w) >= DRIFT_MIN_PER_WINDOW]
+    return float(max(vals) * 1000) if vals else None

@@ -62,4 +62,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 
 
 CHECK = Step(name="check", deps=("beats", "separate", "lyrics"), key=lambda ws: "", run=_run,
-             version="2")   # 2: word timing check with ±0.5 s tolerance
+             version="3")   # 2: word timing check ±0.5 s; 3: click drift only judged with enough drum hits

@@ -93,3 +93,23 @@ def test_word_rate_alert():
     r = song_report(song(), res)
     assert any("mots" in a and "80" in a for a in r["alertes"]) and r["risque"] > 0
     assert r["paroles"]["taux_mots"] == 0.8
+
+
+def test_tempo_alert_says_how_much_of_the_song_is_out_of_tempo():
+    res = {**BASE, "package": {"status": "fait", "result": {"bpm": 120, "variation_pct": 50.7,
+                                                             "steady_share": 0.75, "stable": False}}}
+    r = song_report(song(), res)
+    assert "tempo instable (25 % du morceau hors tempo)" in r["alertes"]
+    assert r["tempo"]["steady_share"] == 0.75
+
+
+def test_drift_none_means_no_click_alert():
+    res = {**BASE, "check": {"status": "fait", "result": {**BASE["check"]["result"], "drift_ms": None}}}
+    assert not any("clic" in a for a in song_report(song(), res)["alertes"])
+
+
+def test_package_passes_the_steady_share():
+    import pathlib
+    src = pathlib.Path(__file__).parents[1] / "src/karaoke/steps/package.py"
+    from karaoke.steps.package import PACKAGE
+    assert '"steady_share": stats["steady_share"]' in src.read_text() and PACKAGE.version == "6"
