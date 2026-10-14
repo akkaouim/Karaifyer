@@ -50,12 +50,19 @@ MAX_LINE_WORDS = 10      # transcribed lines: what fits on the projector
 MAX_LINE_S = 6.0
 LINE_PAUSE_S = 0.8       # a pause this long between words starts a new line
 SENTENCE_LOOKAHEAD = 3   # a line may run this many words over to finish its sentence
+PUNCT_ONLY = {"?", "!", ":", ";", "»", "…"}
 
 
 def transcribe(vocals: Path, language: str, work: Path, duration_s: float = 600.0) -> list[dict]:
     """Whisper transcription of the vocal stem (isolated tool) → karaoke lines (lines_from_words)."""
     job, out = work / "transcribe_job.json", work / "transcribe_out.json"
-    job.write_text(json.dumps({"audio": str(vocals), "language": language}, ensure_ascii=False), encoding="utf-8")
+    payload = {"audio": str(vocals), "language": language}
+    # Same audio and language already transcribed (and the audio not rewritten since): reuse it —
+    # re-splitting lines must not cost a new transcription.
+    if (out.exists() and job.exists() and json.loads(job.read_text(encoding="utf-8")) == payload
+            and out.stat().st_mtime >= vocals.stat().st_mtime):
+        return lines_from_words(json.loads(out.read_text()).get("words", []))
+    job.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     run_tool("align", ["python", str(TOOLS_DIR / "align" / "transcribe_tool.py"), str(job), str(out)],
              timeout=tool_timeout("transcribe", duration_s))
     return lines_from_words(json.loads(out.read_text()).get("words", []))
@@ -64,7 +71,14 @@ def transcribe(vocals: Path, language: str, work: Path, duration_s: float = 600.
 def lines_from_words(words: list[dict]) -> list[dict]:
     """Cut a transcription into screen lines: after a sentence end (. ! ?), at pauses, and when a line
     gets too long, preferably after its last comma. Each line: {start, text, score, words: [{w, s, e}]}."""
-    timed = [w for w in words if w.get("s") is not None and w.get("e") is not None]
+    timed = []
+    for w in words:
+        if w.get("s") is None or w.get("e") is None:
+            continue
+        if timed and w["w"].strip() in PUNCT_ONLY:          # « fête ? » : French space before ? ! : ;
+            timed[-1] = {**timed[-1], "w": timed[-1]["w"] + " " + w["w"].strip()}
+            continue
+        timed.append(w)
     lines, cur = [], []
 
     def flush(upto: int | None = None) -> None:
@@ -90,6 +104,10 @@ def lines_from_words(words: list[dict]) -> list[dict]:
                 and not (len(cur) < MAX_LINE_WORDS + SENTENCE_LOOKAHEAD and sentence_ends_soon(k)):
             commas = [i + 1 for i, x in enumerate(cur) if x["w"].endswith((",", ";", ":")) and i >= 2]
             flush(commas[-1] if commas else None)
+        # No punctuation (old recordings): Whisper still capitalises each verse — start a line there.
+        if len(cur) >= 3 and w["w"][:1].isupper() and not cur[-1]["w"].endswith((",", "'")) \
+                and not any(x["w"].endswith((".", "!", "?", ",", ";")) for x in cur):
+            flush()
         cur.append(w)
         if len(cur) >= 3 and w["w"].endswith((".", "!", "?", "…")):
             flush()
@@ -226,4 +244,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 
 
 LYRICS = Step(name="lyrics", deps=("ingest", "separate", "vocals_split"), key=_key, run=_run,
-              version="6")   # 2: words/syllables; 3: realign; 4: line time = first sung word; 5: transcription; 6: sentence lines
+              version="7")   # 2: words/syllables; 3: realign; 4: line time = first sung word; 5: transcription; 6–7: line splitting

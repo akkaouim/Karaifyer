@@ -1,3 +1,4 @@
+import json
 import pytest
 from karaoke import lrclib
 from karaoke.lrclib import LrclibResult
@@ -256,3 +257,33 @@ def test_long_sentence_breaks_at_a_comma():
     words = _words("Jeanne et Serge, coup de foudre au match de volleyball, amour dès le premier regard.")
     lines = [l["text"] for l in L.lines_from_words(words)]
     assert lines[0].endswith(",") and all(len(l.split()) <= L.MAX_LINE_WORDS for l in lines)
+
+
+def test_detached_punctuation_stays_with_its_sentence():
+    # 086: « …pour faire la fête / ? La route est prête » (French space before « ? »)
+    words = _words("Qu'est-ce qu'on attend pour faire la fête ? La route est prête, le ciel est bleu.")
+    q = next(i for i, x in enumerate(words) if x["w"] == "?")
+    words[q] = w("?", words[q - 1]["e"] + 1.0, words[q - 1]["e"] + 1.1)    # timed after a pause, as aligned
+    for x in words[q + 1:]:
+        x["s"] += 1.0; x["e"] += 1.0
+    lines = [l["text"] for l in L.lines_from_words(words)]
+    assert lines[0] == "Qu'est-ce qu'on attend pour faire la fête ?" and not any(l.startswith("?") for l in lines)
+
+
+def test_without_punctuation_verses_start_at_capitals():
+    # 081 (old recording, no full stops): Whisper still capitalises each verse
+    words = _words("Mignonne quand la lune éclaire la plaine Au bruit mélodieux Lorsque l'étoile du mystère "
+                   "Revient briller dans le ciel bleu As-tu parfois sur la colline")
+    lines = [l["text"] for l in L.lines_from_words(words)]
+    assert "Revient briller dans le ciel bleu" in lines and all(not l.endswith(" Lorsque") for l in lines)
+
+
+def test_existing_transcription_is_reused(cfg, monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(L, "run_tool", lambda *a, **k: calls.append(a))
+    vocals = tmp_path / "lead.wav"; vocals.write_bytes(b"x")
+    work = tmp_path / "w"; work.mkdir()
+    (work / "transcribe_job.json").write_text(json.dumps({"audio": str(vocals), "language": "fr"}))
+    (work / "transcribe_out.json").write_text(json.dumps({"words": [w("Bonjour.", 1.0, 1.5)] * 3}))
+    lines = L.transcribe(vocals, "fr", work)
+    assert calls == [] and lines
