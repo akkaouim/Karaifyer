@@ -7,7 +7,7 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 1 | Karaifyer opens; macOS asks for system audio recording and control of Spotify; SysRec still opens and records as before | |
 | 2 | Enregistrement tab: record 2 songs from a short list | |
 | 3 | Karaoké tab: the songs appear; « Ajouter des morceaux… » with an MP3 from outside SysRec adds a row (title from the tags or the file name) | |
-| 4 | Ticking/unticking Retirer, changing Langue and Partie: `manifeste.csv` is updated (open it to check); the package / set dots go grey | |
+| 4 | Ticking/unticking Retirer, changing Langue, and « Changer de Set List… » (right-click): `manifeste.csv` is updated (open it to check); the package / set dots go grey | |
 | 5 | Analyser (2 new songs): progress bar, current step, time left, live terminal | |
 | 6 | Pause for **30 minutes during « separate »**, then Reprendre: the step finishes normally (no « timeout ») and the analysis continues | |
 | 7 | Arrêter après ce morceau: the current song finishes, the next one doesn't start | |
@@ -23,7 +23,7 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 17 | Table: tick Guit. then Basse quickly on one song: `retirer` ends as `guitar;bass` | |
 | 18 | Accept « Mettre en pause » when starting a recording during an analysis: when the recording batch ends, the analysis resumes by itself | |
 | 19 | Quit Karaifyer during an analysis: it asks first; after quitting, no `karaoke traiter` process is left (Moniteur d'activité) | |
-| 20 | During a run: title/artist/partie, Retirer, Langue, Ajouter and Analyser are disabled (a notice says why); « Ouvrir… » still works; everything unlocks at the end or after Arrêter | |
+| 20 | During a run: title/artist, Set List, Retirer, Langue, Ajouter and Analyser are disabled (a notice says why); « Ouvrir… » still works; everything unlocks at the end or after Arrêter | |
 | 21 | Marker column: spinner on the song being processed (pause symbol while paused), clock on the waiting ones, check/cross when finished; nothing on songs outside the run | |
 | 22 | Hover the Statut cell of an « alerte » song: the reasons are listed; hover a dot: the step's name, what it does, its state and any error | |
 | 23 | Video: in an instrumental break of a bar or more the chord row appears (current bar yellow) instead of a frozen lit line; the grey next-line preview shows its chords above it | |

@@ -141,8 +141,8 @@ struct KaraokeView: View {
                 Divider()
                 Group {
                     Button("Corriger paroles et accords…") { openWindow(id: "editor", value: s.id) }
-                    Button("Changer la partie… (actuelle : \(s.partie.isEmpty ? "aucune" : s.partie))") {
-                        if let p = askText("Partie de la soirée pour « \(s.titre) »", value: s.partie) { commit(s, "partie", p) }
+                    Button("Changer de Set List… (actuelle : \(s.partie.isEmpty ? "aucune" : s.partie))") {
+                        if let p = askText("Set List pour « \(s.titre) »", value: s.partie) { commit(s, "partie", p) }
                     }
                     Button("Refaire le morceau") { model.analyse(ids: Array(ids), forced: "ingest") }
                     Menu("Refaire une étape") {

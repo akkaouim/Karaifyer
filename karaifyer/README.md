@@ -29,7 +29,7 @@ ce qui manque (disque débranché, `uv` absent…) et désactive « Analyser ».
   seulement ceux de SysRec. Titre et artiste viennent des tags (sinon du nom du fichier) ; un fichier
   déjà présent est ignoré. S'il n'y a pas encore de manifeste, le bandeau propose de le créer depuis un
   dossier SysRec.
-- **Tableau** : titre, artiste et partie modifiables (Entrée pour valider) ; **Retirer** = les parties
+- **Tableau** : titre et artiste modifiables (Entrée pour valider) ; la Set List se change par clic droit (« Changer de Set List… ») ; **Retirer** = les parties
   jouées en live (fader à zéro au départ du morceau ; « Autres » = l'accompagnement 17–18) ; langue.
   Chaque modification est écrite dans `manifeste.csv` avec les mêmes vérifications qu'en ligne de
   commande. Les pastilles montrent chaque étape : grise = à faire, bleue = en cours, verte = faite,
