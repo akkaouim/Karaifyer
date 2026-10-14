@@ -28,6 +28,7 @@ struct EditorView: View {
             .padding(8)
         }
         .navigationTitle("Corriger — \(model.song.id) \(model.song.titre)")
+        .background(WindowPlacer())   // open over the main window, on its screen, in front
         .alert(KaraokeUI.shared.alert ?? "", isPresented: Binding(get: { KaraokeUI.shared.alert != nil },
                                                                    set: { if !$0 { KaraokeUI.shared.alert = nil } })) {}
     }
@@ -114,4 +115,29 @@ struct EditorView: View {
         }
         dismiss()
     }
+}
+
+
+/// Michel's editor opened on the laptop screen while Karaifyer was on the external monitor, so it
+/// looked like nothing happened: centre the editor over the main window, on the same screen, in front.
+struct WindowPlacer: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let v = NSView()
+        DispatchQueue.main.async {
+            guard let w = v.window else { return }
+            if let main = NSApp.windows.first(where: { $0 !== w && $0.title == "Karaifyer" && $0.isVisible }),
+               let screen = main.screen {
+                var f = w.frame
+                f.origin = NSPoint(x: main.frame.midX - f.width / 2, y: main.frame.midY - f.height / 2)
+                let vis = screen.visibleFrame
+                f.origin.x = min(max(f.origin.x, vis.minX), vis.maxX - f.width)
+                f.origin.y = min(max(f.origin.y, vis.minY), vis.maxY - f.height)
+                w.setFrame(f, display: true)
+            }
+            NSApp.activate()
+            w.makeKeyAndOrderFront(nil)
+        }
+        return v
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

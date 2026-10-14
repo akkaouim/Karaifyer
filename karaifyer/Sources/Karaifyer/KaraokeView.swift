@@ -111,12 +111,15 @@ struct KaraokeView: View {
                 .labelsHidden()
                 .disabled(model.locked)
             }.width(64)
-            TableColumn("Partie") { s in CommitField(value: s.partie, enabled: !model.locked) { commit(s, "partie", $0) } }.width(110)
             TableColumn("Statut") { s in
-                Text(s.statut).foregroundStyle(color(statut: s.statut))
-                    .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                    .help(Help.statut(s.statut, alertes: s.alertes ?? []))
-            }.width(70)
+                HStack(spacing: 6) {
+                    Text(statutLabel(s.statut)).bold().foregroundStyle(color(statut: s.statut))
+                    Text((s.alertes ?? []).joined(separator: " · ")).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.tail)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                .help(Help.statut(s.statut, alertes: s.alertes ?? []))
+            }.width(min: 220, ideal: 360)
             TableColumn("Étapes") { s in
                 HStack(spacing: 3) {
                     ForEach(s.steps, id: \.name) { st in
@@ -138,6 +141,9 @@ struct KaraokeView: View {
                 Divider()
                 Group {
                     Button("Corriger paroles et accords…") { openWindow(id: "editor", value: s.id) }
+                    Button("Changer la partie… (actuelle : \(s.partie.isEmpty ? "aucune" : s.partie))") {
+                        if let p = askText("Partie de la soirée pour « \(s.titre) »", value: s.partie) { commit(s, "partie", p) }
+                    }
                     Button("Refaire le morceau") { model.analyse(ids: Array(ids), forced: "ingest") }
                     Menu("Refaire une étape") {
                         ForEach(STEP_NAMES, id: \.self) { st in Button(st) { model.analyse(ids: Array(ids), forced: st) } }
@@ -261,6 +267,29 @@ struct MarkView: View {
         case nil: Color.clear
         }
     }
+}
+
+func statutLabel(_ statut: String) -> String {
+    switch statut {
+    case "ok": "ok"
+    case "alerte": "à vérifier"
+    case "echec": "échec"
+    case "a_reessayer": "à réessayer"
+    default: "—"
+    }
+}
+
+/// A small text prompt (no SwiftUI @State available): returns nil when cancelled.
+func askText(_ message: String, value: String) -> String? {
+    let a = NSAlert()
+    a.messageText = message
+    let field = NSTextField(string: value)
+    field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+    a.accessoryView = field
+    a.addButton(withTitle: "OK")
+    a.addButton(withTitle: "Annuler")
+    a.window.initialFirstResponder = field
+    return a.runModal() == .alertFirstButtonReturn ? field.stringValue.trimmingCharacters(in: .whitespaces) : nil
 }
 
 func color(statut: String) -> Color {
