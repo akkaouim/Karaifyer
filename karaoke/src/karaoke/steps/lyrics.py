@@ -46,6 +46,36 @@ def align_lines(vocals: Path, lines: list[str], language: str, work: Path, durat
     return [{"start": st, "score": sc, "words": w} for st, sc, w in zip(d["starts"], d["scores"], words)]
 
 
+MAX_LINE_WORDS = 10      # transcribed lines: what fits on the projector
+MAX_LINE_S = 6.0
+LINE_PAUSE_S = 0.8       # a pause this long between words starts a new line
+
+
+def transcribe(vocals: Path, language: str, work: Path, duration_s: float = 600.0) -> list[dict]:
+    """Whisper transcription of the vocal stem (isolated tool) → karaoke lines (lines_from_words)."""
+    job, out = work / "transcribe_job.json", work / "transcribe_out.json"
+    job.write_text(json.dumps({"audio": str(vocals), "language": language}, ensure_ascii=False), encoding="utf-8")
+    run_tool("align", ["python", str(TOOLS_DIR / "align" / "transcribe_tool.py"), str(job), str(out)],
+             timeout=tool_timeout("transcribe", duration_s))
+    return lines_from_words(json.loads(out.read_text()).get("words", []))
+
+
+def lines_from_words(words: list[dict]) -> list[dict]:
+    """Cut a transcription into screen lines: at pauses, and before a line gets too long.
+    Each line: {start, text, score, words: [{w, s, e}]} (the aligner's format)."""
+    timed = [w for w in words if w.get("s") is not None and w.get("e") is not None]
+    lines, cur = [], []
+    for w in timed:
+        if cur and (w["s"] - cur[-1]["e"] >= LINE_PAUSE_S or len(cur) >= MAX_LINE_WORDS
+                    or w["e"] - cur[0]["s"] > MAX_LINE_S):
+            lines.append(cur)
+            cur = []
+        cur.append(w)
+    if cur:
+        lines.append(cur)
+    return [{"start": l[0]["s"], "text": " ".join(x["w"] for x in l), "score": None, "words": l} for l in lines]
+
+
 def _interpolate(times: list[float | None]) -> list[float]:
     known = [(i, t) for i, t in enumerate(times) if t is not None]
     if not known:
@@ -160,12 +190,19 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     elif user_txt.exists():
         text, source = user_txt.read_text(encoding="utf-8"), "texte-fourni+alignement"
     else:
-        return {"source": "aucune", "language": s.langue, "lines": []}
+        # No lyrics anywhere: transcribe the lead singer as a draft (flagged « à relire »).
+        lead = ws.stems / "lead.wav"
+        heard = transcribe(lead if lead.exists() else vocals, s.langue, ws.work, duration)
+        if not heard:
+            return {"source": "aucune", "language": s.langue, "lines": []}
+        times = [l["start"] for l in heard]
+        return {"source": "transcription", "language": s.langue,
+                "lines": with_words(times, [l["text"] for l in heard], heard)}
     texts = lrc.plain_lines(text)
     aligned = align_lines(vocals, texts, s.langue, ws.work, duration)
     times = _interpolate([a["start"] for a in aligned])
     return {"source": source, "language": s.langue, "lines": with_words(times, texts, aligned)}
 
 
-LYRICS = Step(name="lyrics", deps=("ingest", "separate"), key=_key, run=_run,
-              version="4")   # 2: words/syllables; 3: realign when LRCLIB's times don't fit; 4: line time = first sung word
+LYRICS = Step(name="lyrics", deps=("ingest", "separate", "vocals_split"), key=_key, run=_run,
+              version="5")   # 2: words/syllables; 3: realign; 4: line time = first sung word; 5: transcription when no lyrics

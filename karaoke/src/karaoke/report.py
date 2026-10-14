@@ -40,6 +40,9 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
     if lyr.get("source") == "aucune":
         risk += 60
         alerts.append("sans paroles : fournir paroles/<id>.txt")
+    if lyr.get("source") == "transcription":
+        risk += 30
+        alerts.append("paroles transcrites automatiquement : à relire")
     rate = chk.get("rate")   # line times now follow the sung words: informative only
     word_rate = chk.get("word_rate")
     if word_rate is not None and word_rate < 0.9:

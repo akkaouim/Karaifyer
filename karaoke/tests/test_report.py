@@ -121,3 +121,10 @@ def test_lyrics_alert_only_when_sung_words_are_off():
     assert song_report(song(), good_words)["alertes"] == []
     bad_words = {**BASE, "check": ok({"rate": 0.95, "word_rate": 0.82, "drift_ms": 8.0})}
     assert "paroles à vérifier : 82 % des mots calés (±0,5 s)" in song_report(song(), bad_words)["alertes"]
+
+
+
+def test_transcribed_lyrics_are_flagged_for_proofreading():
+    res = {**BASE, "lyrics": ok({"source": "transcription", "lines": [{}] * 10})}
+    r = song_report(song(), res)
+    assert "paroles transcrites automatiquement : à relire" in r["alertes"] and r["statut"] == "alerte"

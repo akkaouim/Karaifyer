@@ -20,6 +20,7 @@ def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009"):
                  "words": [{"w": w, "s": 1.0 + i + 0.1 * k, "e": 1.0 + i + 0.1 * k + 0.08}
                            for k, w in enumerate(l.split())]} for i, l in enumerate(lines)]
     monkeypatch.setattr(L, "align_lines", fake_align)
+    monkeypatch.setattr(L, "transcribe", lambda *a, **k: [])        # nothing heard unless a test says so
     for name, text in (files or {}).items():
         (cfg.paroles / name).write_text(text, encoding="utf-8")
     return L.LYRICS.run(Workspace(cfg, song(id=sid)), UP), calls
@@ -193,3 +194,47 @@ def test_corrected_file_keeps_its_own_line_times(cfg, monkeypatch):
     (cfg.paroles / "009.lrc").write_text("[karaoke:decalage=0.000]\n" + SYNC, encoding="utf-8")
     r = L.LYRICS.run(Workspace(cfg, song(id="009")), {"ingest": {"offset_s": 0.0}, "separate": {}})
     assert [round(l["t"], 2) for l in r["lines"]] == [10.0 + 3 * i for i in range(6)]
+
+
+
+def w(text, s, e):
+    return {"w": text, "s": s, "e": e}
+
+
+def test_transcribed_words_become_lines_at_pauses():
+    words = [w("Je", 1.0, 1.2), w("t'aime", 1.3, 1.8), w("encore", 1.9, 2.4),     # pause 1.2 s
+             w("et", 3.6, 3.7), w("toujours", 3.8, 4.5)]
+    lines = L.lines_from_words(words)
+    assert [l["text"] for l in lines] == ["Je t'aime encore", "et toujours"]
+    assert lines[0]["start"] == 1.0 and [x["w"] for x in lines[1]["words"]] == ["et", "toujours"]
+
+
+def test_long_phrases_are_split_for_the_screen():
+    words = [w(f"mot{i}", 1.0 + 0.4 * i, 1.3 + 0.4 * i) for i in range(23)]   # 23 words, no pause
+    lines = L.lines_from_words(words)
+    assert all(len(l["words"]) <= L.MAX_LINE_WORDS for l in lines) and sum(len(l["words"]) for l in lines) == 23
+
+
+def test_no_lyrics_anywhere_transcribes_the_lead_vocal(cfg, monkeypatch):
+    # LRCLIB has nothing, Michel gave no text: the singer's voice is transcribed as a draft to proofread
+    seen = {}
+    monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: lrclib.NOT_FOUND)
+    def fake_transcribe(vocals, language, work, duration_s=600.0):
+        seen.update(vocals=vocals, language=language)
+        return L.lines_from_words([w("Jeanne", 5.0, 5.5), w("et", 5.6, 5.7), w("Serge", 5.8, 6.4)])
+    monkeypatch.setattr(L, "transcribe", fake_transcribe)
+    ws = Workspace(cfg, song(id="054"))
+    ws.stems.mkdir(parents=True, exist_ok=True)
+    (ws.stems / "lead.wav").write_bytes(b"")                       # written by vocals_split in a real run
+    r = L.LYRICS.run(ws, {"ingest": {"offset_s": 0.0, "duration_s": 120.0}, "separate": {}, "vocals_split": {}})
+    assert r["source"] == "transcription" and seen["vocals"] == ws.stems / "lead.wav" and seen["language"] == "fr"
+    assert [l["text"] for l in r["lines"]] == ["Jeanne et Serge"] and r["lines"][0]["t"] == 5.0
+    assert [x["text"] for x in r["lines"][0]["words"]] == ["Jeanne", "et", "Serge"]
+    assert "vocals_split" in L.LYRICS.deps
+
+
+def test_nothing_heard_stays_without_lyrics(cfg, monkeypatch):
+    monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: lrclib.NOT_FOUND)
+    monkeypatch.setattr(L, "transcribe", lambda *a, **k: [])
+    r = L.LYRICS.run(Workspace(cfg, song(id="054")), {"ingest": {"offset_s": 0.0}, "separate": {}, "vocals_split": {}})
+    assert r["source"] == "aucune" and r["lines"] == []
