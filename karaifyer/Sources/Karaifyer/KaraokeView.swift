@@ -304,6 +304,7 @@ func color(statut: String) -> Color {
 
 func color(step: StepState, running: Bool) -> Color {
     if running { return .blue }
+    if step.warned { return .orange }
     switch step.status {
     case "a_jour": return .green
     case "echec": return .red

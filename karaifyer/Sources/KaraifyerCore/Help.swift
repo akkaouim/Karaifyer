@@ -27,6 +27,7 @@ public enum Help {
         var t = (steps[s.name] ?? s.name) + "\n" + "État : " + (statuses[s.status] ?? s.status)
         if s.status == "a_jour", let secs = s.seconds { t += String(format: " (%.0f s)", secs) }
         if let e = s.error, !e.isEmpty { t += "\n" + e }
+        if s.warned, let a = s.alert { t += "\nÀ vérifier : " + a }
         return t
     }
 

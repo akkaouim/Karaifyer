@@ -28,6 +28,13 @@ public struct StepState: Codable, Equatable, Sendable {
     public var status: String          // a_jour | perime | absent | echec | a_reessayer | bloque
     public var seconds: Double?
     public var error: String?
+    public var alert: String?          // a report alert about this step's result (orange dot)
+
+    public init(name: String, status: String, seconds: Double?, error: String?, alert: String? = nil) {
+        self.name = name; self.status = status; self.seconds = seconds; self.error = error; self.alert = alert
+    }
+    /// Done, but its result raised an alert (a failure stays red).
+    public var warned: Bool { status == "a_jour" && !(alert ?? "").isEmpty }
 }
 
 public struct SongPaths: Codable, Equatable, Sendable {

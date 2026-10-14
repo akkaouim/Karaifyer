@@ -69,3 +69,13 @@ struct LogLineTests {
         #expect(LogLine.stamped("a\nb", at: d) == "14:32:07 a\n14:32:07 b")     // multi-line output: every row
     }
 }
+
+struct StepAlertTests {
+    @Test func alertedStepIsWarnedAndExplained() {
+        let s = StepState(name: "beats", status: "a_jour", seconds: 4, error: "", alert: "tempo instable (75 % du morceau hors tempo)")
+        #expect(s.warned)
+        #expect(Help.step(s).contains("tempo instable (75 % du morceau hors tempo)"))
+        #expect(!StepState(name: "video", status: "a_jour", seconds: 4, error: "", alert: "").warned)
+        #expect(!StepState(name: "lyrics", status: "echec", seconds: nil, error: "boom", alert: "x").warned)   // failure wins: red
+    }
+}

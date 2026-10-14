@@ -8,6 +8,13 @@ from karaoke.runner import Step, inspect_song
 from karaoke.workspace import Workspace, slug
 
 FAILED = ("echec", "a_reessayer", "bloque")
+# Which step's result each report alert questions (the app turns that step's dot orange).
+ALERT_STEP = (("tempo instable", "beats"), ("dérive du clic", "package"), ("paroles", "lyrics"),
+              ("sans paroles", "lyrics"), ("calage", "lyrics"), ("écart de durée", "ingest"))
+
+
+def _step_of(alert: str) -> str | None:
+    return next((step for prefix, step in ALERT_STEP if alert.startswith(prefix)), None)
 
 
 def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
@@ -23,8 +30,9 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
             status = last[st.name]
         marker = ws.read_marker(st.name) or {}
         err = next((a for a in alerts if a.startswith(f"{st.name} :")), "")   # report.song_report's format
+        mine = [a for a in alerts if _step_of(a) == st.name]
         out_steps.append({"name": st.name, "status": status, "seconds": marker.get("seconds"),
-                          "error": err if status in FAILED else ""})
+                          "error": err if status in FAILED else "", "alert": " · ".join(mine)})
     pkg = (ws.read_marker("package") or {}).get("result") or {}
     ch = (ws.read_marker("chords") or {}).get("result") or {}
     return {"id": s.id, "titre": s.titre, "artiste": s.artiste, "album": s.album, "fichier": str(s.fichier),

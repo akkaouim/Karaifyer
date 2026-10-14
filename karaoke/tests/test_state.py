@@ -62,3 +62,19 @@ def test_song_state_includes_the_report_alerts(cfg):
                                                       "alertes": ["calage des paroles 82%", "dérive du clic 44 ms"]}))
     assert song_state(cfg, s, steps({}))["alertes"] == ["calage des paroles 82%", "dérive du clic 44 ms"]
     assert song_state(cfg, song(id="002"), steps({}))["alertes"] == []
+
+
+def test_each_alert_is_attached_to_the_step_it_questions(cfg):
+    # Blés d'or: « à vérifier » overall, tempo + lyrics → beats and lyrics dots orange
+    from karaoke.steps import STEPS
+    s = song()
+    ws = Workspace(cfg, s)
+    ws.out.mkdir(parents=True, exist_ok=True)
+    (ws.out / "rapport.json").write_text(json.dumps({"statut": "alerte", "etapes": {}, "alertes": [
+        "tempo instable (75 % du morceau hors tempo)", "paroles transcrites automatiquement : à relire",
+        "dérive du clic 44 ms", "écart de durée +3.2 s"]}))
+    st = {x["name"]: x["alert"] for x in song_state(cfg, s, STEPS)["steps"]}
+    assert st["beats"] == "tempo instable (75 % du morceau hors tempo)"
+    assert st["lyrics"] == "paroles transcrites automatiquement : à relire"
+    assert st["package"] == "dérive du clic 44 ms" and st["ingest"] == "écart de durée +3.2 s"
+    assert st["video"] == "" and st["separate"] == ""
