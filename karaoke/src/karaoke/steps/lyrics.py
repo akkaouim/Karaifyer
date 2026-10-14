@@ -49,6 +49,7 @@ def align_lines(vocals: Path, lines: list[str], language: str, work: Path, durat
 MAX_LINE_WORDS = 10      # transcribed lines: what fits on the projector
 MAX_LINE_S = 6.0
 LINE_PAUSE_S = 0.8       # a pause this long between words starts a new line
+SENTENCE_LOOKAHEAD = 3   # a line may run this many words over to finish its sentence
 
 
 def transcribe(vocals: Path, language: str, work: Path, duration_s: float = 600.0) -> list[dict]:
@@ -61,18 +62,38 @@ def transcribe(vocals: Path, language: str, work: Path, duration_s: float = 600.
 
 
 def lines_from_words(words: list[dict]) -> list[dict]:
-    """Cut a transcription into screen lines: at pauses, and before a line gets too long.
-    Each line: {start, text, score, words: [{w, s, e}]} (the aligner's format)."""
+    """Cut a transcription into screen lines: after a sentence end (. ! ?), at pauses, and when a line
+    gets too long, preferably after its last comma. Each line: {start, text, score, words: [{w, s, e}]}."""
     timed = [w for w in words if w.get("s") is not None and w.get("e") is not None]
     lines, cur = [], []
-    for w in timed:
-        if cur and (w["s"] - cur[-1]["e"] >= LINE_PAUSE_S or len(cur) >= MAX_LINE_WORDS
-                    or w["e"] - cur[0]["s"] > MAX_LINE_S):
-            lines.append(cur)
-            cur = []
+
+    def flush(upto: int | None = None) -> None:
+        nonlocal cur
+        n = len(cur) if upto is None else upto
+        if n:
+            lines.append(cur[:n])
+            cur = cur[n:]
+
+    def sentence_ends_soon(k: int) -> bool:
+        """The sentence ends within the next few words (and not much later): finish it on this line."""
+        ahead = timed[k:k + SENTENCE_LOOKAHEAD]
+        for j, x in enumerate(ahead):
+            if x["w"].endswith((".", "!", "?", "…")):
+                return x["e"] - cur[0]["s"] <= MAX_LINE_S + 2.0 and all(
+                    ahead[i + 1]["s"] - ahead[i]["e"] < LINE_PAUSE_S for i in range(j))
+        return False
+
+    for k, w in enumerate(timed):
+        if cur and w["s"] - cur[-1]["e"] >= LINE_PAUSE_S:
+            flush()
+        if cur and (len(cur) >= MAX_LINE_WORDS or w["e"] - cur[0]["s"] > MAX_LINE_S) \
+                and not (len(cur) < MAX_LINE_WORDS + SENTENCE_LOOKAHEAD and sentence_ends_soon(k)):
+            commas = [i + 1 for i, x in enumerate(cur) if x["w"].endswith((",", ";", ":")) and i >= 2]
+            flush(commas[-1] if commas else None)
         cur.append(w)
-    if cur:
-        lines.append(cur)
+        if len(cur) >= 3 and w["w"].endswith((".", "!", "?", "…")):
+            flush()
+    flush()
     return [{"start": l[0]["s"], "text": " ".join(x["w"] for x in l), "score": None, "words": l} for l in lines]
 
 
@@ -205,4 +226,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 
 
 LYRICS = Step(name="lyrics", deps=("ingest", "separate", "vocals_split"), key=_key, run=_run,
-              version="5")   # 2: words/syllables; 3: realign; 4: line time = first sung word; 5: transcription when no lyrics
+              version="6")   # 2: words/syllables; 3: realign; 4: line time = first sung word; 5: transcription; 6: sentence lines

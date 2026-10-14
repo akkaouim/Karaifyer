@@ -238,3 +238,21 @@ def test_nothing_heard_stays_without_lyrics(cfg, monkeypatch):
     monkeypatch.setattr(L, "transcribe", lambda *a, **k: [])
     r = L.LYRICS.run(Workspace(cfg, song(id="054")), {"ingest": {"offset_s": 0.0}, "separate": {}, "vocals_split": {}})
     assert r["source"] == "aucune" and r["lines"] == []
+
+
+def _words(text, t0=1.0, step=0.4):
+    return [w(x, t0 + step * i, t0 + step * i + 0.3) for i, x in enumerate(text.split())]
+
+
+def test_transcribed_lines_end_at_sentence_ends():
+    # 054: « …une jeune fille qui / a du punch. » — cut mid-sentence
+    words = _words("Dans l'équipe, il y a maintenant une jeune fille qui a du punch. Elle sait jouer avec talent.")
+    lines = [l["text"] for l in L.lines_from_words(words)]
+    assert lines[-1] == "Elle sait jouer avec talent."
+    assert all(not l.endswith(" qui") for l in lines) and any(l.endswith("punch.") for l in lines)
+
+
+def test_long_sentence_breaks_at_a_comma():
+    words = _words("Jeanne et Serge, coup de foudre au match de volleyball, amour dès le premier regard.")
+    lines = [l["text"] for l in L.lines_from_words(words)]
+    assert lines[0].endswith(",") and all(len(l.split()) <= L.MAX_LINE_WORDS for l in lines)
