@@ -70,7 +70,7 @@ final class KaraokeModel: RunDriver {
     func closeEditor(_ id: String) { editors[id]?.pause(); editors[id] = nil }
 
     func appendLog(_ line: String) {
-        log.append(line)
+        log.append(LogLine.stamped(line.trimmingCharacters(in: .newlines)))
         if log.count > 5000 { log.removeFirst(log.count - 5000) }
     }
 

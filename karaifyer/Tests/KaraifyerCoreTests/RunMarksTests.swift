@@ -60,3 +60,12 @@ struct RetryTests {
         #expect(m.retryCandidates() == ["043", "045"])
     }
 }
+
+struct LogLineTests {
+    @Test func linesStartWithTheirTime() {
+        var c = DateComponents(); c.year = 2026; c.month = 10; c.day = 14; c.hour = 14; c.minute = 32; c.second = 7
+        let d = Calendar.current.date(from: c)!
+        #expect(LogLine.stamped("[043] début separate", at: d) == "14:32:07 [043] début separate")
+        #expect(LogLine.stamped("a\nb", at: d) == "14:32:07 a\n14:32:07 b")     // multi-line output: every row
+    }
+}
