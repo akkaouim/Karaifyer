@@ -28,9 +28,10 @@ def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009"):
 def test_synced_is_shifted_by_offset(cfg, monkeypatch):
     r, calls = run(cfg, monkeypatch, LrclibResult(True, False, "[00:10.00]Bonjour\n[00:12.00]Salut", "x"))
     assert r["source"] == "lrclib-synchro"
-    assert [l["t"] for l in r["lines"]] == [9.5, 11.5]            # line starts keep LRCLIB's timing
-    # every line is also aligned word by word, within its own window
-    assert calls[0][0] == ["Bonjour", "Salut"] and calls[0][1] == [[9.0, 11.5], [11.0, 21.5]]
+    # LRCLIB's times (shifted by the 0.5 s offset: 9.5, 11.5) only place the windows, 1 s back at most;
+    # each line's time then comes from its first sung word (the fake aligner sings at 1.0 and 2.0)
+    assert calls[0][0] == ["Bonjour", "Salut"] and calls[0][1] == [[8.5, 11.5], [10.5, 21.5]]
+    assert [l["t"] for l in r["lines"]] == [1.0, 2.0]
     assert r["lines"][0]["words"][0]["text"] == "Bonjour" and r["lines"][0]["words"][0]["syllables"]
 
 
@@ -150,3 +151,45 @@ def test_corrected_file_is_never_realigned(cfg, monkeypatch):
     (cfg.paroles / "009.lrc").write_text("[karaoke:decalage=0.000]\n" + SYNC, encoding="utf-8")
     r = L.LYRICS.run(Workspace(cfg, song(id="009")), {"ingest": {"offset_s": 0.0}, "separate": {}})
     assert r["source"] == "fichier-lrc" and None not in calls
+
+
+def _aligner_at(offset, calls):
+    """Each line's words sung `offset` s after the LRC time (inside the window)."""
+    def fake(vocals, lines, language, work, duration_s=600.0, segments=None):
+        calls.append(segments)
+        out = []
+        for i, l in enumerate(lines):
+            lrc_t = 10.0 + 3 * i
+            s = lrc_t + offset
+            out.append({"start": s, "score": 0.9,
+                        "words": [{"w": w, "s": s + 0.3 * k, "e": s + 0.3 * k + 0.2} for k, w in enumerate(l.split())]})
+        return out
+    return fake
+
+
+def test_lrclib_line_time_becomes_its_first_sung_word(cfg, monkeypatch):
+    # Michel: LRCLIB's times are 0.3–0.7 s off at random; the pipeline knows when each line is sung
+    calls = []
+    monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: LrclibResult(False, False, SYNC, "x"))
+    monkeypatch.setattr(L, "align_lines", _aligner_at(0.6, calls))
+    r = L.LYRICS.run(Workspace(cfg, song(id="009")), {"ingest": {"offset_s": 0.0}, "separate": {}})
+    assert r["source"] == "lrclib-synchro"
+    assert [round(l["t"], 2) for l in r["lines"]] == [10.6 + 3 * i for i in range(6)]
+
+
+def test_window_looks_one_second_back_but_not_before_the_previous_line(cfg, monkeypatch):
+    calls = []
+    sync = "[00:10.00]un deux\n[00:10.50]trois quatre\n[00:14.00]cinq six\n"
+    monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: LrclibResult(False, False, sync, "x"))
+    monkeypatch.setattr(L, "align_lines", _aligner_at(0.0, calls))
+    L.LYRICS.run(Workspace(cfg, song(id="009")), {"ingest": {"offset_s": 0.0}, "separate": {}})
+    assert [s[0] for s in calls[0]] == [9.0, 10.0, 13.0]
+
+
+def test_corrected_file_keeps_its_own_line_times(cfg, monkeypatch):
+    calls = []
+    monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: pytest.fail("LRCLIB must not be asked"))
+    monkeypatch.setattr(L, "align_lines", _aligner_at(0.6, calls))
+    (cfg.paroles / "009.lrc").write_text("[karaoke:decalage=0.000]\n" + SYNC, encoding="utf-8")
+    r = L.LYRICS.run(Workspace(cfg, song(id="009")), {"ingest": {"offset_s": 0.0}, "separate": {}})
+    assert [round(l["t"], 2) for l in r["lines"]] == [10.0 + 3 * i for i in range(6)]

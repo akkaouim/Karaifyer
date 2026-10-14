@@ -21,7 +21,7 @@ from karaoke.workspace import Workspace
 
 
 LINE_TAIL_S = 10.0     # window after the last synced line
-LINE_LEAD_S = 0.5      # a synced line's window starts slightly before its timestamp
+LINE_LEAD_S = 1.0      # a synced line's window starts up to 1 s before its timestamp (never before the previous line)
 # LRCLIB's timings can come from another version of the song (043): the first word then gets pinned at
 # its window's earliest point on many lines. Measured: 5–25 % on well-synced songs, 43 % on 043.
 PINNED_MAX = 0.35
@@ -65,12 +65,12 @@ def _interpolate(times: list[float | None]) -> list[float]:
     return [round(t, 3) for t in out]
 
 
-def _pinned_share(lines: list[dict]) -> float:
-    """Share of lines whose first word sits at the very start of its window (t − LINE_LEAD_S)."""
-    timed = [l for l in lines if l.get("words")]
+def _pinned_share(lines: list[dict], windows: list[float]) -> float:
+    """Share of lines whose first word sits at the very start of its alignment window."""
+    timed = [(l, w) for l, w in zip(lines, windows) if l.get("words")]
     if not timed:
         return 0.0
-    return sum(1 for l in timed if abs(l["words"][0]["start"] - (l["t"] - LINE_LEAD_S)) <= 0.02) / len(timed)
+    return sum(1 for l, w in timed if abs(l["words"][0]["start"] - w) <= 0.02) / len(timed)
 
 
 def _paths(ws: Workspace) -> tuple[Path, Path]:
@@ -99,25 +99,38 @@ def _run(ws: Workspace, upstream: dict) -> dict:
                         "words": timed_words(x, a.get("words") or [], t, end, s.langue)})
         return out
 
-    def synced_lines(lines: list[lrc.Line]) -> list[dict]:
+    windows: list[float] = []
+
+    def synced_lines(lines: list[lrc.Line], snap: bool) -> list[dict]:
+        """Align each line inside its window. snap: the line's time becomes its first sung word (LRCLIB's
+        times are 0.3–0.7 s off at random); Michel's own corrected files keep their times."""
         if not lines:
             return []
         starts, texts = [l.t for l in lines], [l.text for l in lines]
-        segs = [[round(max(0.0, t - LINE_LEAD_S), 3), round(starts[i + 1] if i + 1 < len(starts) else t + LINE_TAIL_S, 3)]
-                for i, t in enumerate(starts)]
+        segs = [[round(max(starts[i - 1] if i else 0.0, t - LINE_LEAD_S), 3),
+                 round(starts[i + 1] if i + 1 < len(starts) else t + LINE_TAIL_S, 3)] for i, t in enumerate(starts)]
+        windows[:] = [a for a, _ in segs]
         aligned = align_lines(vocals, texts, s.langue, ws.work, duration, segments=segs)
-        return with_words(starts, texts, aligned)
+        out = with_words(starts, texts, aligned)
+        if snap:
+            prev = -1.0
+            for l in out:
+                if l.get("words"):
+                    l["t"] = max(round(l["words"][0]["start"], 3), prev + 0.01)
+                prev = l["t"]
+        return out
 
-    def synced(text: str, source: str) -> dict:
-        return {"source": source, "language": s.langue, "lines": synced_lines(lrc.shift(lrc.parse(text), -offset))}
+    def synced(text: str, source: str, snap: bool = True) -> dict:
+        return {"source": source, "language": s.langue,
+                "lines": synced_lines(lrc.shift(lrc.parse(text), -offset), snap)}
 
     if user_lrc.exists():
         text = user_lrc.read_text(encoding="utf-8")
         show = lrc.show_offset(text)
         if show is not None:   # a corrected copy of sortie/.../paroles.lrc (show time)
             return {"source": "fichier-lrc", "language": s.langue,
-                    "lines": synced_lines(lrc.shift(lrc.parse(text), -show))}
-        return synced(text, "fichier-lrc")
+                    "lines": synced_lines(lrc.shift(lrc.parse(text), -show), snap=False)}
+        return synced(text, "fichier-lrc", snap=False)
     try:
         res = lrclib.fetch(s.titre, s.artiste, s.album, s.duree_ref_s)
     except StepRetry:
@@ -127,8 +140,14 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     if res.instrumental:
         return {"source": "instrumental", "language": s.langue, "lines": []}
     if res.synced:
-        out = synced(res.synced, "lrclib-synchro")
-        if _pinned_share(out["lines"]) <= PINNED_MAX:
+        lrc_lines = lrc.shift(lrc.parse(res.synced), -offset)
+        out = {"source": "lrclib-synchro", "language": s.langue, "lines": synced_lines(lrc_lines, snap=False)}
+        if _pinned_share(out["lines"], windows) <= PINNED_MAX:
+            prev = -1.0
+            for l in out["lines"]:                # times from the sung words (see synced_lines)
+                if l.get("words"):
+                    l["t"] = max(round(l["words"][0]["start"], 3), prev + 0.01)
+                prev = l["t"]
             return out
         # The times don't fit this recording: keep LRCLIB's text, align it on the whole song.
         texts = [l["text"] for l in out["lines"]]
@@ -149,4 +168,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 
 
 LYRICS = Step(name="lyrics", deps=("ingest", "separate"), key=_key, run=_run,
-              version="3")   # 2: word/syllable alignment for every song; 3: realign when LRCLIB's times don't fit
+              version="4")   # 2: words/syllables; 3: realign when LRCLIB's times don't fit; 4: line time = first sung word

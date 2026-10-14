@@ -40,14 +40,11 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
     if lyr.get("source") == "aucune":
         risk += 60
         alerts.append("sans paroles : fournir paroles/<id>.txt")
-    rate = chk.get("rate")
-    if rate is not None and rate < 0.9:
-        risk += round((0.9 - rate) * 200)
-        alerts.append(f"calage des paroles {rate:.0%}")
+    rate = chk.get("rate")   # line times now follow the sung words: informative only
     word_rate = chk.get("word_rate")
     if word_rate is not None and word_rate < 0.9:
-        risk += round((0.9 - word_rate) * 100)
-        alerts.append(f"calage des mots {word_rate:.0%} (tolérance ±0,5 s)")
+        risk += round((0.9 - word_rate) * 200)
+        alerts.append(f"paroles à vérifier : {word_rate * 100:.0f} % des mots calés (±0,5 s)")
     values = set(statuses.values())
     if "echec" in values:
         statut = "echec"

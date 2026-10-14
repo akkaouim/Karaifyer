@@ -15,6 +15,9 @@ from karaoke.video.timeline import TimedLine, build_states, line_chords, with_ch
 from karaoke.workspace import Workspace
 
 
+LINE_LEAD_S = 0.5   # a line appears this long before its first word is sung (Michel: a consistent warning)
+
+
 def _timed_line(line: dict, end: float, pad: float) -> TimedLine:
     """Line in output time, each syllable mapped to the number of characters it lights up."""
     text = " ".join(line["text"].split())
@@ -46,7 +49,7 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     (ws.out / "paroles.lrc").write_text(lrc.format([lrc.Line(round(t.start, 3), t.text) for t in timed],
                                                    decalage=pad), encoding="utf-8")
     beats = [b + pad for b in upstream["beats"]["beats"]]
-    states = build_states(timed, pad, total, ws.song.titre, ws.song.artiste, beats)
+    states = build_states(timed, pad, total, ws.song.titre, ws.song.artiste, beats, lead_s=LINE_LEAD_S)
     chords = upstream.get("chords", {})
     bars = [(b["start"] + pad, " ".join(c for _, c in b["chords"])) for b in chords.get("bars", [])]
     states = with_chart(states, bars, 4)
@@ -57,4 +60,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 VIDEO = Step(name="video", deps=("package", "beats", "lyrics", "check", "chords"),
              key=lambda ws: f"{ws.song.titre}|{ws.song.artiste}", run=_run,
              artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4"],
-             version="6")   # … 5: chart row in instrumentals; 6: line ends at last word, chart row from a 1-bar gap, chords on the preview
+             version="7")   # 6: line ends at last word, chord row from a 1-bar gap, preview chords; 7: lines appear 0.5 s ahead

@@ -113,3 +113,11 @@ def test_package_passes_the_steady_share():
     src = pathlib.Path(__file__).parents[1] / "src/karaoke/steps/package.py"
     from karaoke.steps.package import PACKAGE
     assert '"steady_share": stats["steady_share"]' in src.read_text() and PACKAGE.version == "6"
+
+
+def test_lyrics_alert_only_when_sung_words_are_off():
+    # line times now follow the sung words: the line-rate measure no longer raises an alert
+    good_words = {**BASE, "check": ok({"rate": 0.3, "word_rate": 0.97, "drift_ms": 8.0})}
+    assert song_report(song(), good_words)["alertes"] == []
+    bad_words = {**BASE, "check": ok({"rate": 0.95, "word_rate": 0.82, "drift_ms": 8.0})}
+    assert "paroles à vérifier : 82 % des mots calés (±0,5 s)" in song_report(song(), bad_words)["alertes"]

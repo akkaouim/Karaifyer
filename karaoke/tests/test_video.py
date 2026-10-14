@@ -1,3 +1,4 @@
+import pytest
 import subprocess
 import numpy as np
 from karaoke.audio import probe_duration
@@ -105,7 +106,7 @@ def test_video_step_passes_bars_for_instrumentals(cfg, monkeypatch):
                      "bars": [{"start": 0.0, "chords": [[0, "Am"], [2, "F"]]}, {"start": 2.0, "chords": [[0, "G"]]}]}}
     V.VIDEO.run(ws, up)
     assert any(s.chart == ("Am F", "G") and s.chart_pos == 0 and s.start == 2.0 for s in seen["states"])
-    assert V.VIDEO.version == "6"
+    assert V.VIDEO.version == "7"
 
 
 def test_chart_row_clears_a_wrapped_title():
@@ -142,3 +143,18 @@ def test_next_line_preview_draws_its_chords():
         blue = (px[..., 2] > 150) & (px[..., 0] < 140) & (px[..., 1] > 110)
         return np.nonzero(blue[600:].any(axis=1))[0]
     assert len(chord_rows(())) == 0 and len(chord_rows(((0, "Am"),))) > 0
+
+
+def test_lines_appear_half_a_second_before_they_are_sung(cfg, monkeypatch):
+    from karaoke.steps import video as V
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    seen = {}
+    monkeypatch.setattr(V, "render_video", lambda states, *a: seen.setdefault("states", states))
+    words = [{"text": "Un", "start": 3.0, "end": 3.4, "syllables": [{"text": "Un", "start": 3.0}]}]
+    up = {"package": {"pad_s": 2.0, "total_s": 10.0}, "beats": {"beats": BEATS, "downbeats": []},
+          "lyrics": {"lines": [{"t": 3.0, "text": "Un", "score": None, "words": words}]},
+          "check": {"lines": [{"t": 3.0, "ok": True, "end": 3.5}]}}
+    V.VIDEO.run(Workspace(cfg, song()), up)
+    first = next(s for s in seen["states"] if s.kind == "ligne")
+    assert first.start == pytest.approx(5.0 - 0.5) and V.VIDEO.version == "7"
