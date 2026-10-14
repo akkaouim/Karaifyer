@@ -1,4 +1,10 @@
-# SysRec
+# SysRec (deprecated)
+
+> **Deprecated (2026-10-14): record with [Karaifyer](karaifyer/README.md) instead.** Karaifyer contains
+> this recorder plus a safety net SysRec lacks: a broken capture (e.g. half-empty audio buffers, as on
+> « Les copains d'abord ») is detected, the capture is rebuilt and the row retried, never kept silently.
+> SysRec is kept for reference only and no longer maintained.
+
 
 Menu-bar app that records a list of Spotify tracks, one lossless file per row.
 For each row it arms a Core Audio process tap on Spotify only (system sounds
