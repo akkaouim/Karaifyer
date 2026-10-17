@@ -1,10 +1,36 @@
+# Karaifyer
+
+Prepare a live karaoke show from a list of songs: record them from Spotify, analyse them overnight,
+and get, for every song, the XR18 stems with a click, a lyrics video with chords, a chord chart, an
+iReal Pro link and a ready-to-play Ableton Live set.
+
+![Karaifyer](docs/guide/images/01-karaoke.png)
+
+| Part | What it is |
+|---|---|
+| [**Karaifyer app**](karaifyer/README.md) (`karaifyer/`) | macOS app (SwiftUI): Spotify recorder + Karaoké tab that drives the analysis, run controls, correction editor |
+| [**Analysis pipeline**](karaoke/README.md) (`karaoke/`) | Python (uv): separation, beats, chords, lyrics (LRCLIB, alignment, transcription), click, video, Ableton sets, report |
+| [**User guide**](docs/guide/GUIDE.md) (French, with screenshots) | how to use it all, step by step |
+| [Design docs](docs/karaoke/) | specification, XR18/Ableton decisions, measurements, validation checklists |
+
+Quick start:
+
+```sh
+cd karaifyer && ./build-app.sh --install     # the app (needs the Command Line Tools, no Xcode)
+cd ../karaoke && uv sync                      # the pipeline (Python 3.11 + uv)
+```
+
+Tests: `uv --directory karaoke run pytest -q` (pipeline) and, in `karaifyer/`,
+`swift test -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing`.
+
+---
+
 # SysRec (deprecated)
 
-> **Deprecated (2026-10-14): record with [Karaifyer](karaifyer/README.md) instead.** Karaifyer contains
-> this recorder plus a safety net SysRec lacks: a broken capture (e.g. half-empty audio buffers, as on
-> « Les copains d'abord ») is detected, the capture is rebuilt and the row retried, never kept silently.
-> SysRec is kept for reference only and no longer maintained.
-
+> **Deprecated (2026-10-14): record with Karaifyer instead.** Karaifyer contains this recorder plus a
+> safety net SysRec lacks: a broken capture (e.g. half-empty audio buffers, as on « Les copains d'abord »)
+> is detected, the capture rebuilt and the row retried, never kept silently. SysRec (`Sources/`, `Tests/`,
+> `Package.swift`) is kept for reference only and no longer maintained; the notes below describe it.
 
 Menu-bar app that records a list of Spotify tracks, one lossless file per row.
 For each row it arms a Core Audio process tap on Spotify only (system sounds
@@ -15,8 +41,6 @@ an optional 320 kbps MP3).
 For the design, the measurements behind it and the diagnostic tools, see
 [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
 
-**Karaifyer** ([karaifyer/](karaifyer/README.md)) is a copy of SysRec extended with a Karaoké tab that
-drives the karaoke analysis pipeline ([karaoke/](karaoke/README.md)). SysRec itself is unchanged.
 
 ## Build & run
 

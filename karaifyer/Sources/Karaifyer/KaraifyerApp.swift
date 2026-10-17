@@ -52,6 +52,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///   --list <csv>  --output <dir>  --start  --quit-when-done
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
+            if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "--screenshots") {
+                let args = ProcessInfo.processInfo.arguments
+                let dir = URL(fileURLWithPath: args.indices.contains(i + 1) ? args[i + 1] : "screenshots")
+                Task { await Screenshots.run(dir: dir) }
+                return
+            }
             if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "--probe-tap") {
                 // Diagnostic: --probe-tap <bundle-prefix|pid> <out-file>
                 // Reports the format a stereo-mixdown tap advertises for a process.

@@ -69,6 +69,18 @@ final class KaraokeModel: RunDriver {
     }
     func closeEditor(_ id: String) { editors[id]?.pause(); editors[id] = nil }
 
+    /// User-guide screenshots only (`--screenshots`): show an analysis in progress without running one.
+    func stageRunForScreenshot(current: String, step: String, queued: [String], done: [(String, String)],
+                               log lines: [String]) {
+        marks.begin([current] + queued + done.map(\.0))
+        for (id, st) in done { marks.running(id); marks.songEnded(id, statut: st) }
+        marks.running(current)
+        runState = .running; currentID = current; currentStep = step
+        plannedSongs = 1 + queued.count + done.count; songsLeft = 1 + queued.count
+        plannedSteps = plannedSongs * 10; doneSteps = done.count * 10 + 3
+        log = lines
+    }
+
     func appendLog(_ line: String) {
         log.append(LogLine.stamped(line.trimmingCharacters(in: .newlines)))
         if log.count > 5000 { log.removeFirst(log.count - 5000) }

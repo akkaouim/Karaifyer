@@ -1,5 +1,8 @@
 # How SysRec works
 
+> This document describes the recorder as built in SysRec (now deprecated). Karaifyer's
+> « Enregistrement » tab is the same code plus capture-fault detection; see `karaifyer/README.md`.
+
 This document is for whoever changes the code later. It describes the
 design, the findings behind each decision (most came from testing on the
 target Mac, 2026-10-12), and the diagnostic tools. For using the app, see the

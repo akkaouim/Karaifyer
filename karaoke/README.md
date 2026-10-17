@@ -1,10 +1,12 @@
 # Karaoké live : pipeline d'analyse
 
-Transforme les fichiers enregistrés par SysRec en un dossier prêt à jouer par morceau :
+Transforme les fichiers enregistrés (Karaifyer, ou n'importe quel fichier audio) en un dossier prêt à jouer
+par morceau :
 accompagnement (sans voix ni parties jouées en live), clic avec décompte, voix guide,
 6 pistes séparées, grille d'accords (`accords.txt`), paroles synchronisées (`.lrc`) et vidéo
 de paroles (`.mp4`, accords au-dessus des syllabes), plus un rapport global trié par risque et
-des liens d'import iReal Pro.
+des liens d'import iReal Pro. Au quotidien, tout se pilote depuis l'app **Karaifyer**
+([guide](../docs/guide/GUIDE.md)) ; les commandes ci-dessous restent disponibles.
 
 ```sh
 export KARAOKE_HOME=/Volumes/Hypermnesia/karaoke     # disque externe (≈ 0,7 Go par morceau)
@@ -14,14 +16,20 @@ uv run karaoke manifeste --audio "$HOME/Music/SysRec/Karaoké - Feuille 1"
 uv run karaoke traiter                       # tout ; reprend là où ça s'est arrêté
 uv run karaoke traiter --ids 041 --forcer package   # refaire un morceau (ex. après changement de « retirer »)
 uv run karaoke rapport                       # rapport.csv / rapport.html triés par risque
-uv run karaoke sets                          # un set Ableton par partie de soirée → $KARAOKE_HOME/sets/
+uv run karaoke sets                          # un set Ableton par morceau, rangé par Set List → $KARAOKE_HOME/sets/
+uv run karaoke ajouter fichier1.mp3 …        # ajouter des morceaux depuis n'importe quels fichiers audio
+uv run karaoke modifier --id 042 --champ retirer --valeur "guitar;piano"   # une case du manifeste
+uv run karaoke etat --json                   # état de chaque morceau (utilisé par Karaifyer)
 ```
+
+La colonne `partie` du manifeste est la **Set List** (le nom affiché dans Karaifyer).
 
 **Sets Ableton.** `karaoke sets` part du gabarit (`gabarit/gabarit Project/gabarit.als`, jamais modifié) et
 écrit **un `.als` par morceau** dans `sets/<partie>/` : une piste par canal XR18 (10 clic, 11 voix lead,
 12 guitare, 13 basse, 14 piano, 15 batterie, 16 back vocals, 17–18 accompagnement), la vidéo des paroles,
-un clip MIDI au début qui place les faders de la XR18 (parties de `retirer` à zéro, le reste à 0 dB) et,
-à la fin, un clip qui **arrête Live automatiquement**.
+une **mesure 1 silencieuse** qui place les faders de la XR18 (parties de `retirer` à zéro, le reste à 0 dB),
+le morceau et son repère en **mesure 2** (revenir au repère relance le clic sans renvoyer les faders) et, à la
+fin, un clip qui **arrête Live automatiquement**. Le set s'ouvre sur la mesure 1.
 
 Réglages, une seule fois :
 1. XR18 : X Air → Setup → Mixer → MIDI Config → « USB Rx » activé.
@@ -43,7 +51,21 @@ est installé et toucher un titre pour l'importer (tonalité incluse ; le tempo 
 Détection automatique : à vérifier à l'oreille, surtout les accords enrichis (7e, sus), notés en
 majeur/mineur simple.
 
-**Paroles manquantes ou à corriger.** Déposer dans `$KARAOKE_HOME/paroles/` :
+**Paroles.** Sources, dans l'ordre :
+1. ta correction (`paroles/<id>.lrc`, écrite par l'éditeur de Karaifyer) ;
+2. LRCLIB, paroles synchronisées ; chaque ligne est recalée sur le moment où son premier mot est chanté, et
+   s'affiche 0,5 s avant dans la vidéo ;
+3. LRCLIB texte seul, ou ton texte `paroles/<id>.txt`, alignés sur la voix ;
+4. sinon, **transcription** de la voix principale (Whisper large-v3, environ 1,1 × la durée du morceau ;
+   alerte « à relire »).
+
+Les mots et syllabes sont toujours alignés sur la voix isolée. La vidéo :
+- allume les syllabes au moment où elles sont chantées ;
+- place les accords au-dessus de la syllabe où ils changent ;
+- annonce la ligne suivante avec ses accords ;
+- affiche la grille de 4 mesures pendant les passages instrumentaux.
+
+**Paroles manquantes ou à corriger** (sans l'app). Déposer dans `$KARAOKE_HOME/paroles/` :
 - `<id>.txt` : texte brut, aligné automatiquement sur la voix (marche aussi hors ligne) ;
 - `<id>.lrc` : paroles synchronisées, prioritaires sur tout le reste. Pour corriger un
   calage, copier `sortie/<dossier>/paroles.lrc`, le corriger, et le déposer sous ce nom :
@@ -52,9 +74,20 @@ majeur/mineur simple.
 
 La relance refait automatiquement les paroles et la vidéo de ce morceau.
 
-**Statuts du rapport.** `ok`, `alerte` (à vérifier en priorité : tempo instable,
-paroles absentes ou mal calées, dérive du clic), `a_reessayer` (LRCLIB injoignable :
-relancer plus tard), `echec` (voir `travail/<id>/journal.log`).
+**Temps et clic.** Beat This! détecte les temps, puis la grille est nettoyée :
+- les temps sautés dans les passages calmes (demi-tempo) sont rétablis ;
+- les temps parasites sont retirés ;
+- les barres de mesure sont reconstruites par passage régulier.
+
+Les morceaux à tempo libre ou qui dérivent vraiment ne sont pas touchés.
+
+**Statuts du rapport.** `ok`, `alerte` (à vérifier), `a_reessayer` (LRCLIB injoignable, relancé
+automatiquement une fois par Karaifyer), `echec` (voir `travail/<id>/journal.log`). Les alertes :
+- **tempo instable** : moins de 85 % du morceau dans son tempo principal (±5 %) ;
+- **dérive du clic** : un passage où le clic s'écarte de plus de 30 ms de la batterie ; jugé seulement si
+  assez de temps tombent sur un coup de batterie ;
+- **paroles à vérifier** : moins de 90 % des mots calés à ±0,5 s ;
+- **paroles transcrites : à relire** ; **sans paroles**.
 
 Chaque étape est indépendante : modifier une étape ne refait les suivantes que si son
 résultat change. Conception et mesures : `docs/karaoke/` ; tests : `uv run pytest`
