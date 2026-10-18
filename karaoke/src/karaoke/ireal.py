@@ -36,14 +36,29 @@ def ireal_key(key: str) -> str:
     return MAJOR_FLAT.get(root, root)
 
 
+CODES = {"2/4": "T24", "3/4": "T34", "4/4": "T44", "6/8": "T68", "12/8": "T12"}
+
+
+def signature_code(beats_per_bar: int, signature: str | None) -> str:
+    return CODES.get(signature or "", f"T{beats_per_bar}4")
+
+
+def style_for(beats_per_bar: int, signature: str | None, swing: bool) -> str:
+    if signature in ("3/4", "6/8") or (signature is None and beats_per_bar == 3):
+        return "Waltz"
+    if signature == "12/8":
+        return "Slow Rock"
+    return "Medium Swing" if swing else "Pop"
+
+
 def _field(s: str) -> str:
     return s.replace("=", "-")   # `=` separates the link's fields
 
 
 def song_url(title: str, composer: str, style: str, key: str, bars: list[dict],
-             beats_per_bar: int, bpm: float) -> str:
+             beats_per_bar: int, bpm: float, signature: str | None = None) -> str:
     cells = [" ".join(chord(c) for _, c in b["chords"]) for b in bars]
-    prog = f"[T{beats_per_bar}4" + " |".join(cells) + " Z"
+    prog = "[" + signature_code(beats_per_bar, signature) + " |".join(cells) + " Z"
     body = "=".join([_field(title), _field(composer), _field(style), ireal_key(key), "n", prog])
     return "irealbook://" + quote(body, safe="")   # spec: percent-encode everything
 
@@ -74,9 +89,9 @@ def write_pages(cfg, songs: list) -> list[Path]:
         for s in group:
             r = (Workspace(cfg, s).read_marker("chords") or {}).get("result")
             if r and r.get("bars"):
-                style = "Waltz" if r["beats_per_bar"] == 3 else "Pop"
+                style = style_for(r["beats_per_bar"], r.get("signature"), r.get("swing", False))
                 links.append((s.titre, s.artiste, song_url(s.titre, s.artiste, style, r["key"], r["bars"],
-                                                           r["beats_per_bar"], r["bpm"])))
+                                                           r["beats_per_bar"], r["bpm"], signature=r.get("signature"))))
         if links:
             path = cfg.home / "ireal" / f"{slug(partie)}.html"
             write_html(path, partie, links)

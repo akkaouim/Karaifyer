@@ -35,6 +35,15 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
                           "error": err if status in FAILED else "", "alert": " · ".join(mine)})
     pkg = (ws.read_marker("package") or {}).get("result") or {}
     ch = (ws.read_marker("chords") or {}).get("result") or {}
+    bt = (ws.read_marker("beats") or {}).get("result") or {}
+    grid = None
+    if bt.get("beats"):            # results from before the fix file lack the *_detecte fields: derive them
+        from karaoke.grid import beats_per_bar, tempo_stats
+        det = bt.get("downbeats_detectees", bt.get("downbeats", []))
+        grid = {"beats": bt["beats"], "downbeats_detectees": det,
+                "beats_per_bar_detecte": bt.get("beats_per_bar_detecte") or beats_per_bar(bt["beats"], det),
+                "bpm": bt.get("bpm") or tempo_stats(bt["beats"])["bpm"],
+                "signature": bt.get("signature"), "swing": bool(bt.get("swing", False))}
     return {"id": s.id, "titre": s.titre, "artiste": s.artiste, "album": s.album, "fichier": str(s.fichier),
             "retirer": list(s.retirer), "langue": s.langue, "partie": s.partie,
             "decompte_mesures": s.decompte_mesures, "statut": rep.get("statut", "—"), "alertes": alerts,
@@ -44,6 +53,7 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
                       "accords": str(ws.out / "accords.txt"), "lrc": str(ws.out / "paroles.lrc"),
                       "audio": str(ws.work / "input.wav"),
                       "lrc_corrige": str(cfg.paroles / f"{s.id}.lrc"),
-                      "accords_corrige": str(cfg.accords / f"{s.id}.txt")},
+                      "accords_corrige": str(cfg.accords / f"{s.id}.txt"),
+                      "mesures_corrige": str(cfg.mesures / f"{s.id}.json")},
             "pad_s": pkg.get("pad_s"), "bpm": pkg.get("bpm"), "beats_per_bar": ch.get("beats_per_bar"), "key": ch.get("key"),
-            "bars": ch.get("bars", [])}
+            "bars": ch.get("bars", []), "grid": grid}

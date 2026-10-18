@@ -2,29 +2,49 @@
 
 Inputs:  travail/<id>/input.wav.
 Outputs: travail/<id>/beats.json (raw detection); result {beats: [s], downbeats: [s], nettoyage} in
-         trimmed-input time, after grid.regularize (skipped beats filled, strays dropped, bar lines rebuilt).
+         trimmed-input time, after grid.regularize (skipped beats filled, strays dropped, bar lines rebuilt),
+         then Michel's mesures/<id>.json (barfix: signature, swing, pinned bar lines). Also
+         downbeats_detectees / beats_per_bar_detecte (before the fix), beats_per_bar, bpm, signature, swing.
 """
 from __future__ import annotations
+import hashlib
 import json
 import os
 
-from karaoke.grid import regularize
+from karaoke import barfix
+from karaoke.grid import beats_per_bar, regularize, tempo_stats
 from karaoke.runner import Step
 from karaoke.tools import TOOLS_DIR, run_tool, tool_timeout
 from karaoke.workspace import Workspace
 
 
+def _fix_path(ws: Workspace):
+    return ws.cfg.mesures / f"{ws.song.id}.json"
+
+
 def _run(ws: Workspace, upstream: dict) -> dict:
     out = ws.work / "beats.json"
-    run_tool("beats", ["python", str(TOOLS_DIR / "beats" / "beats_tool.py"), str(ws.work / "input.wav"),
-                       str(out), "--device", os.environ.get("KARAOKE_DEVICE", "mps")],
-             timeout=tool_timeout("beats", upstream["ingest"]["duration_s"]))
+    if not out.exists():           # a fix-only change must not re-run the detection
+        run_tool("beats", ["python", str(TOOLS_DIR / "beats" / "beats_tool.py"), str(ws.work / "input.wav"),
+                           str(out), "--device", os.environ.get("KARAOKE_DEVICE", "mps")],
+                 timeout=tool_timeout("beats", upstream["ingest"]["duration_s"]))
     data = json.loads(out.read_text())
     if len(data["beats"]) < 8:
         raise ValueError(f"trop peu de temps détectés ({len(data['beats'])})")
-    beats, downbeats, info = regularize(data["beats"], data["downbeats"])
-    return {"beats": beats, "downbeats": downbeats, "nettoyage": info}
+    beats, detected, info = regularize(data["beats"], data["downbeats"])
+    bpb, bpm = beats_per_bar(beats, detected), tempo_stats(beats)["bpm"]
+    fix = barfix.load(_fix_path(ws))
+    downbeats, n = barfix.apply_fix(beats, detected, fix, bpb, bpm)
+    return {"beats": beats, "downbeats": downbeats, "nettoyage": info, "downbeats_detectees": detected,
+            "beats_per_bar_detecte": bpb, "beats_per_bar": n, "bpm": bpm,
+            "signature": fix["signature"], "swing": fix["swing"]}
 
 
-BEATS = Step(name="beats", deps=("ingest",), key=lambda ws: "beat_this-final0", run=_run,
-             version="2")   # 2: grid cleanup (half-tempo gaps, stray beats, bar lines)
+def _key(ws: Workspace) -> str:
+    """Unchanged for a song without a fix file, so unfixed songs never re-run."""
+    p = _fix_path(ws)
+    return "beat_this-final0" + (f"|{hashlib.sha1(p.read_bytes()).hexdigest()}" if p.exists() else "")
+
+
+BEATS = Step(name="beats", deps=("ingest",), key=_key, run=_run,
+             version="2")   # 2: grid cleanup (half-tempo gaps, stray beats, bar lines); fix file via the key

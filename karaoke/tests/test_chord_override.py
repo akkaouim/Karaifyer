@@ -89,3 +89,21 @@ def test_key_follows_correction_file(cfg):
     k1 = CHORDS.key(ws)
     (cfg.accords / "001.txt").write_text("| E |\n")
     assert len({k0, k1, CHORDS.key(ws)}) == 3
+
+
+def test_correction_follows_fixed_bar_lines(cfg):
+    from karaoke.steps.chords import CHORDS
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    s = song()
+    ws = Workspace(cfg, s)
+    cfg.accords.mkdir(parents=True, exist_ok=True)
+    beats = [0.5 * i for i in range(12)]
+    # fixed lines: a 2-beat bar, then 4 + 4 + 2 → 4 bars
+    (cfg.accords / f"{s.id}.txt").write_text("Tonalité : C major · 4/4\n\n| C | F | G | C |\n", encoding="utf-8")
+    up = {"ingest": {"duration_s": 6.0}, "separate": {},
+          "beats": {"beats": beats, "downbeats": [0.0, 1.0, 3.0, 5.0], "beats_per_bar": 4,
+                    "signature": "4/4", "swing": False}}
+    r = CHORDS.run(ws, up)
+    assert len(r["bars"]) == 4 and r["signature"] == "4/4" and r["swing"] is False
+    assert "· 4/4" in (ws.out / "accords.txt").read_text(encoding="utf-8")

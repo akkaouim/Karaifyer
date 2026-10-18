@@ -86,3 +86,25 @@ def test_song_state_includes_the_typical_bpm(cfg):
     ws.write_marker("package", {"result": {"pad_s": 1.0, "bpm": 100.4}})
     assert song_state(cfg, s, steps({}))["bpm"] == 100.4
     assert song_state(cfg, song(id="002"), steps({}))["bpm"] is None
+
+
+def test_state_exposes_the_grid(cfg):
+    s = song()
+    ws = Workspace(cfg, s)
+    ws.write_marker("beats", {"result": {"beats": [0.0, 0.5, 1.0, 1.5, 2.0], "downbeats": [0.0, 1.0],
+                                         "downbeats_detectees": [0.0, 2.0], "beats_per_bar_detecte": 4,
+                                         "beats_per_bar": 2, "bpm": 120.0, "signature": "2/4", "swing": False}})
+    st = song_state(cfg, s, steps({}))
+    assert st["grid"] == {"beats": [0.0, 0.5, 1.0, 1.5, 2.0], "downbeats_detectees": [0.0, 2.0],
+                          "beats_per_bar_detecte": 4, "bpm": 120.0, "signature": "2/4", "swing": False}
+    assert st["paths"]["mesures_corrige"].endswith(f"mesures/{s.id}.json")
+    assert song_state(cfg, song(id="002"), steps({}))["grid"] is None
+
+
+def test_state_grid_falls_back_for_old_results(cfg):
+    s = song()
+    beats = [0.5 * i for i in range(16)]
+    Workspace(cfg, s).write_marker("beats", {"result": {"beats": beats, "downbeats": beats[::4]}})
+    g = song_state(cfg, s, steps({}))["grid"]
+    assert g["downbeats_detectees"] == beats[::4] and g["beats_per_bar_detecte"] == 4
+    assert g["bpm"] == 120.0 and g["signature"] is None and g["swing"] is False

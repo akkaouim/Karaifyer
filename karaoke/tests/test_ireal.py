@@ -56,3 +56,14 @@ def test_song_url_fully_percent_encoded_like_the_official_example():
 def test_rich_chord_symbols_to_ireal():
     assert [chord(c) for c in ["Cmaj7", "Dm7", "F#m7b5", "Edim", "Gsus4", "Am/G", "Bb7", "Caug", "Am6"]] == \
         ["C^7", "D-7", "F#h7", "Eo", "Gsus", "A-/G", "Bb7", "C+", "A-6"]
+
+
+def test_signature_codes_and_styles():
+    from karaoke.ireal import signature_code, style_for
+    assert [signature_code(n, s) for n, s in [(4, None), (3, None), (2, "6/8"), (4, "12/8"), (12, "12/8"), (2, "2/4")]] == \
+        ["T44", "T34", "T68", "T12", "T12", "T24"]
+    assert style_for(3, None, False) == "Waltz" and style_for(2, "6/8", False) == "Waltz"
+    assert style_for(4, "12/8", False) == "Slow Rock" and style_for(4, "4/4", True) == "Medium Swing"
+    assert style_for(4, None, False) == "Pop"
+    url = unquote(song_url("X", "Y", "Slow Rock", "C major", BARS[:1], 4, 60.0, signature="12/8"))
+    assert "[T12" in url

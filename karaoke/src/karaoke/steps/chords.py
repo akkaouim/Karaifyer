@@ -38,7 +38,9 @@ def _correction(ws: Workspace, beats: list[float], downbeats: list[float], bpb: 
 
 def _run(ws: Workspace, upstream: dict) -> dict:
     beats, downbeats = upstream["beats"]["beats"], upstream["beats"]["downbeats"]
-    bpb = beats_per_bar(beats, downbeats)
+    up = upstream["beats"]
+    bpb = up.get("beats_per_bar") or beats_per_bar(beats, downbeats)
+    signature, swing = up.get("signature"), bool(up.get("swing", False))
     (ws.out / "accords.txt").unlink(missing_ok=True)
     if (ws.cfg.accords / f"{ws.song.id}.txt").exists():
         key, bars, labels = _correction(ws, beats, downbeats, bpb)
@@ -58,7 +60,7 @@ def _run(ws: Workspace, upstream: dict) -> dict:
         except (ToolError, OSError, ValueError) as e:
             # The chart is a draft: never block the video or the set. No accords.txt → retried next run.
             return {"key": None, "bpm": 0.0, "beats_per_bar": 4, "bars": [], "changes": [],
-                    "source": "detection", "erreur": str(e)[-300:]}
+                    "source": "detection", "erreur": str(e)[-300:], "signature": None, "swing": False}
         key = data["key"]
         labels = spell(merge_blips(chords_per_beat(data["segments"], beats)), key)
         bars = bars_from(beats, downbeats, labels, bpb)
@@ -66,10 +68,10 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     bpm = tempo_stats(beats)["bpm"]
     ws.out.mkdir(parents=True, exist_ok=True)
     (ws.out / "accords.txt").write_text(
-        f"{ws.song.titre} — {ws.song.artiste}\nTonalité : {key} · {bpm:.0f} BPM · {bpb}/4\n\n"
+        f"{ws.song.titre} — {ws.song.artiste}\nTonalité : {key} · {bpm:.0f} BPM · {signature or f'{bpb}/4'}\n\n"
         + chart_text(bars, bpb) + "\n", encoding="utf-8")
     return {"key": key, "bpm": bpm, "beats_per_bar": bpb, "bars": bars, "changes": changes(beats, labels),
-            "source": source}
+            "source": source, "signature": signature, "swing": swing}
 
 
 def _key(ws: Workspace) -> str:
