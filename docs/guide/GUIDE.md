@@ -159,8 +159,10 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
 
 ![Éditeur](images/03-editeur.png)
 
-- **Lecture** (⌥ Espace) joue l'enregistrement. La ligne et la mesure en cours sont surlignées en jaune.
+- **Lecture** (Espace quand aucun champ n'est en cours de saisie, ou ⌥ Espace) joue l'enregistrement. La ligne et la mesure en cours sont surlignées en jaune.
 - **Volume :** le curseur à droite de la barre de lecture règle le volume (mémorisé pour tous les morceaux).
+- **Annuler / Rétablir :** ⌘Z et ⇧⌘Z (ou les flèches en bas à gauche) annulent et rétablissent les
+  modifications des paroles, des accords et de la tonalité. Pendant la saisie d'un champ, ⌘Z agit sur son texte.
 - **Paroles (à gauche) :** cliquer une ligne y va. Le temps et le texte sont modifiables. ⏱ cale le début de
   la ligne sur la lecture ; + ajoute une ligne, la corbeille la supprime.
 - **Accords (à droite) :** une case par mesure, 4 par ligne ; cliquer le numéro va à la mesure. La tonalité

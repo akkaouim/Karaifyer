@@ -30,6 +30,7 @@ final class EditorModel {
     }
     @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private var keyMonitor: Any?
+    @ObservationIgnored private var undoMonitor: Any?
     var windowTitle: String { "Corriger — \(song.id) \(song.titre)" }
 
     /// Space plays/pauses in this song's window when no text field is being edited.
@@ -40,10 +41,25 @@ final class EditorModel {
             guard let self else { return }
             self.playing ? self.pause() : self.play()
         }
+        // ⌘Z / ⇧⌘Z undo the editor's steps, unless a field is being typed in (it then undoes its own text)
+        undoMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] ev in
+            nonisolated(unsafe) let e = ev
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self, e.window?.title == title, !(e.window?.firstResponder is NSText),
+                      e.charactersIgnoringModifiers?.lowercased() == "z" else { return false }
+                let mods = e.modifierFlags.intersection([.command, .shift, .option, .control])
+                if mods == .command { self.undo(); return true }
+                if mods == [.command, .shift] { self.redo(); return true }
+                return false
+            }
+            return handled ? nil : ev
+        }
     }
     func removeSpaceKey() {
         if let m = keyMonitor { NSEvent.removeMonitor(m) }
+        if let m = undoMonitor { NSEvent.removeMonitor(m) }
         keyMonitor = nil
+        undoMonitor = nil
     }
     @ObservationIgnored private var timer: Timer?
 
@@ -110,17 +126,37 @@ final class EditorModel {
     }
     func seekBar(_ i: Int) { seek(input: song.bars[i].start) }
 
-    func stampLine(_ id: UUID) { doc.stamp(id, at: showTime); lyricsDirty = true }
-    func setText(_ id: UUID, _ text: String) { doc.setText(id, text); lyricsDirty = true }
-    func setTime(_ id: UUID, _ s: String) { doc.setTime(id, s); lyricsDirty = true }
-    func addLine() { selectedLine = doc.add(at: showTime); lyricsDirty = true }
-    func deleteLine(_ id: UUID) { doc.delete(id); lyricsDirty = true }
+    func stampLine(_ id: UUID) { edit { doc.stamp(id, at: showTime); lyricsDirty = true } }
+    func setText(_ id: UUID, _ text: String) { edit { doc.setText(id, text); lyricsDirty = true } }
+    func setTime(_ id: UUID, _ s: String) { edit { doc.setTime(id, s); lyricsDirty = true } }
+    func addLine() { edit { selectedLine = doc.add(at: showTime); lyricsDirty = true } }
+    func deleteLine(_ id: UUID) { edit { doc.delete(id); lyricsDirty = true } }
     func setCell(_ i: Int, _ text: String) {
         guard cells.indices.contains(i), cells[i] != text else { return }
-        cells[i] = text
-        chordsDirty = true
+        edit { cells[i] = text; chordsDirty = true }
     }
-    func setKey(_ k: String) { guard k != key else { return }; key = k; chordsDirty = true }
+    func setKey(_ k: String) { guard k != key else { return }; edit { key = k; chordsDirty = true } }
+
+    // MARK: undo / redo (⌘Z, ⇧⌘Z) over lyrics, chords and key; the dirty flags come back too
+
+    struct Snapshot { var doc: LyricsDoc; var cells: [String]; var key: String; var lyricsDirty, chordsDirty: Bool }
+    private var snapshot: Snapshot {
+        get { Snapshot(doc: doc, cells: cells, key: key, lyricsDirty: lyricsDirty, chordsDirty: chordsDirty) }
+        set { doc = newValue.doc; cells = newValue.cells; key = newValue.key
+              lyricsDirty = newValue.lyricsDirty; chordsDirty = newValue.chordsDirty }
+    }
+    private var history = UndoHistory<Snapshot>()
+    var canUndo: Bool { history.canUndo }
+    var canRedo: Bool { history.canRedo }
+
+    /// One undoable step; a change that leaves everything as it was records nothing.
+    private func edit(_ change: () -> Void) {
+        let before = snapshot
+        change()
+        if before.doc.lines != doc.lines || before.cells != cells || before.key != key { history.record(before) }
+    }
+    func undo() { if let s = history.undo(from: snapshot) { snapshot = s } }
+    func redo() { if let s = history.redo(from: snapshot) { snapshot = s } }
 
     struct SaveError: LocalizedError { let errorDescription: String? }
 

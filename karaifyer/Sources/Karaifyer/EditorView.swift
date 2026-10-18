@@ -15,6 +15,10 @@ struct EditorView: View {
                 chords.frame(minWidth: 420)
             }
             HStack {
+                Button("Annuler la modification", systemImage: "arrow.uturn.backward") { endEditing(); model.undo() }
+                    .labelStyle(.iconOnly).disabled(!model.canUndo).help("Annuler la modification (⌘Z)")
+                Button("Rétablir", systemImage: "arrow.uturn.forward") { endEditing(); model.redo() }
+                    .labelStyle(.iconOnly).disabled(!model.canRedo).help("Rétablir (⇧⌘Z)")
                 Text("Enregistrer réanalyse le morceau (vidéo, set, iReal).").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Annuler") { endEditing(); closeAsking() }
