@@ -64,8 +64,8 @@ Inputs: the cleaned beat times; the cleaned bar lines; the fix (signature or non
 - **Pins** are stored as times (seconds, input time) and snapped to the nearest beat, so a slightly different
   detection after a re-run keeps them.
 - **Bar lines:**
-  - Before the first pin, the cleaned bar lines stay as they are. If a signature was set and there are no pins,
-    the first cleaned bar line acts as the only pin.
+  - Before the first pin, the cleaned bar lines stay as they are. With a signature, the first cleaned bar line
+    is an implicit pin, unless a pin lies before it + N beats.
   - From each pin to the next one (or the end), there's a bar line every N beats starting at the pin.
   - The last bar before a pin can be shorter or longer than N.
 - « Un temps plus tôt / plus tard » on a bar moves (or adds) the pin on that bar's line by one beat.
