@@ -180,6 +180,53 @@ Tu peux aussi déposer un texte brut `paroles/<id>.txt` ; il sera calé automati
 
 ---
 
+## 7 bis. Le Lecteur : répéter et vérifier
+
+L'onglet **Lecteur** joue un morceau analysé avec sa vidéo. C'est le Mac qui joue, sur sa sortie audio
+habituelle, pas la XR18. Il sert à répéter chez soi en coupant sa partie, et à vérifier la séparation en
+écoutant chaque piste seule.
+
+![Lecteur](images/08-lecteur.png)
+
+- **Ouvrir un morceau :**
+  - cherche par titre, artiste ou numéro (sans te soucier des accents) ;
+  - un clic **sélectionne seulement** ; **double-clic**, **Entrée** ou **Charger** ouvre le morceau ;
+  - le morceau ouvert est marqué ▶︎, et un morceau grisé n'est pas encore prêt (le survol dit ce qui manque).
+- **Vidéo :** double-clic pour le **plein écran**, puis double-clic ou Échap pour en sortir.
+- **Transport :** ⏮ retour au début, ▶︎/⏸, et la **barre de position** à faire glisser pour aller n'importe où.
+  **Espace** lance ou arrête la lecture, sauf pendant que tu tapes dans la recherche.
+- **Boucle :**
+  - « Début de boucle » et « Fin de boucle » posent la boucle à l'endroit écouté, **calée sur la barre de
+    mesure la plus proche** ;
+  - « Boucle » l'active, « Effacer » la supprime, et la zone de la boucle apparaît en jaune sur la barre de
+    position.
+- **Tempo (BPM) :**
+  - le tempo du morceau s'affiche (par exemple 100) ; − / + ou une valeur tapée le change, « Original »
+    revient au tempo d'origine ;
+  - la hauteur ne change pas, la vidéo et le clic suivent ;
+  - la plage va de la moitié à 1,5 fois le tempo d'origine.
+- **Hauteur :**
+  - de −6 à +6 demi-tons, sans changer le tempo ;
+  - la vidéo garde les accords d'origine, ce qu'un rappel signale.
+- **Mixeur :**
+  - une tranche par piste (Clic, Guide voix, Guitare, Basse, Piano, Batterie, Accompagnement, Back Vocals),
+    chacune avec un fader (de −∞ à +6 dB), **M** (couper) et **S** (solo) ;
+  - avec un solo actif, seules les pistes en solo sont jouées, et une piste coupée reste coupée même en solo ;
+  - le **Master** règle le volume général.
+- **Mémorisé par morceau :** le mix, le tempo, la hauteur et la boucle (qui se rouvre désactivée). La première
+  fois, le morceau s'ouvre comme au spectacle : les parties « Retirer » à zéro, le reste à 0 dB.
+- **Exporter le mix… :** tout le morceau, **tel que tu l'entends** (mix, tempo, hauteur ; la boucle est
+  ignorée), avec deux choix :
+
+  | Contenu | Formats et qualité |
+  |---|---|
+  | **Master seul** | AAC (.m4a) ou MP3 en 128, 192, 256 ou 320 kbps ; WAV ou FLAC en 16 ou 24 bits |
+  | **Vidéo + master** | MP4 en 1080p ou 720p, qualité Haute ou Standard, son AAC de 128 à 320 kbps |
+
+  Les derniers choix sont gardés. Une barre suit la progression ; « Annuler » ne laisse aucun fichier.
+
+---
+
 ## 8. Ce que produit l'analyse
 
 Pour chaque morceau, un dossier `sortie/<id>_<artiste>_<titre>/` contient :

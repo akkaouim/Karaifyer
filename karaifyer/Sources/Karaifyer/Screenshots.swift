@@ -32,6 +32,13 @@ import WebKit
         }
         render(SettingsView(), CGSize(width: 700, height: 230), dir, "04-reglages.png")
 
+        let p = PlayerModel.shared
+        p.selectedID = "042"
+        p.load("042")
+        p.seek(31)
+        render(PlayerView(model: p), CGSize(width: 1500, height: 900), dir, "08-lecteur.png")
+        p.stopEverything()
+
         let q = QueueModel.shared
         if let csv = Bundle.main.url(forResource: "karaoke", withExtension: "csv") ?? fixtureCSV() { try? q.load(url: csv) }
         render(QueueView(model: q), CGSize(width: 1250, height: 700), dir, "05-enregistrement.png")

@@ -84,6 +84,21 @@ struct PlayerView: View {
     // MARK: transport, loop, tempo, pitch, export
 
     var controls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            transportRow
+            HStack(spacing: 10) {
+                tempo
+                Divider().frame(height: 18)
+                pitch
+                Spacer()
+                Button("Exporter le mix…") { ExportUI.shared.shown = true }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .disabled(model.loaded == nil)
+    }
+
+    var transportRow: some View {
         HStack(spacing: 10) {
             Button("Début", systemImage: "backward.end.fill") { model.restart() }.labelStyle(.iconOnly)
             Button(model.isPlaying ? "Pause" : "Lecture", systemImage: model.isPlaying ? "pause.fill" : "play.fill") {
@@ -98,29 +113,23 @@ struct PlayerView: View {
                 .toggleStyle(.button)
                 .disabled(model.loopRange == nil)
             Button("Effacer") { model.clearLoop() }.disabled(model.loopRange == nil)
-            Divider().frame(height: 18)
-            tempo
-            Divider().frame(height: 18)
-            pitch
             Spacer()
-            Button("Exporter le mix…") { ExportUI.shared.shown = true }
         }
-        .disabled(model.loaded == nil)
     }
 
     var tempo: some View {
         let song = model.songBPM
         let cur = model.settings.targetBPM ?? song ?? 0
         return HStack(spacing: 4) {
-            Text("Tempo :")
+            Text("Tempo :").fixedSize()
             Button("−") { model.setBPM(cur - 1) }
             CommitField(value: song == nil ? "—" : String(Int(cur.rounded())), enabled: song != nil) {
                 model.setBPM(Double($0.replacingOccurrences(of: ",", with: ".")))
             }
             .frame(width: 40)
             Button("+") { model.setBPM(cur + 1) }
-            Text("BPM")
-            Button("Original (\(Int((song ?? 0).rounded())))") { model.setBPM(nil) }
+            Text("BPM").fixedSize()
+            Button("Original (\(Int((song ?? 0).rounded())))") { model.setBPM(nil) }.fixedSize()
         }
         .disabled(song == nil)
     }
@@ -128,7 +137,7 @@ struct PlayerView: View {
     var pitch: some View {
         let n = model.settings.semitones
         return HStack(spacing: 4) {
-            Text("Hauteur :")
+            Text("Hauteur :").fixedSize()
             Button("−") { model.setSemitones(n - 1) }
             Text(n == 0 ? "0" : String(format: "%+d", n)).monospacedDigit().frame(width: 28)
             Button("+") { model.setSemitones(n + 1) }

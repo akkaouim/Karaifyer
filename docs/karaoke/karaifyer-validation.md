@@ -27,3 +27,11 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 21 | Marker column: spinner on the song being processed (pause symbol while paused), clock on the waiting ones, check/cross when finished; nothing on songs outside the run | |
 | 22 | Hover the Statut cell of an « alerte » song: the reasons are listed; hover a dot: the step's name, what it does, its state and any error | |
 | 23 | Video: in an instrumental break of a bar or more the chord row appears (current bar yellow) instead of a frozen lit line; the grey next-line preview shows its chords above it | |
+| 24 | Lecteur: a single click only selects; double-click, « Charger » or Return loads; the loaded song shows ▶︎; non-ready songs are greyed out with the reason | |
+| 25 | Lecteur: video and voice stay in sync over a whole song; ⏮ goes back to the start; dragging the position bar jumps video and audio together | |
+| 26 | Lecteur: faders, M and S are heard at once (solo isolates, mute wins over solo); Master changes the overall level | |
+| 27 | Lecteur: a bar-snapped loop repeats with no gap; « Boucle » and « Effacer » work | |
+| 28 | Lecteur: changing the BPM changes speed without changing pitch, video and click follow; transposing changes pitch without changing tempo, the reminder shows | |
+| 29 | Lecteur: the mix, tempo, pitch and loop come back after reopening the song and after restarting the app | |
+| 30 | Lecteur: double-click on the video goes full screen, double-click or Escape exits; Space plays/pauses but types a space in the search field | |
+| 31 | Export: « Master seul » in AAC, MP3, WAV and FLAC sounds like the player's mix (incl. a muted part, tempo, pitch); « Vidéo + master » MP4 stays in sync at a changed tempo; « Annuler » leaves no file; the sheet remembers the choices | |
