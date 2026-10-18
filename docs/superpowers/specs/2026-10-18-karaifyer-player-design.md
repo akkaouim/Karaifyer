@@ -22,7 +22,7 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
 | Initial levels | First time: **like the show**: parts in `retirer` at zero, everything else at 0 dB (click and guide vocal included). Afterwards: **the last mix Michel left for that song**. |
 | Tempo | Shown and set in **BPM**: the song's **typical tempo**, i.e. the median beat interval measured by the pipeline after the beat cleanup (robust to free intros and final slowdowns; for drifting songs, their typical tempo). Rate = target BPM / song BPM, with pitch preserved. Range: from 0.5 × to 1.5 × the song's BPM. |
 | Pitch | −6…+6 semitones, tempo preserved. |
-| Export | « Exporter le mix… »: **Vidéo + master** (`.mp4`, H.264 video + AAC 256 kbps) or **Master seul** (`.m4a`, AAC 256 kbps). The whole song, rendered exactly as heard (faders, mutes, solos, master, tempo, pitch), offline and faster than real time. |
+| Export | « Exporter le mix… »: **Vidéo + master** (`.mp4`, H.264) or **Master seul** (AAC, MP3, WAV or FLAC), with a **format and quality chosen by Michel** and remembered. The whole song, rendered exactly as heard (faders, mutes, solos, master, tempo, pitch): offline to a 24-bit WAV, then encoded with **ffmpeg** (already required). |
 | Out of scope | Waveforms, transposed chord names in the video (the video keeps the original chords; a reminder is shown when transposed), exporting only the loop. |
 
 ## 1. Layout
@@ -68,18 +68,33 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - **Master** has a fader only (same range); it drives the player's overall volume.
 
 **Export**
-- An « Exporter le mix… » button opens a choice: **Vidéo + master** or **Master seul (audio)**, then a save dialog.
-  The default name is `<id> <Titre> – mix.mp4` (or `.m4a`), and the default folder is the song's output folder.
+- An « Exporter le mix… » button opens a sheet: **Vidéo + master** or **Master seul (audio)**, the format and
+  quality options below, then a save dialog. The sheet remembers the last choices (`UserDefaults`, key
+  `playerExport`).
+
+  | Kind | Format | Quality options (default in bold) |
+  |---|---|---|
+  | Master seul | **AAC (`.m4a`)** | 128 / 192 / **256** / 320 kbps |
+  | Master seul | MP3 (`.mp3`) | 128 / 192 / 256 / 320 kbps (default **256**) |
+  | Master seul | WAV (`.wav`) | 16 / **24** bits, 44.1 kHz |
+  | Master seul | FLAC (`.flac`) | 16 / **24** bits, 44.1 kHz |
+  | Vidéo + master | **MP4 (`.mp4`)**, H.264 | resolution **1080p** / 720p; video quality **Haute** (CRF 18) / Standard (CRF 23); sound AAC 128 / 192 / **256** / 320 kbps |
+
+- The default name is `<id> <Titre> – mix.<ext>`, and the default folder is the song's output folder.
 - **What is exported:** the whole song (the loop is ignored), with the current faders, mutes, solos, master,
   tempo and pitch.
-- **Audio:** the same engine graph in **offline manual-rendering mode** (`AVAudioEngine.enableManualRenderingMode`,
-  `.offline`), written as AAC 256 kbps. With a changed tempo, the audio is shorter or longer accordingly.
-- **Video + master:** an `AVMutableComposition` holds the video track of `paroles.mp4`, time-scaled by
-  1 / rate (`scaleTimeRange`) so it matches the rendered audio, plus the rendered audio track. It is exported
-  with `AVAssetExportSession` (H.264 + AAC) to `.mp4`.
-- **During the export:** playback pauses; a sheet shows a progress bar and a « Annuler » button that deletes any
-  partial file. When it's done, « Exporté : <nom> » appears, with a « Afficher dans le Finder » button.
-- **Errors** (disk full, unreadable file) are shown in the sheet, and no partial file is left.
+- **Rendering:** the engine graph runs in **offline manual-rendering mode** (`AVAudioEngine.enableManualRenderingMode`,
+  `.offline`) to a temporary 24-bit 44.1 kHz WAV. With a changed tempo, the audio is shorter or longer accordingly.
+- **Encoding (ffmpeg):**
+  - AAC: `-c:a aac -b:a <k>`; MP3: `-c:a libmp3lame -b:a <k>`; WAV: `-c:a pcm_s16le|pcm_s24le`;
+    FLAC: `-c:a flac -sample_fmt s16|s32`, with `-bits_per_raw_sample 24` for 24 bits;
+  - video + master: `paroles.mp4` time-scaled with `setpts=PTS/<rate>`, scaled to the chosen height, and encoded
+    `libx264 -crf <18|23> -pix_fmt yuv420p`, plus the rendered audio as AAC, `-shortest`, into `.mp4`.
+- **During the export:** playback pauses; a sheet shows a progress bar (rendering, then encoding from ffmpeg's
+  `-progress` output) and an « Annuler » button that stops ffmpeg and deletes any partial file. When it's done,
+  « Exporté : <nom> » appears, with « Afficher dans le Finder ».
+- **Errors** (disk full, unreadable file, ffmpeg missing or failing) are shown in the sheet with ffmpeg's last
+  message, and no partial file is left.
 
 **Keyboard:** **Space** plays or pauses everything, except while the search field is being edited (there it types a space).
 
@@ -132,15 +147,16 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - search matching;
   - tempo: BPM ↔ rate and clamping; pitch: semitones ↔ cents and clamping;
   - loop: bar snapping, start/end ordering, the position after a loop wrap;
-  - export: default file names, and the exported duration for a given tempo (song length / rate).
+  - export: default file names, the exported duration for a given tempo (song length / rate), and the ffmpeg
+    arguments built for each format and quality (`ExportOptions` → arguments).
 - `Karaifyer/PlayerEngine.swift`: the `AVAudioEngine` graph, scheduling from a frame (play, seek, loop), the
   current song-time position, rate and pitch.
 - `Karaifyer/PlayerModel.swift`:
   - the silent video `AVPlayer` and its re-anchoring to the engine;
   - play/pause/restart/seek, loop handling, tempo and pitch;
   - loading and saving each song's settings.
-- `Karaifyer/PlayerExport.swift`: offline rendering of the master to AAC, and the video + master composition
-  and export, with progress and cancellation.
+- `Karaifyer/PlayerExport.swift`: offline rendering to a temporary WAV, the ffmpeg encode for each format,
+  progress and cancellation.
 - `Karaifyer/PlayerView.swift`: the tab, the song list with search, `VideoView` (an `AVPlayerView` wrapper with double-click full screen), transport, and mixer columns.
 - `KaraifyerApp.swift`: the third tab, « Lecteur ».
 
@@ -154,6 +170,7 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - BPM ↔ rate, both ends of the range, and a song without a BPM;
   - pitch clamping; loop snapping to the nearest bar line, swapped start/end, and no bars;
   - export file names (accents, « / » in titles) and the duration at a given tempo;
+  - the ffmpeg arguments for every format/quality combination, and the remembered choices round-trip;
   - persistence round-trip, and a missing or corrupt entry falling back to the defaults;
   - readiness listing the exact missing files;
   - search being accent- and case-insensitive.
@@ -168,8 +185,8 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - a bar-snapped loop repeats with no gap, and « Boucle » / « Effacer » work;
   - changing the BPM changes the speed without changing the pitch, and video and click stay in sync with the audio;
   - transposing changes the pitch without changing the tempo, and the reminder appears;
-  - export « Master seul » gives an `.m4a` that sounds like the player's mix (including a muted part, a changed
-    tempo and a transposition);
-  - export « Vidéo + master » gives an `.mp4` whose lyrics stay in sync at a changed tempo; « Annuler » leaves no
-    file;
+  - export « Master seul » in each format (AAC, MP3, WAV, FLAC) gives a file that sounds like the player's mix
+    (including a muted part, a changed tempo and a transposition), at the chosen quality;
+  - export « Vidéo + master » gives an `.mp4` at the chosen resolution whose lyrics stay in sync at a changed
+    tempo; « Annuler » leaves no file; the sheet reopens with the last choices;
   - output follows the system's selected device.
