@@ -229,7 +229,3 @@ final class EscWindow: NSWindow {
         MainActor.assumeIsolated { FullScreenVideo.window = nil }
     }
 }
-
-// Temporary stubs, replaced in Task 8.
-@Observable final class ExportUI { static let shared = ExportUI(); var shown = false }
-struct ExportSheet: View { let player: PlayerModel; var body: some View { Text("Export") } }
