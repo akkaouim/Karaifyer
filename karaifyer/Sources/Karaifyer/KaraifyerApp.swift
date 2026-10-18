@@ -20,13 +20,13 @@ struct KaraifyerApp: App {
         }
 
         Window("Karaifyer", id: "queue") {
-            TabView {
+            TabView(selection: Bindable(AppTabs.shared).selected) {
                 QueueView(model: model)
-                    .tabItem { Label("Enregistrement", systemImage: "record.circle") }
+                    .tabItem { Label("Enregistrement", systemImage: "record.circle") }.tag(AppTabs.Tab.enregistrement)
                 KaraokeView(model: KaraokeModel.shared)
-                    .tabItem { Label("Karaoké", systemImage: "music.mic") }
+                    .tabItem { Label("Karaoké", systemImage: "music.mic") }.tag(AppTabs.Tab.karaoke)
                 PlayerView(model: PlayerModel.shared)
-                    .tabItem { Label("Lecteur", systemImage: "play.rectangle") }
+                    .tabItem { Label("Lecteur", systemImage: "play.rectangle") }.tag(AppTabs.Tab.lecteur)
             }
             .onAppear { delegate.model = model }
             .background(WindowOpener())

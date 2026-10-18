@@ -141,6 +141,8 @@ struct KaraokeView: View {
             if let id = ids.first, let s = model.songs.first(where: { $0.id == id }) {
                 Button("Ouvrir le dossier") { open(s.paths.dossier) }
                 Button("Ouvrir la vidéo") { open(s.paths.video) }
+                Button("Ouvrir dans le Lecteur") { PlayerModel.shared.openInPlayer(s.id) }
+                    .disabled(!PlayerModel.shared.missing(for: s).isEmpty)
                 Button("Ouvrir le set Ableton") { open(s.paths.set) }
                 Button("Ouvrir la grille d'accords") { open(s.paths.accords) }
                 Button("Voir le journal") { open(model.pipeline.karaokeHome + "/travail/\(s.id)/journal.log") }

@@ -107,6 +107,7 @@ ligne est marquée ✗ « capture défectueuse » et aucun fichier abîmé n'est
 
 **Clic droit sur un morceau**
 - Ouvrir le dossier, la vidéo, le set Ableton, la grille d'accords ou le journal.
+- **Ouvrir dans le Lecteur** : charge le morceau dans l'onglet Lecteur et y bascule (morceau prêt uniquement).
 - **Corriger paroles et accords…** (section 7).
 - **Changer de Set List…** : la Set List range le set Ableton du morceau dans le bon dossier de la soirée.
 - **Refaire le morceau**, ou **Refaire une étape** ▸.

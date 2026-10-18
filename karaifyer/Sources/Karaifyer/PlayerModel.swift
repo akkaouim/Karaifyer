@@ -5,6 +5,14 @@ import Observation
 
 /// The Lecteur tab: one loaded song, its audio engine, a silent video slaved to the engine, and the song's
 /// saved settings (mix, tempo, pitch, loop points).
+/// The main window's tab, so another tab can switch to the Lecteur (« Ouvrir dans le Lecteur »).
+@MainActor @Observable
+final class AppTabs {
+    static let shared = AppTabs()
+    enum Tab: Hashable { case enregistrement, karaoke, lecteur }
+    var selected = Tab.enregistrement
+}
+
 @MainActor @Observable
 final class PlayerModel {
     static let shared = PlayerModel()
@@ -57,6 +65,13 @@ final class PlayerModel {
         } catch {
             self.error = "Lecture impossible : \(error.localizedDescription)"
         }
+    }
+
+    /// From the Karaoké tab's menu: load the song and show the Lecteur.
+    func openInPlayer(_ id: String) {
+        selectedID = id
+        load(id)
+        AppTabs.shared.selected = .lecteur
     }
 
     private func key(_ id: String) -> String { "playerMix.\(id)" }

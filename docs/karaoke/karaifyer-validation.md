@@ -28,6 +28,7 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 22 | Hover the Statut cell of an « alerte » song: the reasons are listed; hover a dot: the step's name, what it does, its state and any error | |
 | 23 | Video: in an instrumental break of a bar or more the chord row appears (current bar yellow) instead of a frozen lit line; the grey next-line preview shows its chords above it | |
 | 24 | Lecteur: a single click only selects; double-click, « Charger » or Return loads; the loaded song shows ▶︎; non-ready songs are greyed out with the reason | |
+| 24 bis | Karaoké: right-click a ready song → « Ouvrir dans le Lecteur » switches to the Lecteur with that song loaded (▶︎); greyed out for a song that isn't ready | |
 | 25 | Lecteur: video and voice stay in sync over a whole song; ⏮ goes back to the start; dragging the position bar jumps video and audio together | |
 | 26 | Lecteur: faders, M and S are heard at once (solo isolates, mute wins over solo); Master changes the overall level | |
 | 27 | Lecteur: a bar-snapped loop repeats with no gap; « Boucle » and « Effacer » work | |
