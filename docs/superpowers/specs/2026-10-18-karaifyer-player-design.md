@@ -32,7 +32,12 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
 - The list of songs: `id · Titre — Artiste`, in manifest order.
   - **Ready** songs are selectable: their `paroles.mp4` and all 8 `.flac` files exist in the song folder.
   - Songs that are not ready are greyed out and not selectable; hovering one says what is missing.
-- Clicking a ready song loads it into the player. This replaces any song already loaded and stops playback.
+- **Loading is deliberate**, so a loaded song (and its mix, loop and tempo) is never replaced by accident:
+  - a single click only **selects** a song (highlighted) and changes nothing in the player;
+  - **double-click** a ready song, or select it and click **« Charger »** (or press Return), to load it. This
+    replaces the song already loaded and stops its playback;
+  - the **loaded** song is marked with ▶︎ in the list, distinct from the selection;
+  - searching or scrolling never affects the loaded song.
 
 **Top right: the video**
 - `paroles.mp4`, as large as the area allows, in an `AVPlayerView` with no built-in controls.
@@ -180,6 +185,7 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - the mix is restored after reopening the song and after restarting the app;
   - double-click enters and leaves full screen, and Escape leaves it;
   - Space plays and pauses, but types a space in the search field;
+  - a single click only selects; double-click, « Charger » or Return loads; the loaded song shows ▶︎;
   - ⏮ goes back to the start;
   - dragging the position bar jumps video and audio together;
   - a bar-snapped loop repeats with no gap, and « Boucle » / « Effacer » work;
