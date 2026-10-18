@@ -161,14 +161,11 @@ struct MenuContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        if let row = model.currentRow {
-            Text("Row \(row.number) · \(timecode(model.positionSec)) / \(timecode(model.durationSec))")
-            Text(model.states[row.index]?.note ?? row.title)
-        } else if let banner = model.banner {
-            Text(banner)
-        }
         let c = model.counts
-        Text("\(c.done)/\(c.total) done" + (c.failed > 0 ? " · \(c.failed) failed" : ""))
+        let row = model.currentRow
+        ForEach(MenuStatus.lines(row: row?.number, title: row.map { model.states[$0.index]?.note ?? $0.title },
+                                 durationS: model.durationSec, banner: model.banner,
+                                 done: c.done, total: c.total, failed: c.failed), id: \.self) { Text($0) }
         let k = KaraokeModel.shared
         if k.runState != .idle {
             Divider()

@@ -79,3 +79,15 @@ struct StepAlertTests {
         #expect(!StepState(name: "lyrics", status: "echec", seconds: nil, error: "boom", alert: "x").warned)   // failure wins: red
     }
 }
+
+struct MenuStatusTests {
+    // A menu line that changes every second while the menu is open leaves macOS 26's highlight stale
+    @Test func statusLinesDoNotTickAndAlwaysNumberTwo() {
+        let a = MenuStatus.lines(row: "1", title: "Zazie – Je Suis Un Homme", durationS: 222, banner: nil, done: 0, total: 7, failed: 0)
+        #expect(a == ["Ligne 1 · Zazie – Je Suis Un Homme (3:42)", "0/7 faites"])
+        let idle = MenuStatus.lines(row: nil, title: nil, durationS: 0, banner: nil, done: 7, total: 7, failed: 1)
+        #expect(idle == ["Aucun enregistrement en cours", "7/7 faites · 1 échec"])
+        let b = MenuStatus.lines(row: nil, title: nil, durationS: 0, banner: "Finished", done: 7, total: 7, failed: 0)
+        #expect(b.count == 2 && b[0] == "Finished")
+    }
+}
