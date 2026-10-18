@@ -201,6 +201,10 @@ struct VideoView: NSViewRepresentable {
 }
 
 final class DoubleClickPlayerView: AVPlayerView {
+    /// AVPlayerView's inner views swallow clicks: take every click in the frame here.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        frame.contains(point) ? self : nil
+    }
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2, let p = player {
             MainActor.assumeIsolated { FullScreenVideo.toggle(player: p, screen: window?.screen) }
