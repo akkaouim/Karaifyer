@@ -50,6 +50,7 @@ public struct SongState: Codable, Equatable, Identifiable, Sendable {
     public var steps: [StepState]
     public var paths: SongPaths
     public var padS: Double?
+    public var bpm: Double?            // typical (median) tempo, for the player
     public var beatsPerBar: Int?
     public var key: String?
     public var bars: [BarInfo]

@@ -78,3 +78,11 @@ def test_each_alert_is_attached_to_the_step_it_questions(cfg):
     assert st["lyrics"] == "paroles transcrites automatiquement : à relire"
     assert st["package"] == "dérive du clic 44 ms" and st["ingest"] == "écart de durée +3.2 s"
     assert st["video"] == "" and st["separate"] == ""
+
+
+def test_song_state_includes_the_typical_bpm(cfg):
+    s = song()
+    ws = Workspace(cfg, s)
+    ws.write_marker("package", {"result": {"pad_s": 1.0, "bpm": 100.4}})
+    assert song_state(cfg, s, steps({}))["bpm"] == 100.4
+    assert song_state(cfg, song(id="002"), steps({}))["bpm"] is None

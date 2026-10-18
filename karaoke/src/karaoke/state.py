@@ -45,5 +45,5 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
                       "audio": str(ws.work / "input.wav"),
                       "lrc_corrige": str(cfg.paroles / f"{s.id}.lrc"),
                       "accords_corrige": str(cfg.accords / f"{s.id}.txt")},
-            "pad_s": pkg.get("pad_s"), "beats_per_bar": ch.get("beats_per_bar"), "key": ch.get("key"),
+            "pad_s": pkg.get("pad_s"), "bpm": pkg.get("bpm"), "beats_per_bar": ch.get("beats_per_bar"), "key": ch.get("key"),
             "bars": ch.get("bars", [])}

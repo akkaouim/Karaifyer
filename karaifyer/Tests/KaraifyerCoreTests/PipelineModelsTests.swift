@@ -28,6 +28,12 @@ struct PipelineModelsTests {
         #expect(s.padS == nil && s.key == nil)
     }
 
+    @Test func decodesBPM() throws {
+        let raw = etat.replacingOccurrences(of: "\"pad_s\":2.5,", with: "\"pad_s\":2.5,\"bpm\":100.4,")
+        #expect(try SongState.decodeList(Data(raw.utf8))[0].bpm == 100.4)
+        #expect(try SongState.decodeList(Data(etat.utf8))[0].bpm == nil)
+    }
+
     @Test func parsesEvents() {
         #expect(PipelineEvent.parse(#"{"event":"song_start","id":"005"}"#) == .songStart(id: "005"))
         #expect(PipelineEvent.parse(#"{"event":"step_end","id":"005","step":"beats","status":"fait","seconds":4.5,"error":""}"#)
