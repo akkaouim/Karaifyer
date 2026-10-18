@@ -42,10 +42,10 @@ public enum ChordGrid {
 
     /// accords.txt layout (karaoke/steps/chords.py), read back by the pipeline's parse_chart.
     public static func chartText(title: String, artist: String, key: String, bpm: Int?, beatsPerBar: Int,
-                                 cells: [String]) -> String {
+                                 cells: [String], signature: String? = nil) -> String {
         var head = "\(title) — \(artist)\nTonalité : \(key)"
         if let bpm { head += " · \(bpm) BPM" }
-        head += " · \(beatsPerBar)/4\n\n"
+        head += " · \(signature ?? "\(beatsPerBar)/4")\n\n"
         let rows = stride(from: 0, to: cells.count, by: 4).map {
             "| " + cells[$0..<min($0 + 4, cells.count)].joined(separator: " | ") + " |"
         }

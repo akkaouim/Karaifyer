@@ -39,6 +39,17 @@ public struct StepState: Codable, Equatable, Sendable {
 
 public struct SongPaths: Codable, Equatable, Sendable {
     public var dossier, video, set, accords, lrc, audio, lrcCorrige, accordsCorrige: String
+    public var mesuresCorrige: String?   // mesures/<id>.json (bar-grid fix); absent in older etat output
+}
+
+/// The beat grid as the editor needs it (beats step result): beats and bar lines before Michel's fix.
+public struct GridInfo: Codable, Equatable, Sendable {
+    public var beats: [Double]
+    public var downbeatsDetectees: [Double]
+    public var beatsPerBarDetecte: Int
+    public var bpm: Double
+    public var signature: String?
+    public var swing: Bool
 }
 
 /// One manifest row plus its pipeline state, as printed by `karaoke etat --json`.
@@ -54,6 +65,7 @@ public struct SongState: Codable, Equatable, Identifiable, Sendable {
     public var beatsPerBar: Int?
     public var key: String?
     public var bars: [BarInfo]
+    public var grid: GridInfo?
 
     public static func decodeList(_ data: Data) throws -> [SongState] {
         let d = JSONDecoder()

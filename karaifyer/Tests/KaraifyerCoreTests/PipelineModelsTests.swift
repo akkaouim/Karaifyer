@@ -42,4 +42,10 @@ struct PipelineModelsTests {
         #expect(PipelineEvent.parse(#"{"event":"song_end","id":"005","statut":"alerte"}"#) == .songEnd(id: "005", statut: "alerte"))
         #expect(PipelineEvent.parse("Traceback (most recent call last):") == nil)
     }
+
+    @Test func decodesTheGrid() throws {
+        let json = #"[{"id":"001","titre":"T","artiste":"A","album":"","fichier":"f","langue":"fr","partie":"","statut":"ok","retirer":[],"decompte_mesures":1,"steps":[],"paths":{"dossier":"d","video":"v","set":"s","accords":"a","lrc":"l","audio":"au","lrc_corrige":"lc","accords_corrige":"ac","mesures_corrige":"mc"},"bars":[],"grid":{"beats":[0,0.5],"downbeats_detectees":[0],"beats_per_bar_detecte":4,"bpm":120,"signature":"3/4","swing":true}}]"#
+        let s = try SongState.decodeList(Data(json.utf8))[0]
+        #expect(s.grid?.beats == [0, 0.5] && s.grid?.signature == "3/4" && s.grid?.swing == true && s.paths.mesuresCorrige == "mc")
+    }
 }
