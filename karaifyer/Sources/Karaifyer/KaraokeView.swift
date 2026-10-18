@@ -40,6 +40,12 @@ struct KaraokeView: View {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             Text(text)
             Spacer()
+            if !model.pipeline.homeExists && model.pipeline.uvPath != nil {
+                Button("Créer le dossier karaoké ici") { Task { await model.createWorkspace(at: model.pipeline.karaokeHome) } }
+                Button("Choisir un autre emplacement…") {
+                    pickFolder { url in Task { await model.createWorkspace(at: url.appendingPathComponent("Karaoke").path) } }
+                }
+            }
             if !model.pipeline.manifestExists && model.pipeline.problems().isEmpty {
                 Button("Créer le manifeste depuis un dossier SysRec…") {
                     pickFolder { url in Task { await model.createManifest(from: url) } }

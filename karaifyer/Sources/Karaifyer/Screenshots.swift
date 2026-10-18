@@ -43,7 +43,8 @@ import WebKit
     }
 
     static func fixtureCSV() -> URL? {
-        let u = URL(fileURLWithPath: NSHomeDirectory() + "/Documents/mp3-pipeline/karaifyer/Tests/KaraifyerCoreTests/Fixtures/karaoke.csv")
+        let u = URL(fileURLWithPath: Pipeline().projectDir).deletingLastPathComponent()
+            .appendingPathComponent("karaifyer/Tests/KaraifyerCoreTests/Fixtures/karaoke.csv")
         return FileManager.default.fileExists(atPath: u.path) ? u : nil
     }
 

@@ -126,6 +126,24 @@ def modifier(id: str = typer.Option(..., help="Id du morceau"), champ: str = typ
 
 
 @app.command()
+def init(home: Path = typer.Option(None, "--home", help="Dossier karaoké à créer (défaut : KARAOKE_HOME ou ~/Karaoke)")) -> None:
+    """Crée le dossier karaoké : arborescence, manifeste vide, gabarit Ableton par défaut (rien n'est écrasé)."""
+    import shutil
+    cfg = Config(home=home) if home else Config.load()
+    cfg.ensure_dirs()
+    created = []
+    if not cfg.manifest.exists():
+        write_manifest(cfg.manifest, [])
+        created.append(str(cfg.manifest))
+    tpl = cfg.home / "gabarit" / "gabarit Project" / "gabarit.als"
+    if not tpl.exists():
+        tpl.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(Path(__file__).parent / "ableton" / "templates" / "gabarit.als", tpl)
+        created.append(str(tpl))
+    typer.echo(json.dumps({"home": str(cfg.home), "created": created}, ensure_ascii=False))
+
+
+@app.command()
 def rapport() -> None:
     """Reconstruit le rapport global depuis les rapport.json existants."""
     cfg = Config.load()

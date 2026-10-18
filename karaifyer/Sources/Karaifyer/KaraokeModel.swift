@@ -103,6 +103,15 @@ final class KaraokeModel: RunDriver {
         }
     }
 
+    /// First launch on a new Mac: create the karaoke folder (tree, empty manifest, default Ableton
+    /// template) with `karaoke init`, and remember it.
+    func createWorkspace(at path: String) async {
+        let r = await pipeline.run(["init", "--home", path])
+        appendLog(r.code == 0 ? "Dossier karaoké créé : \(path)" : "Création impossible : \(r.err)")
+        if r.code == 0 { UserDefaults.standard.set(path, forKey: "karaokeHome") }
+        await refresh()
+    }
+
     func createManifest(from folder: URL) async {
         let r = await pipeline.run(["manifeste", "--audio", folder.path])
         appendLog(r.out + r.err)

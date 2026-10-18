@@ -3,12 +3,18 @@ import KaraifyerCore
 
 /// Settings + how to call the karaoke command line (uv run --project <karaoke> karaoke …).
 struct Pipeline {
-    var karaokeHome: String { UserDefaults.standard.string(forKey: "karaokeHome") ?? "/Volumes/Hypermnesia/karaoke" }
+    var karaokeHome: String {
+        KaraokePaths.home(saved: UserDefaults.standard.string(forKey: "karaokeHome"),
+                          legacyExists: FileManager.default.fileExists(atPath: KaraokePaths.legacyHome),
+                          userHome: NSHomeDirectory())
+    }
     var gabarit: String {
         UserDefaults.standard.string(forKey: "gabarit") ?? karaokeHome + "/gabarit/gabarit Project/gabarit.als"
     }
     var projectDir: String {
-        UserDefaults.standard.string(forKey: "projectDir") ?? NSHomeDirectory() + "/Documents/mp3-pipeline/karaoke"
+        KaraokePaths.project(saved: UserDefaults.standard.string(forKey: "projectDir"),
+                             bundled: Bundle.main.object(forInfoDictionaryKey: "KaraokeProjectDir") as? String,
+                             userHome: NSHomeDirectory())
     }
     /// GUI apps don't get the shell PATH; ffmpeg and uv live in Homebrew's bin.
     static let searchPath = ["/opt/homebrew/bin", "/usr/local/bin", NSHomeDirectory() + "/.local/bin", "/usr/bin", "/bin"]
@@ -30,13 +36,21 @@ struct Pipeline {
         var p: [String] = []
         var isDir: ObjCBool = false
         if !FileManager.default.fileExists(atPath: karaokeHome, isDirectory: &isDir) || !isDir.boolValue {
-            p.append("Dossier karaoké introuvable : \(karaokeHome) (disque branché ?)")
+            p.append("Pas encore de dossier karaoké (\(karaokeHome))")
         }
-        if uvPath == nil { p.append("uv introuvable (installer uv ou vérifier /opt/homebrew/bin)") }
+        if uvPath == nil { p.append("uv introuvable : l'installer avec « brew install uv »") }
+        if !Self.searchPath.contains(where: { FileManager.default.isExecutableFile(atPath: $0 + "/ffmpeg") }) {
+            p.append("ffmpeg introuvable : l'installer avec « brew install ffmpeg »")
+        }
         if !FileManager.default.fileExists(atPath: projectDir + "/pyproject.toml") {
             p.append("Projet karaoke introuvable : \(projectDir) (Réglages)")
         }
         return p
+    }
+
+    var homeExists: Bool {
+        var isDir: ObjCBool = false
+        return FileManager.default.fileExists(atPath: karaokeHome, isDirectory: &isDir) && isDir.boolValue
     }
 
     var manifestExists: Bool { FileManager.default.fileExists(atPath: karaokeHome + "/manifeste.csv") }
