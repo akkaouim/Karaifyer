@@ -189,6 +189,9 @@ struct KaraokeView: View {
 struct CommitField: NSViewRepresentable {
     let value: String
     var enabled = true
+    /// Give up keyboard focus after a commit, so later changes from buttons show (a focused field ignores
+    /// outside updates) and Space goes back to the player. Off in tables, where focus must stay for the arrows.
+    var resignOnCommit = false
     let onCommit: (String) -> Void
 
     func makeNSView(context: Context) -> NSTextField {
@@ -206,6 +209,7 @@ struct CommitField: NSViewRepresentable {
         f.textColor = enabled ? .labelColor : .secondaryLabelColor
         context.coordinator.onCommit = onCommit
         context.coordinator.original = value
+        context.coordinator.resignOnCommit = resignOnCommit
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(onCommit: onCommit, original: value) }
@@ -213,6 +217,7 @@ struct CommitField: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextFieldDelegate {
         var onCommit: (String) -> Void
         var original: String
+        var resignOnCommit = false
         init(onCommit: @escaping (String) -> Void, original: String) { self.onCommit = onCommit; self.original = original }
         private var target: ((String) -> Void)?
         private var startValue = ""
@@ -226,8 +231,12 @@ struct CommitField: NSViewRepresentable {
             let commit = target ?? onCommit
             let before = target == nil ? original : startValue
             target = nil
-            guard f.stringValue != before else { return }
-            commit(f.stringValue)
+            if f.stringValue != before { commit(f.stringValue) }
+            guard resignOnCommit else { return }
+            DispatchQueue.main.async {
+                if f.currentEditor() != nil { f.window?.makeFirstResponder(nil) }
+                f.stringValue = self.original          // the committed value as the model kept it (clamped)
+            }
         }
     }
 }

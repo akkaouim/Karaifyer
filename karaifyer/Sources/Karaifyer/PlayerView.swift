@@ -123,7 +123,7 @@ struct PlayerView: View {
         return HStack(spacing: 4) {
             Text("Tempo :").fixedSize()
             Button("−") { model.setBPM(cur - 1) }
-            CommitField(value: song == nil ? "—" : String(Int(cur.rounded())), enabled: song != nil) {
+            CommitField(value: song == nil ? "—" : String(Int(cur.rounded())), enabled: song != nil, resignOnCommit: true) {
                 model.setBPM(Double($0.replacingOccurrences(of: ",", with: ".")))
             }
             .frame(width: 40)
