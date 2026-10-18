@@ -14,7 +14,10 @@ import whisperx
 def main(job_path: str, out_path: str) -> None:
     job = json.load(open(job_path))
     audio = whisperx.load_audio(job["audio"])          # 16 kHz mono float32
-    model, meta = whisperx.load_align_model(language_code=job["language"], device="cpu")
+    try:                                                # cached model first: works offline
+        model, meta = whisperx.load_align_model(language_code=job["language"], device="cpu", model_cache_only=True)
+    except Exception:
+        model, meta = whisperx.load_align_model(language_code=job["language"], device="cpu")
     # Collapse all whitespace (incl. non-breaking spaces) to " ", the only word separator
     # WhisperX uses, so our per-line word counts match its word segments.
     lines = [" ".join(l.split()) for l in job["lines"]]

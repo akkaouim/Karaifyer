@@ -12,12 +12,22 @@ import whisperx
 MODEL = "large-v3"
 
 
+def cached_first(load):
+    """Load from the local cache without asking the Hub (works offline); download only if not cached."""
+    try:
+        return load(True)
+    except Exception:
+        return load(False)
+
+
 def main(job_path: str, out_path: str) -> None:
     job = json.load(open(job_path))
     audio = whisperx.load_audio(job["audio"])
-    asr = whisperx.load_model(MODEL, device="cpu", compute_type="int8", language=job["language"])
+    asr = cached_first(lambda only: whisperx.load_model(MODEL, device="cpu", compute_type="int8",
+                                                        language=job["language"], local_files_only=only))
     result = asr.transcribe(audio, batch_size=8, language=job["language"])
-    align_model, meta = whisperx.load_align_model(language_code=job["language"], device="cpu")
+    align_model, meta = cached_first(lambda only: whisperx.load_align_model(
+        language_code=job["language"], device="cpu", model_cache_only=only))
     aligned = whisperx.align(result["segments"], align_model, meta, audio, "cpu", return_char_alignments=False)
     words = [{"w": w.get("word", "").strip(), "s": w.get("start"), "e": w.get("end")}
              for w in aligned.get("word_segments", []) if w.get("word", "").strip()]
