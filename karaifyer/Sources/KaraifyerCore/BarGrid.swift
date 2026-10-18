@@ -34,7 +34,9 @@ public enum BarGrid {
 
     public static func lines(beats: [Double], detected: [Double], fix: BarFix, detectedBPB: Int, bpm: Double) -> (lines: [Int], bpb: Int) {
         let n = beatsInBar(signature: fix.signature, detected: detectedBPB, bpm: bpm)
-        let det = Array(Set(detected.map { nearest(beats, $0) })).sorted()
+        // only detected lines that sit on a beat (to 1 ms, like barfix.on_beat / chords.bars_from)
+        let onBeat = Dictionary(beats.enumerated().map { (Int(($0.element * 1000).rounded()), $0.offset) }, uniquingKeysWith: { a, _ in a })
+        let det = Array(Set(detected.compactMap { onBeat[Int(($0 * 1000).rounded())] })).sorted()
         guard !beats.isEmpty else { return (det, n) }
         var anchors = Array(Set(fix.pins.map { nearest(beats, $0) })).sorted()
         if fix.signature != nil, let first = det.first, anchors.first.map({ $0 >= first + n }) ?? true {
@@ -47,6 +49,11 @@ public enum BarGrid {
             out += Array(stride(from: a, to: end, by: max(n, 1)))
         }
         return (out, n)
+    }
+
+    /// The grid as the editor computes it is the song's grid (same bar positions, 1 ms): else etat is stale.
+    public static func matches(starts: [Int], beats: [Double], bars: [Double]) -> Bool {
+        starts.count == bars.count && zip(starts, bars).allSatisfy { beats.indices.contains($0) && abs(beats[$0] - $1) < 0.001 }
     }
 
     public static func starts(_ lines: [Int]) -> [Int] { lines.first == 0 ? lines : [0] + lines }

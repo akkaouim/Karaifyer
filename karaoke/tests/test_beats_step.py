@@ -41,3 +41,39 @@ def test_beats_step_applies_the_fix_file_and_reuses_the_raw_detection(cfg, monke
     assert calls == ["beats"]                                            # raw beats.json reused
     assert r["downbeats"] == full[::3] and r["beats_per_bar"] == 3 and r["signature"] == "3/4" and r["swing"]
     assert r["downbeats_detectees"] == full[::4] and r["beats_per_bar_detecte"] == 4 and r["bpm"] == 120.0
+
+
+def test_beats_step_redetects_when_the_input_audio_changes(cfg, monkeypatch):
+    from karaoke.steps import beats as B
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    full = [round(0.5 * i, 4) for i in range(32)]
+    calls = []
+    def fake(tool, args, **kw):
+        calls.append(tool)
+        Path(args[3]).write_text(json.dumps({"beats": full, "downbeats": full[::4]}))
+    monkeypatch.setattr(B, "run_tool", fake)
+    ws = Workspace(cfg, song())
+    ws.work.mkdir(parents=True, exist_ok=True)
+    (ws.work / "input.wav").write_bytes(b"a" * 10)
+    B.BEATS.run(ws, {"ingest": {"duration_s": 16.0}})
+    B.BEATS.run(ws, {"ingest": {"duration_s": 16.0}})
+    assert calls == ["beats"]                            # same audio: reused
+    (ws.work / "input.wav").write_bytes(b"b" * 20)       # new mp3 / new trim → new input.wav
+    B.BEATS.run(ws, {"ingest": {"duration_s": 16.0}})
+    assert calls == ["beats", "beats"]
+
+
+def test_beats_step_keeps_only_downbeats_on_a_beat(cfg, monkeypatch):
+    from karaoke.steps import beats as B
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    full = [round(0.5 * i, 4) for i in range(32)]
+    def fake(tool, args, **kw):
+        Path(args[3]).write_text(json.dumps({"beats": full, "downbeats": [0.0, 2.0, 3.7, 4.0, 6.0]}))
+    monkeypatch.setattr(B, "run_tool", fake)
+    monkeypatch.setattr(B, "regularize", lambda b, d: (b, d, {}))   # as regularize can return them
+    ws = Workspace(cfg, song())
+    ws.work.mkdir(parents=True, exist_ok=True)
+    r = B.BEATS.run(ws, {"ingest": {"duration_s": 16.0}})
+    assert 3.7 not in r["downbeats_detectees"] and 3.7 not in r["downbeats"]

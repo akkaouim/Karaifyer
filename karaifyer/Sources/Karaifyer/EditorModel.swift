@@ -23,20 +23,24 @@ final class EditorModel {
     var selectedLine: UUID?
     var loadError: String?
     var pad: Double { song.padS ?? 0 }
-    var bpb: Int { gridAvailable ? detectedLines.bpb : (song.beatsPerBar ?? 4) }
+    var bpb: Int { gridAvailable ? gridBPB : (song.beatsPerBar ?? 4) }
 
     // MARK: bar grid (beats step + Michel's mesures/<id>.json fix, same rule as karaoke/barfix.py)
 
-    var fix = BarFix.empty
+    var fix = BarFix.empty { didSet { recomputeGrid() } }
     var gridDirty = false
     /// The grid is editable when etat gave the beats and they agree with the song's bars (stale data: read only).
     private(set) var gridAvailable = false
     var beats: [Double] { song.grid?.beats ?? [] }
-    private var detectedLines: (lines: [Int], bpb: Int) {
-        guard let g = song.grid else { return ([], song.beatsPerBar ?? 4) }
-        return BarGrid.lines(beats: g.beats, detected: g.downbeatsDetectees, fix: fix, detectedBPB: g.beatsPerBarDetecte, bpm: g.bpm)
+    /// The grid for the current fix, kept (not recomputed per cell and per redraw: playback redraws 20×/s).
+    private(set) var barLines: [Int] = []
+    private(set) var starts: [Int] = []
+    private var gridBPB = 4
+    private func recomputeGrid() {
+        guard let g = song.grid else { barLines = []; starts = []; gridBPB = song.beatsPerBar ?? 4; return }
+        let r = BarGrid.lines(beats: g.beats, detected: g.downbeatsDetectees, fix: fix, detectedBPB: g.beatsPerBarDetecte, bpm: g.bpm)
+        barLines = r.lines; starts = BarGrid.starts(r.lines); gridBPB = r.bpb
     }
-    var starts: [Int] { BarGrid.starts(detectedLines.lines) }
     func barStart(_ i: Int) -> Double { gridAvailable ? beats[starts[i]] : song.bars[i].start }
     func beatCount(_ i: Int) -> Int? {
         guard gridAvailable, i < starts.count else { return nil }
@@ -78,8 +82,7 @@ final class EditorModel {
     /// Re-render the click from the grid as it stands in the window; keeps it running in step with the recording.
     func rebuildClick() {
         guard gridAvailable, let p = player else { return }
-        let lines = Set(detectedLines.lines)
-        let data = ClickTrack.wav(ClickTrack.samples(beats: beats, accents: lines, duration: p.duration))
+        let data = ClickTrack.wav(ClickTrack.samples(beats: beats, accents: Set(barLines), duration: p.duration))
         clickPlayer?.stop()
         clickPlayer = try? AVAudioPlayer(data: data)
         clickPlayer?.prepareToPlay()
@@ -141,9 +144,9 @@ final class EditorModel {
             doc = LyricsDoc(lines: LRC.showTimeLines(t, pad: song.padS ?? 0))   // converts with the file's own decalage
         }
         fix = BarFix.decode(song.paths.mesuresCorrige.flatMap { fm.contents(atPath: $0) })
-        if let g = song.grid {
-            gridAvailable = BarGrid.starts(BarGrid.lines(beats: g.beats, detected: g.downbeatsDetectees, fix: fix,
-                                                         detectedBPB: g.beatsPerBarDetecte, bpm: g.bpm).lines).count == song.bars.count
+        recomputeGrid()                            // didSet doesn't run in init
+        if let g = song.grid {                     // same bar positions as the song's chords, else etat is stale
+            gridAvailable = BarGrid.matches(starts: starts, beats: g.beats, bars: song.bars.map(\.start))
         }
         cells = song.bars.map { ChordGrid.cellText($0.chords, beatsPerBar: bpb) }
         var problems: [String] = []

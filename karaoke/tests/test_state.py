@@ -108,3 +108,10 @@ def test_state_grid_falls_back_for_old_results(cfg):
     g = song_state(cfg, s, steps({}))["grid"]
     assert g["downbeats_detectees"] == beats[::4] and g["beats_per_bar_detecte"] == 4
     assert g["bpm"] == 120.0 and g["signature"] is None and g["swing"] is False
+
+
+def test_state_grid_drops_off_beat_downbeats_of_old_results(cfg):
+    s = song()
+    beats = [0.5 * i for i in range(16)]
+    Workspace(cfg, s).write_marker("beats", {"result": {"beats": beats, "downbeats": [0.0, 1.7, 2.0, 4.0]}})
+    assert song_state(cfg, s, steps({}))["grid"]["downbeats_detectees"] == [0.0, 2.0, 4.0]

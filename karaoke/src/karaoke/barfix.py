@@ -24,6 +24,13 @@ def load(path: Path) -> dict:
             "pins": [float(t) for t in d.get("pins", []) if isinstance(t, (int, float))]}
 
 
+def on_beat(beats: list[float], downbeats: list[float]) -> list[float]:
+    """Detected bar lines that sit on a beat (regularize can keep one whose beat it dropped); the others are
+    ignored, as chords.bars_from already ignored them, so Python and Karaifyer count the same bars."""
+    on = {round(b, 3) for b in beats}
+    return [d for d in downbeats if round(d, 3) in on]
+
+
 def beats_in_bar(signature: str | None, detected: int, bpm: float) -> int:
     if signature not in SIGNATURES:
         return detected

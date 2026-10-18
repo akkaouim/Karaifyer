@@ -23,15 +23,20 @@ def _fix_path(ws: Workspace):
 
 
 def _run(ws: Workspace, upstream: dict) -> dict:
-    out = ws.work / "beats.json"
-    if not out.exists():           # a fix-only change must not re-run the detection
+    out, seen = ws.work / "beats.json", ws.work / "beats.source.json"
+    # A fix-only change must not re-run the detection; new audio (new mp3, new trim) must.
+    src = ws.work / "input.wav"
+    stamp = json.dumps([src.stat().st_size, src.stat().st_mtime_ns] if src.exists() else None)
+    if not (out.exists() and seen.exists() and seen.read_text() == stamp):
         run_tool("beats", ["python", str(TOOLS_DIR / "beats" / "beats_tool.py"), str(ws.work / "input.wav"),
                            str(out), "--device", os.environ.get("KARAOKE_DEVICE", "mps")],
                  timeout=tool_timeout("beats", upstream["ingest"]["duration_s"]))
+        seen.write_text(stamp)
     data = json.loads(out.read_text())
     if len(data["beats"]) < 8:
         raise ValueError(f"trop peu de temps détectés ({len(data['beats'])})")
     beats, detected, info = regularize(data["beats"], data["downbeats"])
+    detected = barfix.on_beat(beats, detected)
     bpb, bpm = beats_per_bar(beats, detected), tempo_stats(beats)["bpm"]
     fix = barfix.load(_fix_path(ws))
     downbeats, n = barfix.apply_fix(beats, detected, fix, bpb, bpm)

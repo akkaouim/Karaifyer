@@ -38,8 +38,9 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
     bt = (ws.read_marker("beats") or {}).get("result") or {}
     grid = None
     if bt.get("beats"):            # results from before the fix file lack the *_detecte fields: derive them
+        from karaoke.barfix import on_beat
         from karaoke.grid import beats_per_bar, tempo_stats
-        det = bt.get("downbeats_detectees", bt.get("downbeats", []))
+        det = on_beat(bt["beats"], bt.get("downbeats_detectees", bt.get("downbeats", [])))
         grid = {"beats": bt["beats"], "downbeats_detectees": det,
                 "beats_per_bar_detecte": bt.get("beats_per_bar_detecte") or beats_per_bar(bt["beats"], det),
                 "bpm": bt.get("bpm") or tempo_stats(bt["beats"])["bpm"],

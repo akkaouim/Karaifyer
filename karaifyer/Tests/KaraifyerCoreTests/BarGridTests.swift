@@ -73,4 +73,15 @@ struct BarGridTests {
         #expect(BarFix.decode(Data("nope".utf8)) == .empty && BarFix.decode(nil) == .empty)
         #expect(BarFix.empty.isEmpty && !f.isEmpty)
     }
+
+    @Test func offBeatDetectedLinesAreIgnoredLikeThePipeline() {
+        let r = BarGrid.lines(beats: beats, detected: [0, 1.7, 2, 4], fix: .empty, detectedBPB: 4, bpm: 100)
+        #expect(r.lines == [0, 4, 8])
+    }
+
+    @Test func gridMatchesTheSongsBarsByPosition() {
+        #expect(BarGrid.matches(starts: [0, 4, 8], beats: beats, bars: [0, 2, 4.0004]))
+        #expect(!BarGrid.matches(starts: [0, 4, 8], beats: beats, bars: [0, 2.5, 4]))     // same count, moved line
+        #expect(!BarGrid.matches(starts: [0, 4], beats: beats, bars: [0, 2, 4]))
+    }
 }
