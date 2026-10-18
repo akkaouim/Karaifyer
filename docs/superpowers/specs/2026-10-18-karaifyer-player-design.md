@@ -22,7 +22,8 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
 | Initial levels | First time: **like the show**: parts in `retirer` at zero, everything else at 0 dB (click and guide vocal included). Afterwards: **the last mix Michel left for that song**. |
 | Tempo | Shown and set in **BPM**: the song's **typical tempo**, i.e. the median beat interval measured by the pipeline after the beat cleanup (robust to free intros and final slowdowns; for drifting songs, their typical tempo). Rate = target BPM / song BPM, with pitch preserved. Range: from 0.5 × to 1.5 × the song's BPM. |
 | Pitch | −6…+6 semitones, tempo preserved. |
-| Out of scope | Waveforms, exporting a mix, transposed chord names in the video (the video keeps the original chords; a reminder is shown when transposed). |
+| Export | « Exporter le mix… »: **Vidéo + master** (`.mp4`, H.264 video + AAC 256 kbps) or **Master seul** (`.m4a`, AAC 256 kbps). The whole song, rendered exactly as heard (faders, mutes, solos, master, tempo, pitch), offline and faster than real time. |
+| Out of scope | Waveforms, transposed chord names in the video (the video keeps the original chords; a reminder is shown when transposed), exporting only the loop. |
 
 ## 1. Layout
 
@@ -65,6 +66,20 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - Each track column has a vertical gain fader from −∞ to +6 dB, with the value shown (« −∞ », « −12 dB », « 0 dB », « +3 dB »).
   - Each track column has an **M** (mute) and an **S** (solo) toggle, lit when active.
   - **Master** has a fader only (same range); it drives the player's overall volume.
+
+**Export**
+- An « Exporter le mix… » button opens a choice: **Vidéo + master** or **Master seul (audio)**, then a save dialog.
+  The default name is `<id> <Titre> – mix.mp4` (or `.m4a`), and the default folder is the song's output folder.
+- **What is exported:** the whole song (the loop is ignored), with the current faders, mutes, solos, master,
+  tempo and pitch.
+- **Audio:** the same engine graph in **offline manual-rendering mode** (`AVAudioEngine.enableManualRenderingMode`,
+  `.offline`), written as AAC 256 kbps. With a changed tempo, the audio is shorter or longer accordingly.
+- **Video + master:** an `AVMutableComposition` holds the video track of `paroles.mp4`, time-scaled by
+  1 / rate (`scaleTimeRange`) so it matches the rendered audio, plus the rendered audio track. It is exported
+  with `AVAssetExportSession` (H.264 + AAC) to `.mp4`.
+- **During the export:** playback pauses; a sheet shows a progress bar and a « Annuler » button that deletes any
+  partial file. When it's done, « Exporté : <nom> » appears, with a « Afficher dans le Finder » button.
+- **Errors** (disk full, unreadable file) are shown in the sheet, and no partial file is left.
 
 **Keyboard:** **Space** plays or pauses everything, except while the search field is being edited (there it types a space).
 
@@ -116,13 +131,16 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - the readiness check (which files are missing);
   - search matching;
   - tempo: BPM ↔ rate and clamping; pitch: semitones ↔ cents and clamping;
-  - loop: bar snapping, start/end ordering, the position after a loop wrap.
+  - loop: bar snapping, start/end ordering, the position after a loop wrap;
+  - export: default file names, and the exported duration for a given tempo (song length / rate).
 - `Karaifyer/PlayerEngine.swift`: the `AVAudioEngine` graph, scheduling from a frame (play, seek, loop), the
   current song-time position, rate and pitch.
 - `Karaifyer/PlayerModel.swift`:
   - the silent video `AVPlayer` and its re-anchoring to the engine;
   - play/pause/restart/seek, loop handling, tempo and pitch;
   - loading and saving each song's settings.
+- `Karaifyer/PlayerExport.swift`: offline rendering of the master to AAC, and the video + master composition
+  and export, with progress and cancellation.
 - `Karaifyer/PlayerView.swift`: the tab, the song list with search, `VideoView` (an `AVPlayerView` wrapper with double-click full screen), transport, and mixer columns.
 - `KaraifyerApp.swift`: the third tab, « Lecteur ».
 
@@ -135,6 +153,7 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - the default mix from `retirer`;
   - BPM ↔ rate, both ends of the range, and a song without a BPM;
   - pitch clamping; loop snapping to the nearest bar line, swapped start/end, and no bars;
+  - export file names (accents, « / » in titles) and the duration at a given tempo;
   - persistence round-trip, and a missing or corrupt entry falling back to the defaults;
   - readiness listing the exact missing files;
   - search being accent- and case-insensitive.
@@ -149,4 +168,8 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - a bar-snapped loop repeats with no gap, and « Boucle » / « Effacer » work;
   - changing the BPM changes the speed without changing the pitch, and video and click stay in sync with the audio;
   - transposing changes the pitch without changing the tempo, and the reminder appears;
+  - export « Master seul » gives an `.m4a` that sounds like the player's mix (including a muted part, a changed
+    tempo and a transposition);
+  - export « Vidéo + master » gives an `.mp4` whose lyrics stay in sync at a changed tempo; « Annuler » leaves no
+    file;
   - output follows the system's selected device.
