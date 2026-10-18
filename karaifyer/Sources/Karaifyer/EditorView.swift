@@ -48,6 +48,16 @@ struct EditorView: View {
             .help("Lecture / pause (Espace hors saisie, ou ⌥ Espace)")
             Slider(value: Binding(get: { model.position }, set: { model.seek(input: $0) }), in: 0...max(model.duration, 1))
             Text(LRC.timecode(model.showTime)).monospacedDigit().frame(width: 70)
+            if let b = model.beatCounter {
+                Text("\(b.beat)/\(b.of)").monospacedDigit().frame(width: 36)
+                    .foregroundStyle(b.beat == 1 ? Color.primary : Color.secondary)
+                    .help("Temps en cours / temps dans la mesure")
+            }
+            Divider().frame(height: 16)
+            Toggle("Clic", isOn: $model.clickOn).toggleStyle(.checkbox).disabled(!model.gridAvailable)
+                .help("Clic sur chaque temps, plus aigu sur le temps 1")
+            Slider(value: Binding(get: { Double(model.clickVolume) }, set: { model.clickVolume = Float($0) }), in: 0...1)
+                .frame(width: 80).disabled(!model.clickOn).help("Volume du clic")
             Divider().frame(height: 16)
             Image(systemName: "speaker.fill").foregroundStyle(.secondary)
             Slider(value: Binding(get: { Double(model.volume) }, set: { model.volume = Float($0) }), in: 0...1)
@@ -94,7 +104,14 @@ struct EditorView: View {
                 Text("Tonalité :")
                 CommitField(value: model.key, resignOnCommit: true) { model.setKey($0) }.frame(width: 110)
                     .help("ex. C# minor, Db major")
-                Text("\(model.bpb)/4").foregroundStyle(.secondary)
+                Picker("", selection: Binding(get: { model.fix.signature ?? "" },
+                                              set: { model.setSignature($0.isEmpty ? nil : $0) })) {
+                    Text("Détectée (\(model.song.grid?.beatsPerBarDetecte ?? model.bpb)/4)").tag("")
+                    ForEach(BarGrid.menu, id: \.self) { Text($0).tag($0) }
+                }
+                .frame(width: 165).disabled(!model.gridAvailable)
+                Toggle("Swing", isOn: Binding(get: { model.fix.swing }, set: { model.setSwing($0) }))
+                    .toggleStyle(.checkbox).disabled(!model.gridAvailable)
             }
             Text("« A B » = moitié-moitié · « Am . . F » = un symbole par temps · N.C. = sans accord · ex. Cmaj7 Dm7 G7 Am/G")
                 .font(.caption).foregroundStyle(.secondary)
@@ -102,16 +119,35 @@ struct EditorView: View {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
                     ForEach(Array(model.cells.enumerated()), id: \.offset) { i, cell in
                         VStack(spacing: 0) {
-                            Text("\(i + 1)").font(.caption2).foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                                .onTapGesture { model.seekBar(i) }
+                            HStack(spacing: 3) {
+                                Text("\(i + 1)").font(.caption2).foregroundStyle(.secondary)
+                                if model.hasPin(i) { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.secondary) }
+                                Spacer()
+                                if let n = model.beatCount(i) {
+                                    Text("\(n) t.").font(.caption2).monospacedDigit()
+                                        .foregroundStyle(n == model.bpb ? Color.secondary : Color.orange)
+                                        .help("\(n) temps dans cette mesure")
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { model.seekBar(i) }
+                            .contextMenu {
+                                Button("La mesure commence un temps plus tôt") { endEditing(); model.moveBar(i, by: -1) }
+                                Button("La mesure commence un temps plus tard") { endEditing(); model.moveBar(i, by: 1) }
+                                if model.hasPin(i) {
+                                    Button("Retirer le repère") { endEditing(); model.unpinBar(i) }
+                                } else {
+                                    Button("Le temps 1 est ici") { endEditing(); model.pinBar(i) }
+                                }
+                                if !model.gridAvailable { Text("Réanalyser le morceau pour corriger la grille") }
+                            }
                             CommitField(value: cell, resignOnCommit: true) { model.setCell(i, $0) }
                         }
                         .padding(4)
                         .background(i == model.currentBar ? Color.yellow.opacity(0.25) : Color.gray.opacity(0.08))
                         .overlay(RoundedRectangle(cornerRadius: 4).stroke(model.cellErrors[i] == nil ? Color.clear : Color.red))
-                        .help(model.cellErrors[i] ?? "Cliquer sur le numéro pour aller à la mesure")
+                        .help(model.cellErrors[i] ?? "Clic sur le numéro : aller à la mesure · clic droit : corriger le temps 1")
                     }
                 }
             }
