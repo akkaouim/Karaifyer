@@ -33,6 +33,11 @@ class Config:
         return self.home / "accords"
 
     @property
+    def mesures(self) -> Path:
+        """Michel's bar-grid fixes (mesures/<id>.json: signature, swing, pinned bar lines)."""
+        return self.home / "mesures"
+
+    @property
     def travail(self) -> Path:
         return self.home / "travail"
 
@@ -51,5 +56,5 @@ class Config:
         return self.home / "sets"
 
     def ensure_dirs(self) -> None:
-        for d in (self.paroles, self.accords, self.travail, self.sortie, self.sets):
+        for d in (self.paroles, self.accords, self.mesures, self.travail, self.sortie, self.sets):
             d.mkdir(parents=True, exist_ok=True)
