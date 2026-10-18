@@ -20,7 +20,7 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
 | Video | A **silent `AVPlayer`** on `paroles.mp4`, in an `AVPlayerView`, slaved to the audio. It plays at the same rate as the audio. Every 0.5 s its time is compared with the audio position, and it is re-seeked if they differ by more than 40 ms. On play, seek and loop, both are re-anchored together. |
 | Output | The system's current audio output (`AVAudioEngine`'s default output, following the device selected in macOS). No XR18 routing, no device selection in the app. |
 | Initial levels | First time: **like the show**: parts in `retirer` at zero, everything else at 0 dB (click and guide vocal included). Afterwards: **the last mix Michel left for that song**. |
-| Tempo | Shown and set in **BPM** (the song's measured tempo). Rate = target BPM / song BPM, with pitch preserved. Range: from 0.5 × to 1.5 × the song's BPM. |
+| Tempo | Shown and set in **BPM**: the song's **typical tempo**, i.e. the median beat interval measured by the pipeline after the beat cleanup (robust to free intros and final slowdowns; for drifting songs, their typical tempo). Rate = target BPM / song BPM, with pitch preserved. Range: from 0.5 × to 1.5 × the song's BPM. |
 | Pitch | −6…+6 semitones, tempo preserved. |
 | Out of scope | Waveforms, exporting a mix, transposed chord names in the video (the video keeps the original chords; a reminder is shown when transposed). |
 
@@ -102,7 +102,7 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
 - **Running alongside the rest:** playback may run during an analysis. The recorder only captures Spotify, so the player is never recorded.
 - **Data source:** the list comes from the same `etat --json` state as the Karaoké tab (`KaraokeModel.songs`). It
   refreshes when the tab appears and after each analysis.
-- **Pipeline change:** `etat --json` gains each song's **`bpm`** (from the package step's result; null when not yet
+- **Pipeline change:** `etat --json` gains each song's **`bpm`**, its typical (median) tempo (from the package step's result; null when not yet
   analysed). A song without a BPM shows the tempo control disabled at 100 %.
 
 ## 5. Units
