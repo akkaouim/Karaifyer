@@ -207,6 +207,7 @@ habituelle, pas la XR18. Il sert à répéter chez soi en coupant sa partie, et 
   - la plage va de la moitié à 1,5 fois le tempo d'origine.
 - **Hauteur :**
   - de −6 à +6 demi-tons, sans changer le tempo ;
+  - « Réinitialiser » revient à la tonalité d'origine ;
   - la vidéo garde les accords d'origine, ce qu'un rappel signale.
 - **Mixeur :**
   - une tranche par piste (Clic, Guide voix, Guitare, Basse, Piano, Batterie, Accompagnement, Back Vocals),
