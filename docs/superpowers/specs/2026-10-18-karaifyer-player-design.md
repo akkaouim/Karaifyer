@@ -1,6 +1,8 @@
 # Karaifyer Player tab (design)
 
-Agreed with Michel on 2026-10-18. It is a third tab in Karaifyer, after Karaoké.
+Agreed with Michel on 2026-10-18. It is a third tab in Karaifyer, after Karaoké. Revised the same day: Michel
+added **position scrubbing, looping, tempo (in BPM) and pitch change**. Pitch change needs an audio engine, so
+the architecture moved from a single AVPlayer to AVAudioEngine, with the video following it.
 
 ## Purpose
 
@@ -14,10 +16,13 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
 
 | Topic | Decision |
 |---|---|
-| Playback engine | **One `AVPlayer`** on an `AVMutableComposition` (the song's video track + its 8 audio tracks). Per-track levels come from an `AVMutableAudioMix` updated live. One clock, so video and audio are in sync by construction. |
+| Audio engine | **`AVAudioEngine`**: 8 `AVAudioPlayerNode`s (one per track file) → per-track `AVAudioMixerNode` (gain) → a submix → **`AVAudioUnitTimePitch`** (tempo `rate` + `pitch` in cents) → main mixer (master) → output. |
+| Video | A **silent `AVPlayer`** on `paroles.mp4`, in an `AVPlayerView`, slaved to the audio. It plays at the same rate as the audio. Every 0.5 s its time is compared with the audio position, and it is re-seeked if they differ by more than 40 ms. On play, seek and loop, both are re-anchored together. |
 | Output | The system's current audio output (`AVPlayer` default). No XR18 routing, no device selection. |
 | Initial levels | First time: **like the show**: parts in `retirer` at zero, everything else at 0 dB (click and guide vocal included). Afterwards: **the last mix Michel left for that song**. |
-| Out of scope | Waveforms, position scrubbing, looping, tempo or pitch change, exporting a mix. |
+| Tempo | Shown and set in **BPM** (the song's measured tempo). Rate = target BPM / song BPM, with pitch preserved. Range: from 0.5 × to 1.5 × the song's BPM. |
+| Pitch | −6…+6 semitones, tempo preserved. |
+| Out of scope | Waveforms, exporting a mix, transposed chord names in the video (the video keeps the original chords; a reminder is shown when transposed). |
 
 ## 1. Layout
 
@@ -34,10 +39,27 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
 - With no song loaded, the area says « Choisir un morceau dans la liste ».
 
 **Bottom right: transport and mixer (smaller than the video)**
+- **Position bar** (under the video):
+  - a slider over the song's length; dragging it seeks video and audio together;
+  - the loop zone is highlighted on it when a loop is set.
 - **Transport:**
   - ⏮ goes back to the start (seek to 0, keeping the play/pause state);
   - ▶︎/⏸ plays or pauses;
-  - the time shows as `m:ss / m:ss`, from the song's start to its total length.
+  - the time shows as `m:ss / m:ss`, in song time (unaffected by tempo).
+- **Loop:**
+  - « Début de boucle » and « Fin de boucle » set the loop's start and end at the current position, **snapped to
+    the nearest bar line** of the song's analysis (`bars[].start`; if there are no bars, to the nearest 0.1 s);
+  - a « Boucle » toggle switches it on or off, and « Effacer » removes it;
+  - the end must come after the start; when it doesn't, the two are swapped;
+  - while the loop is on, reaching its end jumps back to its start with no audible gap (the loop segment is
+    scheduled in advance).
+- **Tempo:**
+  - « Tempo : N BPM » with − / + (1 BPM steps) and a field to type a value;
+  - « Original (N) » resets it;
+  - the value is clamped to the allowed range.
+- **Pitch:**
+  - « Hauteur : ±n demi-tons » with − / + and « 0 » to reset;
+  - when n ≠ 0, a reminder is shown: « Transposé +n : accords de la vidéo dans la tonalité d'origine ».
 - **Mixer**, 9 columns:
   - Track columns, in this order: Clic, Guide voix, Guitare, Basse, Piano, Batterie, Accompagnement, Back Vocals.
   - Each track column has a vertical gain fader from −∞ to +6 dB, with the value shown (« −∞ », « −12 dB », « 0 dB », « +3 dB »).
@@ -54,25 +76,34 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - otherwise 0 if any track is soloed and this one isn't;
   - otherwise its fader gain.
   - So a muted track stays silent even when soloed.
-- **Master:** player volume = master gain. AVPlayer's volume is capped at 1.0, so above 0 dB the extra gain is applied to every track gain instead.
-- **Live updates:** every fader, mute or solo change rebuilds the audio mix and assigns it to the current item. Changes are heard almost immediately and never interrupt playback.
+- **Master:** the main mixer's output volume = master gain (the engine allows gain above 1).
+- **Live updates:** every fader, mute or solo change sets the corresponding mixer node's volume at once, without
+  interrupting playback.
 
 ## 3. Remembering each song's mix
 
-- Per song id, the app saves the 8 fader positions, the 8 mutes, the 8 solos and the master position in the app's preferences (`UserDefaults`, key `playerMix.<id>`, JSON).
+- Per song id, the app saves in its preferences (`UserDefaults`, key `playerMix.<id>`, JSON):
+  - the 8 fader positions, the 8 mutes, the 8 solos and the master position;
+  - the tempo (target BPM) and the pitch (semitones);
+  - the loop's start and end. The loop always reopens switched **off**.
 - A song never opened before starts with the show's defaults:
   - the parts listed in `retirer` (guitar → Guitare, bass → Basse, piano → Piano, drums → Batterie, other → Accompagnement) at 0;
   - every other track and the master at 0 dB;
-  - no mute or solo.
+  - no mute or solo, original tempo, pitch 0, no loop.
 - The mix is saved on every change, so nothing is lost if the app quits.
 
 ## 4. Behaviour and errors
 
 - **Loading:** the composition is built from the song folder's files. If a file can't be read, or the item fails, the player area shows the error and the song stays selected so Michel can retry.
-- **End of song:** playback stops at the end, and the next ▶︎ starts again from the beginning.
+- **End of song:** playback stops at the end (unless looping), and the next ▶︎ starts again from the beginning.
+- **Seeking and looping:** every player node is stopped and rescheduled from the target frame, so all tracks stay
+  sample-aligned. The video is then re-anchored to the same song time.
 - **Leaving the tab** pauses playback.
 - **Running alongside the rest:** playback may run during an analysis. The recorder only captures Spotify, so the player is never recorded.
-- **Data source:** the list comes from the same `etat --json` state as the Karaoké tab (`KaraokeModel.songs`). It refreshes when the tab appears and after each analysis.
+- **Data source:** the list comes from the same `etat --json` state as the Karaoké tab (`KaraokeModel.songs`). It
+  refreshes when the tab appears and after each analysis.
+- **Pipeline change:** `etat --json` gains each song's **`bpm`** (from the package step's result; null when not yet
+  analysed). A song without a BPM shows the tempo control disabled at 100 %.
 
 ## 5. Units
 
@@ -83,11 +114,15 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - default mix from `retirer`;
   - mix encode and decode for persistence;
   - the readiness check (which files are missing);
-  - search matching.
+  - search matching;
+  - tempo: BPM ↔ rate and clamping; pitch: semitones ↔ cents and clamping;
+  - loop: bar snapping, start/end ordering, the position after a loop wrap.
+- `Karaifyer/PlayerEngine.swift`: the `AVAudioEngine` graph, scheduling from a frame (play, seek, loop), the
+  current song-time position, rate and pitch.
 - `Karaifyer/PlayerModel.swift`:
-  - `AVPlayer`, composition building, audio-mix updates;
-  - play/pause/restart and time observation;
-  - loading and saving mixes.
+  - the silent video `AVPlayer` and its re-anchoring to the engine;
+  - play/pause/restart/seek, loop handling, tempo and pitch;
+  - loading and saving each song's settings.
 - `Karaifyer/PlayerView.swift`: the tab, the song list with search, `VideoView` (an `AVPlayerView` wrapper with double-click full screen), transport, and mixer columns.
 - `KaraifyerApp.swift`: the third tab, « Lecteur ».
 
@@ -98,6 +133,8 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - effective gains for mute, solo, mute + solo, and several solos;
   - master above 0 dB folding into the track gains;
   - the default mix from `retirer`;
+  - BPM ↔ rate, both ends of the range, and a song without a BPM;
+  - pitch clamping; loop snapping to the nearest bar line, swapped start/end, and no bars;
   - persistence round-trip, and a missing or corrupt entry falling back to the defaults;
   - readiness listing the exact missing files;
   - search being accent- and case-insensitive.
@@ -108,4 +145,8 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
   - double-click enters and leaves full screen, and Escape leaves it;
   - Space plays and pauses, but types a space in the search field;
   - ⏮ goes back to the start;
+  - dragging the position bar jumps video and audio together;
+  - a bar-snapped loop repeats with no gap, and « Boucle » / « Effacer » work;
+  - changing the BPM changes the speed without changing the pitch, and video and click stay in sync with the audio;
+  - transposing changes the pitch without changing the tempo, and the reminder appears;
   - output follows the system's selected device.
