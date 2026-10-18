@@ -165,6 +165,13 @@ final class KaraokeModel: RunDriver {
         plannedSteps += jobs.count * max(1, songs.first?.steps.count ?? 10)
         controller.start(jobs)
     }
+    /// Forget the saved beat detection, then re-run from the beats step (Michel's bar-grid fix is kept).
+    func redetectBeats(ids: [String]) {
+        for id in ids {
+            for p in KaraokePaths.beatDetection(home: pipeline.karaokeHome, id: id) { try? FileManager.default.removeItem(atPath: p) }
+        }
+        analyse(ids: ids, forced: "beats")
+    }
     func pause() { controller.pause() }
     func pauseForRecording() { controller.pauseForRecording() }
     func recordingEnded() { controller.recordingEnded() }

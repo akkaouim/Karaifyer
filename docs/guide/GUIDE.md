@@ -110,6 +110,8 @@ ligne est marquée ✗ « capture défectueuse » et aucun fichier abîmé n'est
 - **Corriger paroles et accords…** (section 7).
 - **Changer de Set List…** : la Set List range le set Ableton du morceau dans le bon dossier de la soirée.
 - **Refaire le morceau**, ou **Refaire une étape** ▸.
+- **Refaire la détection des temps** : oublie la détection des temps enregistrée et la refait (elle est sinon
+  réutilisée tant que l'audio ne change pas) ; les corrections de mesure (`mesures/<id>.json`) sont gardées.
 
 ---
 

@@ -151,6 +151,8 @@ struct KaraokeView: View {
                         if let p = askText("Set List pour « \(s.titre) »", value: s.partie) { commit(s, "partie", p) }
                     }
                     Button("Refaire le morceau") { model.analyse(ids: Array(ids), forced: "ingest") }
+                    Button("Refaire la détection des temps") { model.redetectBeats(ids: Array(ids)) }
+                        .help("Oublie la détection enregistrée et la refait ; les corrections de mesure sont gardées")
                     Menu("Refaire une étape") {
                         ForEach(STEP_NAMES, id: \.self) { st in Button(st) { model.analyse(ids: Array(ids), forced: st) } }
                     }

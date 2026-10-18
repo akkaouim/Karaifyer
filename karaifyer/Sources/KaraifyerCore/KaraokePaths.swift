@@ -2,6 +2,12 @@ import Foundation
 
 /// Where the karaoke folder and the pipeline code are, without depending on Michel's own setup.
 public enum KaraokePaths {
+    /// The saved beat detection (and the audio fingerprint it was made from): deleting them makes the next
+    /// `beats` run detect again instead of reusing it.
+    public static func beatDetection(home: String, id: String) -> [String] {
+        ["\(home)/travail/\(id)/beats.json", "\(home)/travail/\(id)/beats.source.json"]
+    }
+
     public static let legacyHome = "/Volumes/Hypermnesia/karaoke"   // Michel's first setup, kept when present
 
     /// Settings choice, else Michel's legacy folder if it exists, else ~/Karaoke (created on first launch).

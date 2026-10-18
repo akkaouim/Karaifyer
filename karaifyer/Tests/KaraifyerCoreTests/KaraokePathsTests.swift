@@ -25,4 +25,8 @@ struct ProjectFolderTests {
         #expect(KaraokePaths.pipelineFolder("/u/Code/Karaifyer/karaoke", hasPyproject: has) == "/u/Code/Karaifyer/karaoke")
         #expect(KaraokePaths.pipelineFolder("/elsewhere", hasPyproject: has) == "/elsewhere")      // left as is: banner explains
     }
+
+    @Test func beatDetectionFilesToForgetForARedetection() {
+        #expect(KaraokePaths.beatDetection(home: "/k", id: "005") == ["/k/travail/005/beats.json", "/k/travail/005/beats.source.json"])
+    }
 }
