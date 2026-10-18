@@ -12,7 +12,7 @@ final class EditorModel {
     let karaoke: KaraokeModel
     var doc = LyricsDoc(lines: [])
     var lines: [LyricLine] { doc.lines }
-    var cells: [String] = []
+    var cells: [String] = [] { didSet { recheckCells() } }
     var key: String
     /// Saved separately: a lyrics-only fix must not pin the chords to a correction (and vice versa).
     var lyricsDirty = false
@@ -40,6 +40,7 @@ final class EditorModel {
         guard let g = song.grid else { barLines = []; starts = []; gridBPB = song.beatsPerBar ?? 4; return }
         let r = BarGrid.lines(beats: g.beats, detected: g.downbeatsDetectees, fix: fix, detectedBPB: g.beatsPerBarDetecte, bpm: g.bpm)
         barLines = r.lines; starts = BarGrid.starts(r.lines); gridBPB = r.bpb
+        recheckCells()
     }
     func barStart(_ i: Int) -> Double { gridAvailable ? beats[starts[i]] : song.bars[i].start }
     func beatCount(_ i: Int) -> Int? {
@@ -149,6 +150,7 @@ final class EditorModel {
             gridAvailable = BarGrid.matches(starts: starts, beats: g.beats, bars: song.bars.map(\.start))
         }
         cells = song.bars.map { ChordGrid.cellText($0.chords, beatsPerBar: bpb) }
+        recheckCells()                             // didSet doesn't run in init
         var problems: [String] = []
         if song.padS == nil || song.bars.isEmpty { problems.append("Morceau pas encore analysé (paroles/accords absents).") }
         player = try? AVAudioPlayer(contentsOf: URL(fileURLWithPath: song.paths.audio))
@@ -165,12 +167,15 @@ final class EditorModel {
     var currentBar: Int? {
         gridAvailable ? starts.lastIndex { beats[$0] <= position + 1e-6 } : ChordGrid.barIndex(at: position, bars: song.bars)
     }
-    var cellErrors: [Int: String] {
+    /// Checked when a cell or the bar length changes, not per redraw: every cell reads it twice, and playback
+    /// redraws 20×/s — recomputing it there cost ~90 ms a frame and made the bar highlight lag behind the music.
+    private(set) var cellErrors: [Int: String] = [:]
+    private func recheckCells() {
         var e: [Int: String] = [:]
         for (i, c) in cells.enumerated() {
             if case .failure(let err) = ChordGrid.parseCell(c, beatsPerBar: bpb) { e[i] = err.message }
         }
-        return e
+        if e != cellErrors { cellErrors = e }
     }
 
     func play() {
