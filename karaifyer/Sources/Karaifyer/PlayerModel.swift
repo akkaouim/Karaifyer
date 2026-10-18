@@ -82,7 +82,11 @@ final class PlayerModel {
             stopTimer()
         } else {
             if e.position >= length - 0.05 { e.seek(to: 0) }
-            e.play()
+            guard e.play() else {
+                error = "Sortie audio indisponible : vérifiez la sortie son du Mac."
+                return
+            }
+            error = nil
             isPlaying = true
             resyncVideo(force: true)
             videoPlayer.rate = rate
@@ -108,17 +112,27 @@ final class PlayerModel {
 
     private func tick() {
         guard let e = engine else { return }
+        guard e.isPlaying else {                                  // the output device went away and won't restart
+            videoPlayer.pause()
+            isPlaying = false
+            stopTimer()
+            error = "Lecture interrompue : la sortie son a changé."
+            return
+        }
+        let previous = position
         position = e.position
         ticks += 1
-        if ticks % 5 == 0 { resyncVideo(force: false) }          // every 0.5 s
+        // a loop wrap re-anchors the video at once; drift is checked every 0.5 s
+        if position < previous - 0.05 || ticks % 5 == 0 { resyncVideo(force: false, previous: previous) }
         if !loopOn && position >= length - 0.02 { togglePlay(); seek(0) }
     }
 
     /// The video follows the audio: re-seek it when it drifts more than 40 ms (or always when forced).
-    private func resyncVideo(force: Bool) {
-        let target = CMTime(seconds: engine?.position ?? 0, preferredTimescale: 600)
-        let drift = abs(videoPlayer.currentTime().seconds - target.seconds)
-        if force || drift > 0.04 {
+    private func resyncVideo(force: Bool, previous: Double? = nil) {
+        let now = engine?.position ?? 0
+        let target = CMTime(seconds: now, preferredTimescale: 600)
+        if force || VideoSync.needsResync(previous: previous ?? now, current: now,
+                                          video: videoPlayer.currentTime().seconds) {
             videoPlayer.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
         }
     }

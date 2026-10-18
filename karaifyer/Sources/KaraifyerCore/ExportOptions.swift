@@ -55,4 +55,12 @@ public struct ExportOptions: Codable, Equatable, Sendable {
         guard let data, let o = try? JSONDecoder().decode(ExportOptions.self, from: data) else { return .defaults }
         return o
     }
+
+    /// Where ffmpeg writes before the result replaces `out` (hidden, same folder, same extension), so a
+    /// cancelled or failed export never touches a file already there.
+    public static func partialURL(for out: URL) -> URL {
+        let name = "." + out.deletingPathExtension().lastPathComponent + ".partial." + out.pathExtension
+        return out.deletingLastPathComponent().appendingPathComponent(name)
+    }
 }
+

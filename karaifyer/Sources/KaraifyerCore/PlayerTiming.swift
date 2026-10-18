@@ -35,3 +35,11 @@ public enum LoopMath {
         return a + (elapsed - toEnd).truncatingRemainder(dividingBy: b - a)
     }
 }
+
+/// When the slaved video must be re-seeked: at once on any backwards jump of the audio (a loop wrap),
+/// otherwise when it drifts more than 40 ms.
+public enum VideoSync {
+    public static func needsResync(previous: Double, current: Double, video: Double) -> Bool {
+        current < previous - 0.05 || abs(video - current) > 0.04
+    }
+}

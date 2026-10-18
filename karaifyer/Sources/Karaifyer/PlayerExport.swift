@@ -49,7 +49,7 @@ import SwiftUI
 
         // 2. encode with ffmpeg (second half), progress from « -progress pipe:1 » (out_time_us)
         let args = [ff, "-y", "-progress", "pipe:1", "-nostats", "-loglevel", "error"]
-            + options.ffmpegArgs(wav: wav.path, video: s.paths.video, rate: player.rate, out: out.path)
+            + options.ffmpegArgs(wav: wav.path, video: s.paths.video, rate: player.rate, out: ExportOptions.partialURL(for: out).path)
         var lastErr = ""
         do {
             ffmpeg = try SpawnedProcess(
@@ -76,9 +76,25 @@ import SwiftUI
         ffmpeg?.signal(SIGTERM)
     }
 
+    /// ffmpeg wrote to a hidden partial file: on success it replaces `out`; otherwise it is deleted and a file
+    /// already at `out` is left untouched.
     private func finish(error: String?, out: URL, wav: URL, ok: Bool = false) {
         try? FileManager.default.removeItem(at: wav)
-        if !ok { try? FileManager.default.removeItem(at: out) }
+        let partial = ExportOptions.partialURL(for: out)
+        var ok = ok, error = error
+        if ok {
+            do {
+                if FileManager.default.fileExists(atPath: out.path) {
+                    _ = try FileManager.default.replaceItemAt(out, withItemAt: partial)
+                } else {
+                    try FileManager.default.moveItem(at: partial, to: out)
+                }
+            } catch let e {
+                ok = false
+                error = "Écriture impossible : \(e.localizedDescription)"
+            }
+        }
+        if !ok { try? FileManager.default.removeItem(at: partial) }
         running = false
         ffmpeg = nil
         if ok {

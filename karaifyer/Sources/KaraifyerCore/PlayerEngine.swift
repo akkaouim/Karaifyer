@@ -17,6 +17,11 @@ public final class PlayerEngine: @unchecked Sendable {
     private var anchor: Double = 0                 // song time where the current schedule starts
     private var loop: (Double, Double)?
     private var generation = 0                     // invalidates stale loop completions
+    private var lastPosition: Double = 0           // last audible position, for a restart after a device change
+    private var observer: NSObjectProtocol?
+    /// How many times playing has been rescheduled / restarted after a device change (for tests).
+    public private(set) var reschedules = 0
+    public private(set) var restarts = 0
 
     public init(tracks: [URL]) throws {
         files = try tracks.map { try AVAudioFile(forReading: $0) }
@@ -37,17 +42,28 @@ public final class PlayerEngine: @unchecked Sendable {
         engine.connect(submix, to: timePitch, format: stereo)
         engine.connect(timePitch, to: engine.mainMixerNode, format: stereo)
         engine.prepare()
+        // A change of output device (or its format) stops the engine: restart where the music was.
+        observer = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange,
+                                                          object: engine, queue: nil) { [weak self] _ in
+            guard let self, self.isPlaying, !self.engine.isInManualRenderingMode else { return }
+            let at = self.lastPosition
+            self.isPlaying = false
+            self.restarts += 1
+            self.play(from: at)
+        }
     }
+
+    deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
 
     public func setGains(_ g: [Float]) {
         for (i, m) in gains.enumerated() where i < g.count { m.outputVolume = g[i] }
     }
     public func setMaster(_ g: Float) { engine.mainMixerNode.outputVolume = g }
+    /// The time-pitch unit changes speed on the fly; the nodes' source-frame clock is unaffected, so
+    /// nothing needs rescheduling (rescheduling caused an audible dropout on every tempo click).
     public func setRate(_ r: Float) {
         guard r != timePitch.rate else { return }
-        let p = position
         timePitch.rate = r
-        if isPlaying { play(from: p) }
     }
     public func setPitch(cents: Float) { timePitch.pitch = cents }
 
@@ -59,23 +75,38 @@ public final class PlayerEngine: @unchecked Sendable {
         if isPlaying { play(from: p) }
     }
 
-    /// Song time now: the anchor plus song seconds played by the first node (its sample time counts source
-    /// frames, i.e. song frames, before the time-pitch unit), wrapped inside the loop.
+    /// Song time now, as heard: the anchor plus song seconds pulled by the first node (its sample time counts
+    /// source frames, i.e. song frames, before the time-pitch unit), minus what is still between the node and
+    /// the speakers (time-pitch read-ahead + output latency, in song seconds), wrapped inside the loop.
     public var position: Double {
         guard isPlaying, let nt = players[0].lastRenderTime, let pt = players[0].playerTime(forNodeTime: nt) else {
             return anchor
         }
-        let elapsed = max(0, Double(pt.sampleTime) / pt.sampleRate)
-        return min(length, LoopMath.position(start: anchor, elapsed: elapsed, loop: loop))
+        let lead = (timePitch.auAudioUnit.latency + engine.outputNode.presentationLatency) * Double(timePitch.rate)
+        let p = Self.songPosition(anchor: anchor, elapsed: Double(pt.sampleTime) / pt.sampleRate,
+                                  lead: lead, loop: loop, length: length)
+        lastPosition = p
+        return p
     }
 
-    public func play(from t: Double? = nil) {
+    static func songPosition(anchor: Double, elapsed: Double, lead: Double, loop: (Double, Double)?,
+                             length: Double) -> Double {
+        min(length, LoopMath.position(start: anchor, elapsed: max(0, elapsed - lead), loop: loop))
+    }
+
+    /// Start playing from `t` (default: where it is). False when the audio output cannot start.
+    @discardableResult
+    public func play(from t: Double? = nil) -> Bool {
         let start = min(max(0, t ?? position), length)
         schedule(from: start)
-        if !engine.isRunning { try? engine.start() }
+        if !engine.isRunning {
+            do { try engine.start() } catch { isPlaying = false; return false }
+        }
         let when = AVAudioTime(hostTime: mach_absolute_time() + AVAudioTime.hostTime(forSeconds: 0.05))
         players.forEach { $0.play(at: when) }
         isPlaying = true
+        lastPosition = start
+        return true
     }
 
     public func pause() {
@@ -103,6 +134,7 @@ public final class PlayerEngine: @unchecked Sendable {
         let gen = generation
         players.forEach { $0.stop() }
         anchor = start
+        reschedules += 1
         for (i, f) in files.enumerated() {
             let sr = f.processingFormat.sampleRate
             let from = AVAudioFramePosition(start * sr)
