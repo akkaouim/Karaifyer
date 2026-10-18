@@ -23,6 +23,10 @@ final class EditorModel {
     var loadError: String?
     var pad: Double { song.padS ?? 0 }
     var bpb: Int { song.beatsPerBar ?? 4 }
+    /// Playback volume (0…1), shared by every song and remembered.
+    var volume: Float = UserDefaults.standard.object(forKey: "editorVolume") as? Float ?? 1 {
+        didSet { player?.volume = volume; UserDefaults.standard.set(volume, forKey: "editorVolume") }
+    }
     @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private var timer: Timer?
 
@@ -40,6 +44,7 @@ final class EditorModel {
         if song.padS == nil || song.bars.isEmpty { problems.append("Morceau pas encore analysé (paroles/accords absents).") }
         player = try? AVAudioPlayer(contentsOf: URL(fileURLWithPath: song.paths.audio))
         player?.prepareToPlay()
+        player?.volume = volume
         if player == nil { problems.append("Audio introuvable : \(song.paths.audio)") }
         loadError = problems.isEmpty ? nil : problems.joined(separator: " ")
     }

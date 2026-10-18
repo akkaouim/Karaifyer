@@ -160,6 +160,7 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
 ![Éditeur](images/03-editeur.png)
 
 - **Lecture** (⌥ Espace) joue l'enregistrement. La ligne et la mesure en cours sont surlignées en jaune.
+- **Volume :** le curseur à droite de la barre de lecture règle le volume (mémorisé pour tous les morceaux).
 - **Paroles (à gauche) :** cliquer une ligne y va. Le temps et le texte sont modifiables. ⏱ cale le début de
   la ligne sur la lecture ; + ajoute une ligne, la corbeille la supprime.
 - **Accords (à droite) :** une case par mesure, 4 par ligne ; cliquer le numéro va à la mesure. La tonalité

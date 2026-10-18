@@ -42,6 +42,12 @@ struct EditorView: View {
             .help("Lecture / pause (⌥ Espace)")
             Slider(value: Binding(get: { model.position }, set: { model.seek(input: $0) }), in: 0...max(model.duration, 1))
             Text(LRC.timecode(model.showTime)).monospacedDigit().frame(width: 70)
+            Divider().frame(height: 16)
+            Image(systemName: "speaker.fill").foregroundStyle(.secondary)
+            Slider(value: Binding(get: { Double(model.volume) }, set: { model.volume = Float($0) }), in: 0...1)
+                .frame(width: 110)
+                .help("Volume")
+            Image(systemName: "speaker.wave.3.fill").foregroundStyle(.secondary)
         }
     }
 
