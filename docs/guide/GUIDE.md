@@ -13,10 +13,23 @@ Tout se fait dans une seule fenêtre, avec deux onglets : **Enregistrement** et 
 
 ## 1. Installation et premier lancement
 
+Sur un Mac neuf (macOS 26 ou plus récent), dans le Terminal :
+
 ```sh
-cd ~/Documents/mp3-pipeline/karaifyer
-./build-app.sh --install        # → ~/Applications/Karaifyer.app
+xcode-select --install                    # outils de développement d'Apple (pas besoin de Xcode)
+brew install uv ffmpeg git                # installer Homebrew d'abord si besoin : https://brew.sh
+git clone https://github.com/akkaouim/Karaifyer.git    # n'importe où
+cd Karaifyer/karaifyer && ./build-app.sh --install     # → ~/Applications/Karaifyer.app
 ```
+
+**Au premier lancement**, Karaifyer propose de **créer le dossier karaoké**. Par défaut c'est `~/Karaoke`, ou
+« Choisir un autre emplacement… », par exemple sur un disque externe. Il y crée tout ce qu'il faut :
+- les dossiers de travail ;
+- un manifeste vide ;
+- un gabarit Ableton par défaut, à adapter à ton routage si ta table n'est pas une XR18 câblée de la même façon.
+
+Les outils d'analyse et leurs modèles se téléchargent seuls à la première analyse (plusieurs Go : prévoir du
+temps et de la place).
 
 **Premier lancement :** macOS demande deux autorisations, à accepter :
 - **enregistrer l'audio du système**, pour capter Spotify ;
@@ -25,8 +38,8 @@ cd ~/Documents/mp3-pipeline/karaifyer
 **Où trouver l'app :** Karaifyer a son icône dans le Dock et dans ⌘-Tab. Une petite icône dans la barre des
 menus donne l'état de l'enregistrement et de l'analyse en un coup d'œil.
 
-**Réglages (⌘,) :** ils indiquent où se trouvent le dossier karaoké (sur le disque externe), le gabarit
-Ableton et le code du pipeline. « Tout est prêt » en vert signifie que rien ne manque. Sinon, un bandeau orange
+**Réglages (⌘,) :** ils indiquent où se trouvent le dossier karaoké, le gabarit Ableton et le code du pipeline
+(le dépôt cloné, trouvé automatiquement). « Tout est prêt » en vert signifie que rien ne manque. Sinon, un bandeau orange
 dans l'onglet Karaoké dit quoi faire, par exemple « disque débranché ».
 
 ![Réglages](images/04-reglages.png)
@@ -231,7 +244,9 @@ mesure 1 :
 
 ## 9. Dépannage
 
-- **Bandeau orange « Dossier karaoké introuvable » :** branche le disque externe, puis clique **Réessayer**.
+- **Bandeau orange « Pas encore de dossier karaoké » :** clique **Créer le dossier karaoké ici** ou choisis un
+  emplacement. Si ton dossier est sur un disque externe, branche-le puis clique **Réessayer**.
+- **« uv introuvable » ou « ffmpeg introuvable » :** `brew install uv ffmpeg`, puis **Réessayer**.
 - **« à réessayer » sur un morceau :** le service de paroles LRCLIB est temporairement indisponible. Relance
   plus tard (Refaire une étape ▸ lyrics), ou attends le nouvel essai automatique de fin d'analyse.
 - **La vidéo d'un morceau ne change pas après une correction :** vérifie que le morceau a bien été réanalysé

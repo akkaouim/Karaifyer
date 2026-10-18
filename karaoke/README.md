@@ -9,8 +9,9 @@ des liens d'import iReal Pro. Au quotidien, tout se pilote depuis l'app **Karaif
 ([guide](../docs/guide/GUIDE.md)) ; les commandes ci-dessous restent disponibles.
 
 ```sh
-export KARAOKE_HOME=/Volumes/Hypermnesia/karaoke     # disque externe (≈ 0,7 Go par morceau)
+export KARAOKE_HOME=~/Karaoke                 # ou un disque externe (≈ 0,7 Go par morceau)
 cd karaoke
+uv run karaoke init                          # crée le dossier : arborescence, manifeste, gabarit Ableton par défaut
 uv run karaoke manifeste --audio "$HOME/Music/SysRec/Karaoké - Feuille 1"
 #   puis compléter dans $KARAOKE_HOME/manifeste.csv : retirer (ex. guitar;bass;piano), langue, partie
 uv run karaoke traiter                       # tout ; reprend là où ça s'est arrêté

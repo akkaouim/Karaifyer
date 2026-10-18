@@ -13,12 +13,18 @@ iReal Pro link and a ready-to-play Ableton Live set.
 | [**User guide**](docs/guide/GUIDE.md) (French, with screenshots) | how to use it all, step by step |
 | [Design docs](docs/karaoke/) | specification, XR18/Ableton decisions, measurements, validation checklists |
 
-Quick start:
+Install on a new Mac (macOS 26+):
 
 ```sh
-cd karaifyer && ./build-app.sh --install     # the app (needs the Command Line Tools, no Xcode)
-cd ../karaoke && uv sync                      # the pipeline (Python 3.11 + uv)
+xcode-select --install                    # Command Line Tools (no Xcode needed)
+brew install uv ffmpeg git                # https://brew.sh if Homebrew is missing
+git clone https://github.com/akkaouim/Karaifyer.git    # anywhere you like
+cd Karaifyer/karaifyer && ./build-app.sh --install     # → ~/Applications/Karaifyer.app
 ```
+
+Open Karaifyer: on first launch it offers to create the karaoke folder (`~/Karaoke` by default, or a folder of
+your choice, e.g. on an external disk) with everything it needs, including a default Ableton template.
+The analysis tools and models download themselves on first use (several GB: allow time and disk space).
 
 Tests: `uv --directory karaoke run pytest -q` (pipeline) and, in `karaifyer/`,
 `swift test -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing`.
