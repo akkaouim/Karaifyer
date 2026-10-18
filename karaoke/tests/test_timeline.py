@@ -68,11 +68,12 @@ def test_line_chords_places_changes_on_sung_syllable():
     assert line_chords(line, changes) == [(0, "C"), (4, "Am"), (11, "F")]
 
 
-def test_line_chords_skips_no_chord_and_keeps_last_change_per_syllable():
+def test_line_chords_shows_no_chord_and_keeps_last_change_per_syllable():
     from karaoke.video.timeline import TimedLine, line_chords
     line = TimedLine(10.0, 12.0, "dan ser", [(10.0, 3), (10.5, 7)])
     assert line_chords(line, [{"t": 0.0, "label": "N.C."}, {"t": 10.6, "label": "C"}, {"t": 10.8, "label": "G"}]) \
-        == [(4, "G")]
+        == [(0, "N.C."), (4, "G")]
+    assert line_chords(line, [{"t": 0.0, "label": "C"}, {"t": 10.6, "label": "N.C."}]) == [(0, "C"), (4, "N.C.")]
     assert line_chords(line, []) == []
 
 

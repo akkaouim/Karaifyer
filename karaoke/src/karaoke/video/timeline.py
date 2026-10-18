@@ -34,7 +34,7 @@ class State:
 
 def line_chords(line: TimedLine, changes: list[dict]) -> list[tuple[int, str]]:
     """Chord sounding when the line starts (offset 0), then each change during the line placed at
-    the first character of the syllable being sung at that moment. N.C. is not shown; when several
+    the first character of the syllable being sung at that moment. N.C. is shown like a chord; when several
     changes fall on one syllable, the last wins."""
     starts, prev = [], 0
     for s, chars in line.syllables:
@@ -48,7 +48,7 @@ def line_chords(line: TimedLine, changes: list[dict]) -> list[tuple[int, str]]:
         if line.start < c["t"] < line.end:
             off = max([o for s, o in starts if s <= c["t"]], default=0)
             out[off] = c["label"]
-    return [(o, l) for o, l in sorted(out.items()) if l != "N.C."]
+    return sorted(out.items())
 
 
 def _beats_between(beats, a: float, b: float) -> int:

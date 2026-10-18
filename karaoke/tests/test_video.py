@@ -106,7 +106,7 @@ def test_video_step_passes_bars_for_instrumentals(cfg, monkeypatch):
                      "bars": [{"start": 0.0, "chords": [[0, "Am"], [2, "F"]]}, {"start": 2.0, "chords": [[0, "G"]]}]}}
     V.VIDEO.run(ws, up)
     assert any(s.chart == ("Am F", "G") and s.chart_pos == 0 and s.start == 2.0 for s in seen["states"])
-    assert V.VIDEO.version == "7"
+    assert V.VIDEO.version == "8"
 
 
 def test_chart_row_clears_a_wrapped_title():
@@ -157,4 +157,4 @@ def test_lines_appear_half_a_second_before_they_are_sung(cfg, monkeypatch):
           "check": {"lines": [{"t": 3.0, "ok": True, "end": 3.5}]}}
     V.VIDEO.run(Workspace(cfg, song()), up)
     first = next(s for s in seen["states"] if s.kind == "ligne")
-    assert first.start == pytest.approx(5.0 - 0.5) and V.VIDEO.version == "7"
+    assert first.start == pytest.approx(5.0 - 0.5) and V.VIDEO.version == "8"

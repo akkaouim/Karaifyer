@@ -60,4 +60,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 VIDEO = Step(name="video", deps=("package", "beats", "lyrics", "check", "chords"),
              key=lambda ws: f"{ws.song.titre}|{ws.song.artiste}", run=_run,
              artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4"],
-             version="7")   # 6: line ends at last word, chord row from a 1-bar gap, preview chords; 7: lines appear 0.5 s ahead
+             version="8")   # 6: line ends at last word, chord row from a 1-bar gap, preview chords; 7: lines appear 0.5 s ahead; 8: N.C. shown
