@@ -68,6 +68,8 @@ struct EditorView: View {
                 ForEach(model.lines) { line in
                     let id = line.id
                     HStack {
+                        Button("Aller", systemImage: "arrow.right.to.line") { endEditing(); model.seekLine(id) }
+                            .labelStyle(.iconOnly).help("Placer la lecture au début de cette ligne")
                         Button("Caler", systemImage: "stopwatch") { endEditing(); model.stampLine(id) }
                             .labelStyle(.iconOnly).help("Caler le début de la ligne sur la lecture")
                         CommitField(value: LRC.timecode(line.time), resignOnCommit: true) { model.setTime(id, $0) }.frame(width: 70)
