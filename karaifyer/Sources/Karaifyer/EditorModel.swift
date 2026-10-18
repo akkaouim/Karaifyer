@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import Foundation
 import KaraifyerCore
@@ -28,6 +29,22 @@ final class EditorModel {
         didSet { player?.volume = volume; UserDefaults.standard.set(volume, forKey: "editorVolume") }
     }
     @ObservationIgnored private var player: AVAudioPlayer?
+    @ObservationIgnored private var keyMonitor: Any?
+    var windowTitle: String { "Corriger — \(song.id) \(song.titre)" }
+
+    /// Space plays/pauses in this song's window when no text field is being edited.
+    func installSpaceKey() {
+        guard keyMonitor == nil else { return }
+        let title = windowTitle
+        keyMonitor = SpaceKey.monitor(accepts: { $0?.title == title }) { [weak self] in
+            guard let self else { return }
+            self.playing ? self.pause() : self.play()
+        }
+    }
+    func removeSpaceKey() {
+        if let m = keyMonitor { NSEvent.removeMonitor(m) }
+        keyMonitor = nil
+    }
     @ObservationIgnored private var timer: Timer?
 
     init(song: SongState, karaoke: KaraokeModel) {

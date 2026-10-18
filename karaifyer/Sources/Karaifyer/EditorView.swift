@@ -27,7 +27,9 @@ struct EditorView: View {
             }
             .padding(8)
         }
-        .navigationTitle("Corriger — \(model.song.id) \(model.song.titre)")
+        .navigationTitle(model.windowTitle)
+        .onAppear { model.installSpaceKey() }
+        .onDisappear { model.removeSpaceKey() }
         .background(WindowPlacer())   // open over the main window, on its screen, in front
         .alert(KaraokeUI.shared.alert ?? "", isPresented: Binding(get: { KaraokeUI.shared.alert != nil },
                                                                    set: { if !$0 { KaraokeUI.shared.alert = nil } })) {}
@@ -39,7 +41,7 @@ struct EditorView: View {
                 model.playing ? model.pause() : model.play()
             }
             .keyboardShortcut(.space, modifiers: .option)   // a bare Space would be stolen from text fields
-            .help("Lecture / pause (⌥ Espace)")
+            .help("Lecture / pause (Espace hors saisie, ou ⌥ Espace)")
             Slider(value: Binding(get: { model.position }, set: { model.seek(input: $0) }), in: 0...max(model.duration, 1))
             Text(LRC.timecode(model.showTime)).monospacedDigit().frame(width: 70)
             Divider().frame(height: 16)
@@ -64,8 +66,8 @@ struct EditorView: View {
                     HStack {
                         Button("Caler", systemImage: "stopwatch") { endEditing(); model.stampLine(id) }
                             .labelStyle(.iconOnly).help("Caler le début de la ligne sur la lecture")
-                        CommitField(value: LRC.timecode(line.time)) { model.setTime(id, $0) }.frame(width: 70)
-                        CommitField(value: line.text) { model.setText(id, $0) }
+                        CommitField(value: LRC.timecode(line.time), resignOnCommit: true) { model.setTime(id, $0) }.frame(width: 70)
+                        CommitField(value: line.text, resignOnCommit: true) { model.setText(id, $0) }
                         Button("Supprimer", systemImage: "trash") { endEditing(); model.deleteLine(id) }
                             .labelStyle(.iconOnly).buttonStyle(.borderless)
                     }
@@ -84,7 +86,7 @@ struct EditorView: View {
             HStack {
                 Text("Accords").font(.headline)
                 Text("Tonalité :")
-                CommitField(value: model.key) { model.setKey($0) }.frame(width: 110)
+                CommitField(value: model.key, resignOnCommit: true) { model.setKey($0) }.frame(width: 110)
                     .help("ex. C# minor, Db major")
                 Text("\(model.bpb)/4").foregroundStyle(.secondary)
             }
@@ -98,7 +100,7 @@ struct EditorView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                                 .onTapGesture { model.seekBar(i) }
-                            CommitField(value: cell) { model.setCell(i, $0) }
+                            CommitField(value: cell, resignOnCommit: true) { model.setCell(i, $0) }
                         }
                         .padding(4)
                         .background(i == model.currentBar ? Color.yellow.opacity(0.25) : Color.gray.opacity(0.08))

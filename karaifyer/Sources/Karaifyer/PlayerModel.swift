@@ -184,11 +184,9 @@ final class PlayerModel {
 
     func installSpaceKey() {
         guard keyMonitor == nil else { return }
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] ev in
-            guard ev.keyCode == 49, ev.modifierFlags.intersection([.command, .option, .control]).isEmpty,
-                  !(NSApp.keyWindow?.firstResponder is NSText) else { return ev }
-            MainActor.assumeIsolated { self?.togglePlay() }
-            return nil
+        // only the main window and the full-screen video: a « Corriger » window has its own Space
+        keyMonitor = SpaceKey.monitor(accepts: { w in w?.title == "Karaifyer" || (w != nil && w === FullScreenVideo.window) }) {
+            [weak self] in self?.togglePlay()
         }
     }
 

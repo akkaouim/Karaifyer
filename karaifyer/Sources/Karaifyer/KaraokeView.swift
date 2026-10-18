@@ -232,7 +232,9 @@ struct CommitField: NSViewRepresentable {
             let before = target == nil ? original : startValue
             target = nil
             if f.stringValue != before { commit(f.stringValue) }
-            guard resignOnCommit else { return }
+            // Return (not Tab, which moves to the next field) hands the keyboard back
+            let movement = n.userInfo?["NSTextMovement"] as? Int
+            guard resignOnCommit, movement == NSTextMovement.return.rawValue else { return }
             DispatchQueue.main.async {
                 if f.currentEditor() != nil { f.window?.makeFirstResponder(nil) }
                 f.stringValue = self.original          // the committed value as the model kept it (clamped)
