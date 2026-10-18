@@ -167,10 +167,11 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
 - **Clic :** la case « Clic » ajoute un clic sur chaque temps (plus aigu sur le temps 1), avec son propre volume ;
   le compteur « 1/4 » montre le temps en cours, et chaque case affiche en haut à droite son nombre de temps (« 4 t. », en orange quand il diffère de la mesure). Il suit la grille telle qu'elle est dans la fenêtre.
 - **Temps 1 décalé :** clic droit sur le numéro d'une mesure :
-  - « La mesure commence un temps plus tôt / plus tard » déplace cette barre de mesure et recompte la suite à partir
-    d'elle ;
-  - « Le temps 1 est ici » épingle une barre (📌) pour qu'une correction plus loin ne la déplace pas ; épingler la
-    mesure qui suit une mesure courte la garde ;
+  - « Décaler le début de la mesure d'un temps plus tôt / plus tard (et les suivantes) » déplace le début de cette
+    mesure d'un temps et recompte la suite à partir d'elle, jusqu'à la prochaine mesure verrouillée ;
+  - « Verrouiller cette mesure » (🔒) la protège : une correction faite sur une mesure précédente ne la décale pas.
+    Par exemple, verrouiller la mesure 70 avant de corriger la 50 limite la correction aux mesures 50 à 69 ;
+    verrouiller la mesure qui suit une mesure courte garde cette mesure courte ;
   - les accords suivent leurs temps.
 - **Mesure :** le menu à côté de la tonalité choisit 2/4, 3/4, 4/4, 6/8 ou 12/8 ; « Swing » marque un jeu ternaire
   (style iReal).

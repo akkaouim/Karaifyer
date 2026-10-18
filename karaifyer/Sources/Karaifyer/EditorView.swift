@@ -121,7 +121,9 @@ struct EditorView: View {
                         VStack(spacing: 0) {
                             HStack(spacing: 3) {
                                 Text("\(i + 1)").font(.caption2).foregroundStyle(.secondary)
-                                if model.hasPin(i) { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.secondary) }
+                                if model.hasPin(i) {
+                                    Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.secondary).help("Mesure verrouillée")
+                                }
                                 Spacer()
                                 if let n = model.beatCount(i) {
                                     Text("\(n) t.").font(.caption2).monospacedDigit()
@@ -133,12 +135,15 @@ struct EditorView: View {
                             .contentShape(Rectangle())
                             .onTapGesture { model.seekBar(i) }
                             .contextMenu {
-                                Button("La mesure commence un temps plus tôt") { endEditing(); model.moveBar(i, by: -1) }
-                                Button("La mesure commence un temps plus tard") { endEditing(); model.moveBar(i, by: 1) }
+                                Text("Corrige où tombe le temps 1 ; la suite est recomptée jusqu'à la prochaine mesure verrouillée")
+                                Divider()
+                                Button("Décaler le début de la mesure d'un temps plus tôt (et les suivantes)") { endEditing(); model.moveBar(i, by: -1) }
+                                Button("Décaler le début de la mesure d'un temps plus tard (et les suivantes)") { endEditing(); model.moveBar(i, by: 1) }
+                                Divider()
                                 if model.hasPin(i) {
-                                    Button("Retirer le repère") { endEditing(); model.unpinBar(i) }
+                                    Button("Déverrouiller cette mesure") { endEditing(); model.unpinBar(i) }
                                 } else {
-                                    Button("Le temps 1 est ici") { endEditing(); model.pinBar(i) }
+                                    Button("Verrouiller cette mesure (les corrections précédentes ne la décaleront pas)") { endEditing(); model.pinBar(i) }
                                 }
                                 if !model.gridAvailable { Text("Réanalyser le morceau pour corriger la grille") }
                             }
