@@ -162,6 +162,18 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
 - **Lecture** (Espace quand aucun champ n'est en cours de saisie, ou ⌥ Espace) joue l'enregistrement. La ligne et la mesure en cours sont surlignées en jaune.
 - **Volume :** le curseur à droite de la barre de lecture règle le volume (mémorisé pour tous les morceaux).
 - **Aller à une ligne :** le bouton ⇥ avant le chronomètre place la lecture au début de la ligne.
+- **Clic :** la case « Clic » ajoute un clic sur chaque temps (plus aigu sur le temps 1), avec son propre volume ;
+  le compteur « 1/4 » montre le temps en cours, et chaque case affiche en haut à droite son nombre de temps (« 4 t. », en orange quand il diffère de la mesure). Il suit la grille telle qu'elle est dans la fenêtre.
+- **Temps 1 décalé :** clic droit sur le numéro d'une mesure :
+  - « La mesure commence un temps plus tôt / plus tard » déplace cette barre de mesure et recompte la suite à partir
+    d'elle ;
+  - « Le temps 1 est ici » épingle une barre (📌) pour qu'une correction plus loin ne la déplace pas ; épingler la
+    mesure qui suit une mesure courte la garde ;
+  - les accords suivent leurs temps.
+- **Mesure :** le menu à côté de la tonalité choisit 2/4, 3/4, 4/4, 6/8 ou 12/8 ; « Swing » marque un jeu ternaire
+  (style iReal).
+- Ces corrections sont enregistrées dans `mesures/<id>.json` et reprises à chaque analyse : grille, vidéo, clic du
+  Lecteur et iReal suivent.
 - **Annuler / Rétablir :** ⌘Z et ⇧⌘Z (ou les flèches en bas à gauche) annulent et rétablissent les
   modifications des paroles, des accords et de la tonalité. Pendant la saisie d'un champ, ⌘Z agit sur son texte.
 - **Paroles (à gauche) :** cliquer une ligne y va. Le temps et le texte sont modifiables. ⏱ cale le début de

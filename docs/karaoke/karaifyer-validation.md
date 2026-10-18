@@ -35,3 +35,8 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 29 | Lecteur: the mix, tempo, pitch and loop come back after reopening the song and after restarting the app | |
 | 30 | Lecteur: double-click on the video goes full screen, double-click or Escape exits; Space plays/pauses but types a space in the search field | |
 | 31 | Export: « Master seul » in AAC, MP3, WAV and FLAC sounds like the player's mix (incl. a muted part, tempo, pitch); « Vidéo + master » MP4 stays in sync at a changed tempo; « Annuler » leaves no file; the sheet remembers the choices | |
+| 31 bis | Corriger : each bar cell shows its beat count top right (« 4 t. »), orange when it differs from the time signature; it updates at once after a bar fix | |
+| 32 | Corriger : « Clic » on, the click follows the music after a seek, pause/resume and a bar fix during playback; its volume is separate and remembered | |
+| 33 | Corriger : Danser — right-click bar 50 « un temps plus tard » ×2, the click's accent falls on beat 1 again to the end; ⌘Z undoes both, chords follow | |
+| 34 | Corriger : a waltz set to 3/4 shows 3-beat cells; after « Enregistrer », the video's chord rows and the Lecteur's click accent every 3 beats | |
+| 35 | iReal : a song set to 12/8 imports as 12/8 Slow Rock; 4/4 + Swing as Medium Swing | |
