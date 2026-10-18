@@ -18,7 +18,7 @@ The tab is used both for **rehearsing at home** and for **checking the analysis*
 |---|---|
 | Audio engine | **`AVAudioEngine`**: 8 `AVAudioPlayerNode`s (one per track file) → per-track `AVAudioMixerNode` (gain) → a submix → **`AVAudioUnitTimePitch`** (tempo `rate` + `pitch` in cents) → main mixer (master) → output. |
 | Video | A **silent `AVPlayer`** on `paroles.mp4`, in an `AVPlayerView`, slaved to the audio. It plays at the same rate as the audio. Every 0.5 s its time is compared with the audio position, and it is re-seeked if they differ by more than 40 ms. On play, seek and loop, both are re-anchored together. |
-| Output | The system's current audio output (`AVPlayer` default). No XR18 routing, no device selection. |
+| Output | The system's current audio output (`AVAudioEngine`'s default output, following the device selected in macOS). No XR18 routing, no device selection in the app. |
 | Initial levels | First time: **like the show**: parts in `retirer` at zero, everything else at 0 dB (click and guide vocal included). Afterwards: **the last mix Michel left for that song**. |
 | Tempo | Shown and set in **BPM** (the song's measured tempo). Rate = target BPM / song BPM, with pitch preserved. Range: from 0.5 × to 1.5 × the song's BPM. |
 | Pitch | −6…+6 semitones, tempo preserved. |
