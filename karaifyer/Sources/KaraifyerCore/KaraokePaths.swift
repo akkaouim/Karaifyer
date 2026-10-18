@@ -10,6 +10,13 @@ public enum KaraokePaths {
         return legacyExists ? legacyHome : userHome + "/Karaoke"
     }
 
+    /// The pipeline is the folder holding pyproject.toml; picking the repo folder (one level up) works too.
+    public static func pipelineFolder(_ path: String, hasPyproject: (String) -> Bool) -> String {
+        if hasPyproject(path) { return path }
+        let inner = (path as NSString).appendingPathComponent("karaoke")
+        return hasPyproject(inner) ? inner : path
+    }
+
     /// Settings choice, else the repo the app was built from (written into Info.plist by build-app.sh).
     public static func project(saved: String?, bundled: String?, userHome: String) -> String {
         if let saved, !saved.isEmpty { return saved }

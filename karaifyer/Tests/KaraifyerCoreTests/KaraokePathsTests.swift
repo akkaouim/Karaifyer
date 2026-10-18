@@ -16,3 +16,13 @@ struct KaraokePathsTests {
         #expect(KaraokePaths.project(saved: nil, bundled: nil, userHome: "/u") == "/u/Documents/mp3-pipeline/karaoke")
     }
 }
+
+struct ProjectFolderTests {
+    // Michel's brother chose the repo folder (…/Karaifyer) instead of …/Karaifyer/karaoke in Settings
+    @Test func repoFolderIsAcceptedForThePipeline() {
+        let has: (String) -> Bool = { $0 == "/u/Code/Karaifyer/karaoke" }
+        #expect(KaraokePaths.pipelineFolder("/u/Code/Karaifyer", hasPyproject: has) == "/u/Code/Karaifyer/karaoke")
+        #expect(KaraokePaths.pipelineFolder("/u/Code/Karaifyer/karaoke", hasPyproject: has) == "/u/Code/Karaifyer/karaoke")
+        #expect(KaraokePaths.pipelineFolder("/elsewhere", hasPyproject: has) == "/elsewhere")      // left as is: banner explains
+    }
+}

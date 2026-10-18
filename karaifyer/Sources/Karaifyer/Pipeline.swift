@@ -12,9 +12,11 @@ struct Pipeline {
         UserDefaults.standard.string(forKey: "gabarit") ?? karaokeHome + "/gabarit/gabarit Project/gabarit.als"
     }
     var projectDir: String {
-        KaraokePaths.project(saved: UserDefaults.standard.string(forKey: "projectDir"),
-                             bundled: Bundle.main.object(forInfoDictionaryKey: "KaraokeProjectDir") as? String,
-                             userHome: NSHomeDirectory())
+        KaraokePaths.pipelineFolder(
+            KaraokePaths.project(saved: UserDefaults.standard.string(forKey: "projectDir"),
+                                 bundled: Bundle.main.object(forInfoDictionaryKey: "KaraokeProjectDir") as? String,
+                                 userHome: NSHomeDirectory()),
+            hasPyproject: { FileManager.default.fileExists(atPath: $0 + "/pyproject.toml") })
     }
     /// GUI apps don't get the shell PATH; ffmpeg and uv live in Homebrew's bin.
     static let searchPath = ["/opt/homebrew/bin", "/usr/local/bin", NSHomeDirectory() + "/.local/bin", "/usr/bin", "/bin"]
@@ -43,7 +45,7 @@ struct Pipeline {
             p.append("ffmpeg introuvable : l'installer avec « brew install ffmpeg »")
         }
         if !FileManager.default.fileExists(atPath: projectDir + "/pyproject.toml") {
-            p.append("Projet karaoke introuvable : \(projectDir) (Réglages)")
+            p.append("Projet karaoke introuvable : \(projectDir). Dans Réglages, choisir le dossier « karaoke » du dépôt Karaifyer (ou « Défaut »)")
         }
         return p
     }
