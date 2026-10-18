@@ -25,6 +25,8 @@ struct KaraifyerApp: App {
                     .tabItem { Label("Enregistrement", systemImage: "record.circle") }
                 KaraokeView(model: KaraokeModel.shared)
                     .tabItem { Label("Karaoké", systemImage: "music.mic") }
+                PlayerView(model: PlayerModel.shared)
+                    .tabItem { Label("Lecteur", systemImage: "play.rectangle") }
             }
             .onAppear { delegate.model = model }
             .background(WindowOpener())
