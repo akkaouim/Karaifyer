@@ -141,7 +141,7 @@ struct PlayerView: View {
             Button("−") { model.setSemitones(n - 1) }
             Text(n == 0 ? "0" : String(format: "%+d", n)).monospacedDigit().frame(width: 28)
             Button("+") { model.setSemitones(n + 1) }
-            Button("0") { model.setSemitones(0) }
+            Button("Réinitialiser") { model.setSemitones(0) }.fixedSize().disabled(n == 0)
             if n != 0 {
                 Text("Transposé \(String(format: "%+d", n)) : accords de la vidéo dans la tonalité d'origine")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
