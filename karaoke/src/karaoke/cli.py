@@ -29,10 +29,9 @@ def manifeste(audio: Path = typer.Option(..., help="Dossier des FLAC enregistré
               sortie: Path = typer.Option(None, help="Fichier manifeste (défaut : $KARAOKE_HOME/manifeste.csv)"),
               ecraser: bool = typer.Option(False, help="Remplacer un manifeste existant")) -> None:
     """Construit le manifeste à partir des tags des fichiers SysRec."""
-    cfg = Config.load()
-    cfg.ensure_dirs()
+    cfg = _workspace()
     out = sortie or cfg.manifest
-    if out.exists() and not ecraser:
+    if out.exists() and read_manifest(out) and not ecraser:     # an empty manifest (just set up) is replaced
         typer.echo(f"{out} existe déjà (utiliser --ecraser)", err=True)
         raise typer.Exit(1)
     songs = songs_from_sysrec(audio)
@@ -54,9 +53,12 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
             forcer: str = typer.Option(None, help="Étapes à refaire, ex. package,video"),
             json_out: bool = typer.Option(False, "--json", help="Événements JSON, un par ligne (pour Karaifyer)")) -> None:
     """Traite les morceaux du manifeste (reprend là où il s'est arrêté)."""
-    cfg = Config.load()
-    cfg.ensure_dirs()
+    cfg = _workspace()
     songs = read_manifest(cfg.manifest)
+    if not songs:
+        typer.echo(f"Aucun morceau dans {cfg.manifest}. Ajouter des morceaux avec « karaoke ajouter fichier1.flac … » "
+                   "ou depuis Karaifyer (onglet Karaoké, « Ajouter des morceaux… »).")
+        return
     wanted = _csv_set(ids)
     names = [s.name for s in STEPS]
     for opt in filter(None, [etape, *(_csv_set(forcer) or [])]):
@@ -94,16 +96,15 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
 @app.command()
 def etat(json_out: bool = typer.Option(True, "--json", help="Sortie JSON (toujours)")) -> None:
     """État de chaque morceau du manifeste (pour Karaifyer) : étapes, statut, chemins."""
-    cfg = Config.load()
+    cfg = _workspace()
     typer.echo(json.dumps([song_state(cfg, s, STEPS) for s in read_manifest(cfg.manifest)], ensure_ascii=False))
 
 
 @app.command()
 def ajouter(fichiers: list[Path] = typer.Argument(..., help="Fichiers audio à ajouter")) -> None:
     """Ajoute des morceaux au manifeste depuis n'importe quels fichiers audio (pas seulement SysRec)."""
-    cfg = Config.load()
-    cfg.ensure_dirs()
-    songs = read_manifest(cfg.manifest) if cfg.manifest.exists() else []
+    cfg = _workspace()
+    songs = read_manifest(cfg.manifest)
     added, skipped = songs_from_files(fichiers, songs)
     write_manifest(cfg.manifest, songs + added)
     typer.echo(json.dumps({"ajoutes": [{"id": s.id, "titre": s.titre, "artiste": s.artiste} for s in added],
@@ -114,7 +115,7 @@ def ajouter(fichiers: list[Path] = typer.Argument(..., help="Fichiers audio à a
 def modifier(id: str = typer.Option(..., help="Id du morceau"), champ: str = typer.Option(..., help="Colonne"),
              valeur: str = typer.Option(..., help="Nouvelle valeur")) -> None:
     """Modifie une case du manifeste (avec les mêmes vérifications que la lecture)."""
-    cfg = Config.load()
+    cfg = _workspace()
     try:
         s = set_field(cfg.manifest, id, champ, valeur)
     except ManifestError as e:
@@ -125,11 +126,10 @@ def modifier(id: str = typer.Option(..., help="Id du morceau"), champ: str = typ
                           ensure_ascii=False))
 
 
-@app.command()
-def init(home: Path = typer.Option(None, "--home", help="Dossier karaoké à créer (défaut : KARAOKE_HOME ou ~/Karaoke)")) -> None:
-    """Crée le dossier karaoké : arborescence, manifeste vide, gabarit Ableton par défaut (rien n'est écrasé)."""
+def setup_workspace(cfg: Config) -> list[str]:
+    """The karaoke folder with everything it needs: tree, empty manifest, default Ableton template.
+    Nothing existing is overwritten. Every command calls it, so a new Mac needs no manual setup."""
     import shutil
-    cfg = Config(home=home) if home else Config.load()
     cfg.ensure_dirs()
     created = []
     if not cfg.manifest.exists():
@@ -140,13 +140,27 @@ def init(home: Path = typer.Option(None, "--home", help="Dossier karaoké à cr�
         tpl.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(Path(__file__).parent / "ableton" / "templates" / "gabarit.als", tpl)
         created.append(str(tpl))
+    return created
+
+
+def _workspace() -> Config:
+    cfg = Config.load()
+    setup_workspace(cfg)
+    return cfg
+
+
+@app.command()
+def init(home: Path = typer.Option(None, "--home", help="Dossier karaoké à créer (défaut : KARAOKE_HOME ou ~/Karaoke)")) -> None:
+    """Crée le dossier karaoké : arborescence, manifeste vide, gabarit Ableton par défaut (rien n'est écrasé)."""
+    cfg = Config(home=home) if home else Config.load()
+    created = setup_workspace(cfg)
     typer.echo(json.dumps({"home": str(cfg.home), "created": created}, ensure_ascii=False))
 
 
 @app.command()
 def rapport() -> None:
     """Reconstruit le rapport global depuis les rapport.json existants."""
-    cfg = Config.load()
+    cfg = _workspace()
     songs = read_manifest(cfg.manifest)
     write_global(load_reports(cfg.sortie, [Workspace(cfg, s).out for s in songs]),
                  cfg.home / "rapport.csv", cfg.home / "rapport.html")
@@ -156,7 +170,7 @@ def rapport() -> None:
 @app.command()
 def sets(partie: str = typer.Option(None, help="Ne générer que cette partie")) -> None:
     """Génère un set Ableton (.als) par morceau, rangé par partie de soirée, à partir du gabarit."""
-    cfg = Config.load()
+    cfg = _workspace()
     groups = group_by_partie(read_manifest(cfg.manifest))
     warned = False
     for name, songs in groups.items():
