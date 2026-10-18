@@ -15,7 +15,7 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 9 | Right-click: open folder / video / set / chord grid / journal | |
 | 10 | Editor: playback, current line and bar highlighted, ⏱, edit a lyric line and a chord (`Am . . F`), Enregistrer → video and iReal page updated with the correction | |
 | 11 | Re-run « Refaire le morceau »: the corrections from #10 are still there | |
-| 12 | Start a recording while an analysis runs: Karaifyer proposes to pause the analysis | |
+| 12 | Start a recording while an analysis runs: Karaifyer proposes to pause the analysis (« Annuler » or Escape doesn't start the recording) | |
 | 13 | Réglages (⌘,): the three paths; choosing a wrong karaoke folder shows the orange banner and disables Analyser; « Défaut » restores it | |
 | 14 | Editor: type in a lyric or chord cell and click **Enregistrer** straight away (no Return): the typed text is saved | |
 | 15 | Editor: type « je t'aime » in a lyric line — spaces type normally (Lecture/Pause is **⌥ Espace**) | |

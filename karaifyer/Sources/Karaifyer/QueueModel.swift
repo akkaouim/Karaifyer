@@ -193,7 +193,12 @@ final class QueueModel {
             a.informativeText = "La mettre en pause pendant l'enregistrement ? (la charge peut provoquer des coupures)"
             a.addButton(withTitle: "Mettre en pause")
             a.addButton(withTitle: "Continuer les deux")
-            if a.runModal() == .alertFirstButtonReturn { KaraokeModel.shared.pauseForRecording() }
+            a.addButton(withTitle: "Annuler").keyEquivalent = "\u{1b}"     // Escape: don't start the recording
+            switch a.runModal() {
+            case .alertFirstButtonReturn: KaraokeModel.shared.pauseForRecording()
+            case .alertSecondButtonReturn: break
+            default: return
+            }
         }
         stopRequested = false
         skipRequested = false
