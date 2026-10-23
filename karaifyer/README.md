@@ -39,7 +39,8 @@ Spotify.
 - le dossier karaoké (créé au premier lancement, `~/Karaoke` par défaut ; un ancien dossier
   `/Volumes/Hypermnesia/karaoke` est repris s'il existe) ;
 - le gabarit Ableton (un gabarit par défaut est copié dans le dossier karaoké) ;
-- le projet `karaoke` (le dépôt d'où l'app a été construite, noté par `build-app.sh`).
+- le projet `karaoke` (le dépôt d'où l'app a été construite, noté par `build-app.sh`) ;
+- le détecteur d'accords : Jiang 2019 (recommandé), BTC, consonance-ACE ou madmom (ancien).
 
 ## Architecture
 

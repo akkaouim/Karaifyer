@@ -41,3 +41,5 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 33 | Corriger : Danser — right-click bar 50 « Décaler … plus tard » ×2, the click's accent falls on beat 1 again to the end; ⌘Z undoes both, chords follow | |
 | 34 | Corriger : a waltz set to 3/4 shows 3-beat cells; after « Enregistrer », the video's chord rows and the Lecteur's click accent every 3 beats | |
 | 35 | iReal : a song set to 12/8 imports as 12/8 Slow Rock; 4/4 + Swing as Medium Swing | |
+| 36 | Réglages: switch the chord detector, analyse a song without a chord correction; the journal names the detector and the grid shows 7th/sus/slash chords where heard | |
+| 37 | Danser analysed with Jiang (after removing or renaming accords/005.txt): F#m7 where Michel had written A/F# | |

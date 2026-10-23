@@ -45,12 +45,14 @@ l'accompagnement 17–18, ex. claviers joués en live). Elles restent
 disponibles sur leur canal, fader à zéro au départ du morceau.
 
 **Accords et iReal Pro.** Les accords sont détectés sur les pistes harmoniques (basse, guitare, piano,
-autres ; madmom DeepChroma), calés sur les temps : `sortie/<dossier>/accords.txt` (4 mesures par ligne)
+autres ; détecteur au choix : `KARAOKE_ACCORDS` = `jiang` (défaut), `btc`, `ace` ou `madmom`, réglé par
+Karaifyer ; repli sur le mix complet quand les pistes harmoniques sont muettes, chansons a cappella), calés sur les temps : `sortie/<dossier>/accords.txt` (4 mesures par ligne)
 et, dans la vidéo, au-dessus de la syllabe chantée au changement. Après chaque `traiter`,
 `$KARAOKE_HOME/ireal/<partie>.html` contient un lien par morceau : l'ouvrir sur l'appareil où iReal Pro
 est installé et toucher un titre pour l'importer (tonalité incluse ; le tempo se règle dans iReal).
-Détection automatique : à vérifier à l'oreille, surtout les accords enrichis (7e, sus), notés en
-majeur/mineur simple.
+Détection automatique : à vérifier à l'oreille. Jiang et BTC nomment 7e, sus et accords renversés (un A/F# est
+écrit F#m7) ; madmom ne connaît que majeur/mineur. Le code et le modèle de chaque détecteur sont téléchargés à la
+première utilisation, à une version figée (`~/.cache/karaoke/chords/`).
 
 **Paroles.** Sources, dans l'ordre :
 1. ta correction (`paroles/<id>.lrc`, écrite par l'éditeur de Karaifyer) ;

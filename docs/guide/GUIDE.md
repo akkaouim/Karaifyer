@@ -42,6 +42,16 @@ menus donne l'état de l'enregistrement et de l'analyse en un coup d'œil.
 (le dépôt cloné, trouvé automatiquement). « Tout est prêt » en vert signifie que rien ne manque. Sinon, un bandeau orange
 dans l'onglet Karaoké dit quoi faire, par exemple « disque débranché ».
 
+**Détecteur d'accords** (Réglages) :
+- **Jiang 2019 (recommandé)** : le meilleur sur les morceaux testés ; nomme aussi les renversements, 9e et 11e ;
+- **BTC** : presque aussi bon, 7e et sus ;
+- **consonance-ACE** : moins juste, mais le seul qui s'en sort sur un enregistrement abîmé ;
+- **madmom (ancien)** : majeur/mineur seulement.
+
+Le choix vaut pour les analyses suivantes ; en changer refait l'étape des accords (≈ 10 s par morceau), sans toucher
+aux grilles corrigées à la main. La première utilisation d'un détecteur l'installe (une connexion requise une fois).
+Le journal du morceau indique le détecteur utilisé.
+
 ![Réglages](images/04-reglages.png)
 
 ---
