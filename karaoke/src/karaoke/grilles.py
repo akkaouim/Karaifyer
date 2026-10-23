@@ -138,6 +138,20 @@ def _song_key(cfg: Config, song: Song) -> str | None:
     return ((Workspace(cfg, song).read_marker("chords") or {}).get("result") or {}).get("key")
 
 
+def songbook_header(raw: str, transposed: bool = False) -> str:
+    """patadata's song header for reading: « Par : … · Album : … » and the chord diagrams (\\utab ukulele, \\gtab
+    guitar), which are not lyrics for the merge but help to play the chart."""
+    lines = []
+    meta = dict(re.findall(r"\b(by|album)=\{([^}]*)\}", raw))
+    parts = ([f"Par : {meta['by']}"] if "by" in meta else []) + ([f"Album : {meta['album']}"] if "album" in meta else [])
+    if parts:
+        lines.append(" · ".join(parts))
+    tabs = [f"{c} {f} ({'ukulélé' if k == 'u' else 'guitare'})" for k, c, f in re.findall(r"\\([ug])tab\{([^}]*)\}\{([^}]*)\}", raw)]
+    if tabs:
+        lines.append("Doigtés : " + " · ".join(tabs) + (" — version d'origine, non transposés" if transposed else ""))
+    return "\n".join(lines)
+
+
 def voir(cfg: Config, song: Song, source: str | None = None) -> dict:
     """The open chart as text, in the song's key and as written (« Visualiser »)."""
     g = folder(cfg)
@@ -155,7 +169,9 @@ def voir(cfg: Config, song: Song, source: str | None = None) -> dict:
         moved = transpose_progression(raw, k) if k else raw
     else:
         raise ValueError(f"aucune grille ouverte pour {song.id}")
-    return {"source": src, "texte": render(parse(moved)), "original": render(parse(raw)), "transposition": k}
+    head = (lambda t: t + "\n\n" if t else "")
+    return {"source": src, "texte": head(songbook_header(raw, transposed=bool(k))) + render(parse(moved)),
+            "original": head(songbook_header(raw)) + render(parse(raw)), "transposition": k}
 
 
 def fusionner(cfg: Config, song: Song, texte: str | None = None, source: str | None = None) -> dict:

@@ -67,3 +67,21 @@ def test_voir_returns_the_chart_in_the_song_key_and_as_written(cfg):
     assert v["source"] == "patadata" and v["transposition"] == 1
     assert v["texte"].splitlines()[1:3] == ["Fm    Ab", "la la li"]
     assert v["original"].splitlines()[1:3] == ["Em    G", "la la li"]
+
+
+def test_voir_shows_the_songbook_header_and_chord_diagrams(cfg):
+    from karaoke.workspace import Workspace
+    g = cfg.home / "grilles"
+    (g / "patadata" / "songs" / "zazie").mkdir(parents=True)
+    (g / "patadata" / "songs" / "zazie" / "je_suis_un_homme.sg").write_text(
+        "\\beginsong{X}\n  [by={Thomas Fersen},cover={x},album={Pièce montée}]\n  \\utab{Fm}{1013}\n  \\gtab{Cm}{X35543}\n"
+        "\\begin{verse}\n  \\[Fm]la la \\[Cm]li \\[Ab]lo \\[Db]lu\n\\end{verse}\n")
+    s = song()
+    write_manifest(cfg.manifest, [s])
+    Workspace(cfg, s).write_marker("chords", {"result": {"key": "F minor", "bars": []}})
+    grilles.indexer(cfg)
+    v = grilles.voir(cfg, s, "patadata")
+    head = v["texte"].split("\n\n")[0].splitlines()
+    assert head == ["Par : Thomas Fersen · Album : Pièce montée",
+                    "Doigtés : Fm 1013 (ukulélé) · Cm X35543 (guitare)"]
+    assert v["original"].startswith("Par : Thomas Fersen")
