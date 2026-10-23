@@ -199,6 +199,10 @@ final class EditorModel {
                 guard let self, e.window?.title == title, !(e.window?.firstResponder is NSText),
                       e.charactersIgnoringModifiers?.lowercased() == "z" else { return false }
                 let mods = e.modifierFlags.intersection([.command, .shift, .option, .control])
+                if self.syncing {                       // during sync, ⌘Z cancels the last stamp; ⇧⌘Z does nothing
+                    if mods == .command { self.syncCancel() }
+                    return mods == .command || mods == [.command, .shift]
+                }
                 if mods == .command { self.undo(); return true }
                 if mods == [.command, .shift] { self.redo(); return true }
                 return false
@@ -299,7 +303,7 @@ final class EditorModel {
     var syncing = false
     var replaceShown = false
     var replaceDraft = ""
-    var sync: LyricsSync?
+    var sync: LyricsSync<UUID>?
     var syncMessage: String?
     private(set) var syncIDs: [UUID] = []
     @ObservationIgnored private var countIn: AVAudioPlayer?
@@ -314,11 +318,11 @@ final class EditorModel {
         song.padS != nil && player != nil && FileManager.default.fileExists(atPath: clicFile)
             && FileManager.default.fileExists(atPath: voiceFile)
     }
-    var syncActiveID: UUID? { sync?.active.flatMap { syncIDs.indices.contains($0) ? syncIDs[$0] : nil } }
+    var syncActiveID: UUID? { sync?.active }
 
     /// Show time now: the count-in's own time while it plays, then pad + the recording's time.
     private var syncShowNow: Double {
-        LyricsSync.showTime(countInPlaying: countIn?.isPlaying == true, countInTime: countIn?.currentTime ?? 0,
+        SyncTime.showTime(countInPlaying: countIn?.isPlaying == true, countInTime: countIn?.currentTime ?? 0,
                             recordingTime: player?.currentTime ?? 0, pad: pad)
     }
 
@@ -342,7 +346,7 @@ final class EditorModel {
         if voiceEnvelope == nil { voiceEnvelope = try? VocalOnset.load(url: URL(fileURLWithPath: voiceFile)) }
         syncIDs = lines.map(\.id)
         let start = fromSelected ? (selectedLine.flatMap { id in syncIDs.firstIndex(of: id) } ?? 0) : 0
-        sync = LyricsSync(count: syncIDs.count, startAt: start)
+        sync = LyricsSync(ids: syncIDs, startAt: start)
         syncMessage = nil
         syncPaused = false
         if start == 0 {
@@ -354,7 +358,7 @@ final class EditorModel {
             if let c = clickPlayer { c.currentTime = 0; c.play(atTime: t0 + pad) }
         } else {
             countIn = nil
-            p.currentTime = max(0, LyricsSync.startTime(from: start, times: lines.map(\.time)) - pad)
+            p.currentTime = max(0, SyncTime.startTime(from: start, times: lines.map(\.time)) - pad)
             p.play()
             startClick()
         }
@@ -382,7 +386,7 @@ final class EditorModel {
                 guard let self, self.syncing, e.window?.title == title, !(e.window?.firstResponder is NSText),
                       e.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return false }
                 switch e.keyCode {
-                case 36, 76: self.syncStamp()                     // Return / keypad Enter
+                case 36, 76: if !e.isARepeat && !self.syncPaused { self.syncStamp() }   // Return / keypad Enter
                 case 126, 51: self.syncCancel()                   // ↑ / ⌫
                 case 49: if !e.isARepeat { self.syncTogglePause() }   // Space
                 case 53: self.stopSync(done: false)               // Escape
@@ -395,10 +399,12 @@ final class EditorModel {
     }
 
     func syncStamp() {
-        guard var s = sync, let i = s.active, syncIDs.indices.contains(i),
-              let line = lines.first(where: { $0.id == syncIDs[i] }) else { return }
+        guard var s = sync, let id = s.active, let line = lines.first(where: { $0.id == id }) else { return }
         let press = syncShowNow
-        let t = voiceEnvelope.flatMap { VocalOnset.find(envelope: $0, near: press) } ?? press
+        let snapped = voiceEnvelope.flatMap { VocalOnset.find(envelope: $0, near: press) } ?? press
+        // never before the line stamped just before (sync order), so the saved lines stay in order
+        let prevID = s.ids.firstIndex(of: id).flatMap { $0 > 0 ? s.ids[$0 - 1] : nil }
+        let t = SyncTime.clamp(snapped, after: prevID.flatMap { p in lines.first { $0.id == p }?.time })
         edit { doc.stamp(line.id, at: t); lyricsDirty = true }
         _ = s.stamp(oldTime: line.time)
         sync = s
@@ -406,9 +412,17 @@ final class EditorModel {
     }
 
     func syncCancel() {
-        guard var s = sync, let (i, old) = s.cancel(), syncIDs.indices.contains(i) else { return }
-        edit { doc.stamp(syncIDs[i], at: old); lyricsDirty = true }
+        guard var s = sync, let (id, old) = s.cancel() else { return }
+        edit { doc.stamp(id, at: old); lyricsDirty = true }
         sync = s
+    }
+
+    /// While syncing, any change to the lines (a line added, deleted or replaced while paused, an undo) is followed.
+    private func reconcileSync() {
+        guard syncing, var s = sync else { return }
+        s.reconcile(lines.map(\.id))
+        sync = s
+        syncIDs = s.ids
     }
 
     func syncTogglePause() {
@@ -453,8 +467,9 @@ final class EditorModel {
         let r = LyricsText.replace(old: lines.map { (time: $0.time, text: $0.text) }, with: text)
         edit { doc = LyricsDoc(lines: r.lines.map { LyricLine(time: $0.time, text: $0.text) }); lyricsDirty = true }
         if syncing {
+            let start = r.firstChanged ?? sync?.active.flatMap { a in syncIDs.firstIndex(of: a) } ?? 0
             syncIDs = lines.map(\.id)
-            sync = LyricsSync(count: syncIDs.count, startAt: r.firstChanged ?? sync?.active ?? syncIDs.count)
+            sync = LyricsSync(ids: syncIDs, startAt: min(start, syncIDs.count))
         }
     }
 
@@ -492,6 +507,7 @@ final class EditorModel {
         if before.doc.lines != doc.lines || before.cells != cells || before.key != key || before.fix != fix {
             history.record(before)
         }
+        if before.doc.lines.map(\.id) != doc.lines.map(\.id) { reconcileSync() }
     }
     func undo() { if let s = history.undo(from: snapshot) { snapshot = s; rebuildClick() } }
     func redo() { if let s = history.redo(from: snapshot) { snapshot = s; rebuildClick() } }

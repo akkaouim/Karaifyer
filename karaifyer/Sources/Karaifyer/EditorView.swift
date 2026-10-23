@@ -44,12 +44,14 @@ struct EditorView: View {
 
     var playerBar: some View {
         HStack {
-            Button(model.playing ? "Pause" : "Lecture", systemImage: model.playing ? "pause.fill" : "play.fill") {
-                model.playing ? model.pause() : model.play()
+            Button(model.playing && !model.syncPaused ? "Pause" : "Lecture",
+                   systemImage: model.playing && !model.syncPaused ? "pause.fill" : "play.fill") {
+                if model.syncing { model.syncTogglePause() } else { model.playing ? model.pause() : model.play() }
             }
             .keyboardShortcut(.space, modifiers: .option)   // a bare Space would be stolen from text fields
             .help("Lecture / pause (Espace hors saisie, ou ⌥ Espace)")
             Slider(value: Binding(get: { model.position }, set: { model.seek(input: $0) }), in: 0...max(model.duration, 1))
+                .disabled(model.syncing)
             Text(LRC.timecode(model.showTime)).monospacedDigit().frame(width: 70)
             if let b = model.beatCounter {
                 Text("\(b.beat)/\(b.of)").monospacedDigit().frame(width: 36)
@@ -98,6 +100,7 @@ struct EditorView: View {
                     let id = line.id
                     HStack {
                         Button("Aller", systemImage: "arrow.right.to.line") { endEditing(); model.seekLine(id) }
+                            .disabled(model.syncing)
                             .labelStyle(.iconOnly).help("Placer la lecture au début de cette ligne")
                         Button("Caler", systemImage: "stopwatch") { endEditing(); model.stampLine(id) }
                             .labelStyle(.iconOnly).help("Caler le début de la ligne sur la lecture")
@@ -110,7 +113,7 @@ struct EditorView: View {
                     .background(model.syncing && model.syncActiveID == id ? Color.accentColor.opacity(0.25)
                                 : model.currentLine.map { model.lines[$0].id == id } == true ? Color.yellow.opacity(0.25) : Color.clear)
                     .contentShape(Rectangle())
-                    .onTapGesture { model.seekLine(id) }
+                    .onTapGesture { if !model.syncing { model.seekLine(id) } else { model.selectedLine = id } }
                 }
             }
         }
@@ -179,7 +182,7 @@ struct EditorView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
-                            .onTapGesture { model.seekBar(i) }
+                            .onTapGesture { if !model.syncing { model.seekBar(i) } }
                             .contextMenu {
                                 Text("Corrige où tombe le temps 1 ; la suite est recomptée jusqu'à la prochaine mesure verrouillée")
                                 Divider()
@@ -251,7 +254,7 @@ struct EditorView: View {
     /// Sync mode: the line to stamp, large, between its neighbours, with the keys to use.
     var syncPanel: some View {
         let ids = model.syncIDs
-        let active = model.sync?.active
+        let active = model.sync?.active.flatMap { ids.firstIndex(of: $0) }
         func text(_ i: Int?) -> String {
             guard let i, ids.indices.contains(i), let l = model.lines.first(where: { $0.id == ids[i] }) else { return " " }
             return l.text
