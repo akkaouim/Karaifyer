@@ -47,3 +47,7 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 39 | Corriger: « Grille trouvée dans patadata : appliquer ? » — Appliquer fills the grid; Ignorer hides it for that song, also after reopening | |
 | 40 | Corriger: « Afficher la progression d'accords » opens a floating panel that stays above, and closes with the Corriger window | |
 | 41 | Réglages: « Télécharger » the open charts — status shows « N morceaux reliés »; the date of the copy appears | |
+| 42 | Corriger: « Synchroniser » plays the count-in then the song; Entrée stamps each line on the voice, the next line becomes active, until the end | |
+| 43 | Corriger: ↑ cancels the last stamp; Espace pauses — fix a word, add a line, resume; Échap and closing the window stop the sound | |
+| 44 | Corriger: « Remplacer le texte… » with ⌘A ⌘V — unchanged lines keep their times; « Synchroniser à partir de la ligne sélectionnée » redoes one passage | |
+| 45 | After « Enregistrer », the video's lines appear on the voice | |

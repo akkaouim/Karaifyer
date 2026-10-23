@@ -14,7 +14,8 @@ Application macOS pour préparer le spectacle karaoké. **Mode d'emploi complet,
     maintenant ;
   - une barre de progression, des marqueurs d'avancement et un terminal horodaté ;
   - un éditeur de paroles et d'accords avec lecture, clic, correction du temps 1 et de la mesure ;
-  - l'import d'une grille d'accords (collée ou ouverte : patadata, Chordonomicon), fusionnée avec la détection.
+  - l'import d'une grille d'accords (collée ou ouverte : patadata, Chordonomicon), fusionnée avec la détection ;
+  - la synchronisation des paroles au clavier (Entrée à chaque début de ligne, avec le décompte).
 - **Lecteur :**
   - la vidéo et un mixeur 8 pistes plus master (fader, mute, solo) ;
   - une barre de position, une boucle calée sur les mesures, le tempo en BPM et la transposition ;

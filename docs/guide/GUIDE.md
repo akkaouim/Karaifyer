@@ -192,6 +192,19 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
 - Ces corrections sont enregistrées dans `mesures/<id>.json` et reprises à chaque analyse : grille, vidéo, clic du
   Lecteur et iReal suivent.
 
+**Synchroniser les paroles** :
+- **Synchroniser** lance le morceau avec les 4 clics du décompte, comme en spectacle (même son que le lecteur de la
+  fenêtre : volume et « Clic » compris). La ligne à caler s'affiche en grand, entre la précédente et la suivante.
+- **Entrée** cale la ligne au moment où elle est chantée et passe à la suivante. L'appui est ramené sur le début de la
+  voix entendue juste avant (jusqu'à 0,4 s) ; sans voix détectée, l'instant de l'appui est gardé.
+- **↑** (ou ⌫) annule le dernier calage, **Espace** met en pause, **Échap** quitte en gardant ce qui est calé. Chaque
+  calage s'annule aussi avec ⌘Z.
+- **Synchroniser à partir de la ligne sélectionnée** reprend 2 s avant la ligne précédente, sans tout rejouer.
+- En pause, le texte se corrige comme d'habitude (mot, + Ligne), et **Remplacer le texte…** permet de tout remplacer
+  (⌘A ⌘V) : les lignes inchangées gardent leur temps.
+- **Enregistrer** garde les temps comme correction des paroles (`paroles/<id>.lrc`), qui passe avant LRCLIB ; la
+  vidéo est refaite avec les lignes calées.
+
 **Grilles d'accords (tablatures et grilles ouvertes)** :
 - **Rechercher la grille…** ouvre une recherche du morceau sur Ultimate Guitar et La Boîte à chansons : choisir la
   version la plus fiable.
