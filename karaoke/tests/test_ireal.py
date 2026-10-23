@@ -67,3 +67,8 @@ def test_signature_codes_and_styles():
     assert style_for(4, None, False) == "Pop"
     url = unquote(song_url("X", "Y", "Slow Rock", "C major", BARS[:1], 4, 60.0, signature="12/8"))
     assert "[T12" in url
+
+
+def test_new_qualities_to_ireal():
+    assert [chord(c) for c in ["Edim7", "Am9", "Cmaj9", "G7sus4", "CmM7", "G11", "G13"]] == \
+        ["Eo7", "A-9", "C^9", "G7sus", "C-^7", "G11", "G13"]

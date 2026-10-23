@@ -115,3 +115,32 @@ def test_ireal_pages_skip_songs_without_bars(cfg):
     s = song()
     Workspace(cfg, s).write_marker("chords", {"result": {"key": None, "bpm": 0, "beats_per_bar": 4, "bars": []}})
     assert write_pages(cfg, [s]) == []
+
+
+def test_harte_labels_to_chart_symbols():
+    from karaoke.chords import symbol
+    cases = {"C#:min": "C#m", "A:maj": "A", "N": "N.C.", "X": "N.C.", "G:7": "G7", "F:maj7": "Fmaj7",
+             "D:min7": "Dm7", "B:hdim7": "Bm7b5", "E:dim7": "Edim7", "C:aug": "Caug", "A:maj6": "A6",
+             "A:min6": "Am6", "D:9": "D9", "C:maj9": "Cmaj9", "A:min9": "Am9", "G:sus4(b7)": "G7sus4",
+             "D:sus2": "Dsus2", "E:sus4": "Esus4", "C:minmaj7": "CmM7", "G:11": "G11", "G:13": "G13",
+             "A#:min": "Bbm", "C:maj(9)": "C", "C:min(b13)": "Cm", "C:weird": "C", "C:minweird": "Cm",
+             "A:maj/3": "A/C#", "C:maj/5": "C/G", "G:7/b7": "G7/F", "D:min/b3": "Dm/F"}
+    assert {k: symbol(k) for k in cases} == cases
+
+
+def test_slash_chord_named_in_root_position_when_the_notes_match():
+    from karaoke.chords import symbol
+    assert symbol("A:maj/6") == "F#m7"       # A/F#: F# A C# E — Michel's naming
+    assert symbol("C:maj/6") == "Am7"
+    assert symbol("F:maj/6") == "Dm7"
+    assert symbol("A:maj/3") == "A/C#"       # a real inversion stays a slash chord
+
+
+def test_symbol_is_always_a_valid_chart_symbol():
+    import itertools
+    from karaoke.chords import SYMBOL, symbol
+    quals = ["maj", "min", "7", "maj7", "min7", "hdim7", "dim", "dim7", "aug", "maj6", "min6", "9", "maj9", "min9",
+             "sus2", "sus4", "sus4(b7)", "minmaj7", "11", "13", "maj(9)", "min(11)", "1", "5", "foo"]
+    basses = ["", "/3", "/b3", "/5", "/b7", "/7", "/2", "/4", "/6", "/F#"]
+    for r, q, b in itertools.product(["C", "C#", "Eb", "F#", "Bb"], quals, basses):
+        assert SYMBOL.match(symbol(f"{r}:{q}{b}")), f"{r}:{q}{b} → {symbol(f'{r}:{q}{b}')}"

@@ -4,14 +4,55 @@ import re
 
 FLATS = {"A#": "Bb", "C#": "C#", "D#": "Eb", "F#": "F#", "G#": "Ab"}   # usual chart spelling
 
+PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+NAME = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+# Harte quality → (chart suffix, intervals above the root)
+HARTE = {"maj": ("", (0, 4, 7)), "min": ("m", (0, 3, 7)), "7": ("7", (0, 4, 7, 10)), "maj7": ("maj7", (0, 4, 7, 11)),
+         "min7": ("m7", (0, 3, 7, 10)), "hdim7": ("m7b5", (0, 3, 6, 10)), "dim": ("dim", (0, 3, 6)),
+         "dim7": ("dim7", (0, 3, 6, 9)), "aug": ("aug", (0, 4, 8)), "maj6": ("6", (0, 4, 7, 9)),
+         "min6": ("m6", (0, 3, 7, 9)), "9": ("9", (0, 4, 7, 10, 2)), "maj9": ("maj9", (0, 4, 7, 11, 2)),
+         "min9": ("m9", (0, 3, 7, 10, 2)), "sus2": ("sus2", (0, 2, 7)), "sus4": ("sus4", (0, 5, 7)),
+         "sus4(b7)": ("7sus4", (0, 5, 7, 10)), "7sus4": ("7sus4", (0, 5, 7, 10)), "minmaj7": ("mM7", (0, 3, 7, 11)),
+         "11": ("11", (0, 4, 7, 10, 2, 5)), "13": ("13", (0, 4, 7, 10, 2, 9)), "add9": ("add9", (0, 4, 7, 2))}
+DEGREE = {"1": 0, "b2": 1, "2": 2, "b3": 3, "3": 4, "4": 5, "#4": 6, "b5": 6, "5": 7, "#5": 8, "b6": 8, "6": 9,
+          "bb7": 9, "b7": 10, "7": 11, "9": 2, "b9": 1, "11": 5, "#11": 6, "13": 9, "b13": 8}
+ROOT_POSITION = ("m7", "7", "maj7", "m7b5", "6", "m6", "m9", "9")   # tried, in order, for a slash chord
+
+
+def _pc(note: str) -> int:
+    return (PC[note[0]] + sum({"#": 1, "b": -1}.get(c, 0) for c in note[1:])) % 12
+
 
 def symbol(label: str) -> str:
-    """madmom label (`C#:min`, `A:maj`, `N`) → chart symbol (`C#m`, `A`, `N.C.`)."""
-    if label in ("N", "X", ""):
+    """Harte label (any engine: `C#:min7`, `A:maj/3`, `G:sus4(b7)`, `N`) → chart symbol (`C#m7`, `A/C#`, `G7sus4`).
+    A slash chord whose notes form a chord rooted on its bass is named by it (A/F# → F#m7, Michel's convention);
+    unknown qualities fall back to their maj/min triad. Karaifyer's ChordGrid accepts the same symbols."""
+    m = re.match(r"^([A-G][#b]?)(?::([^/]*))?(?:/(.+))?$", label.strip())
+    if not m:
         return "N.C."
-    root, _, quality = label.partition(":")
-    root = FLATS.get(root, root)
-    return root + ("m" if quality.startswith("min") else "")
+    root = _pc(m.group(1))
+    q = m.group(2) or "maj"
+    if q not in HARTE:
+        q = q.split("(")[0]
+    suffix, iv = HARTE.get(q, ("m", HARTE["min"][1]) if q.startswith("min") else ("", HARTE["maj"][1]))
+    name = NAME[root] + suffix
+    b = m.group(3)
+    if not b:
+        return name
+    bass = (root + DEGREE[b]) % 12 if b in DEGREE else _pc(b) if b[0] in PC else root
+    if bass == root:
+        return name
+    notes = {(root + i) % 12 for i in iv} | {bass}
+    for suf in ROOT_POSITION:
+        cand = next(v for v in HARTE.values() if v[0] == suf)
+        if {(bass + i) % 12 for i in cand[1]} == notes:
+            return NAME[bass] + suf
+    return f"{name}/{NAME[bass]}"
+
+
+SYMBOL = re.compile(r"^(N\.C\.|[A-G][#b]?(maj9|maj7|mM7|m7b5|m9|m7|m6|7sus4|dim7|dim|aug|sus2|sus4|add9|11|13|9|7|6|m)?"
+                    r"(/[A-G][#b]?)?)$")
+
 
 
 def chords_per_beat(segments: list, beats: list[float]) -> list[str]:
@@ -83,7 +124,6 @@ def spell(symbols: list[str], key: str) -> list[str]:
     return out
 
 
-SYMBOL = re.compile(r"^(N\.C\.|[A-G][#b]?(m|maj7|m7b5|m7|m6|7|6|9|dim|aug|sus2|sus4|add9)?(/[A-G][#b]?)?)$")
 
 
 def parse_cell(cell: str, beats_per_bar: int) -> list[list]:

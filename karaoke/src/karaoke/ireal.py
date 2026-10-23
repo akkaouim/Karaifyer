@@ -15,14 +15,15 @@ MINOR_FLAT = {"A#": "Bb", "D#": "Eb"}                            # minor: C#- F#
 
 
 QUALITY = {"": "", "m": "-", "maj7": "^7", "m7": "-7", "m7b5": "h7", "m6": "-6", "7": "7", "6": "6",
-           "9": "9", "dim": "o", "aug": "+", "sus2": "sus2", "sus4": "sus", "add9": "add9"}
+           "9": "9", "dim": "o", "aug": "+", "sus2": "sus2", "sus4": "sus", "add9": "add9",
+           "dim7": "o7", "m9": "-9", "maj9": "^9", "7sus4": "7sus", "mM7": "-^7", "11": "11", "13": "13"}
 
 
 def chord(symbol: str) -> str:
     """Chart symbol (karaoke.chords.SYMBOL) → iReal syntax: m → -, maj7 → ^7, m7b5 → h7, dim → o…"""
     if symbol == "N.C.":
         return "n"
-    m = re.match(r"^([A-G][#b]?)(maj7|m7b5|m7|m6|m|7|6|9|dim|aug|sus2|sus4|add9)?(/[A-G][#b]?)?$", symbol)
+    m = re.match(r"^([A-G][#b]?)(maj9|maj7|mM7|m7b5|m9|m7|m6|7sus4|dim7|dim|aug|sus2|sus4|add9|11|13|9|7|6|m)?(/[A-G][#b]?)?$", symbol)
     if not m:
         return symbol
     return m.group(1) + QUALITY[m.group(2) or ""] + (m.group(3) or "")
