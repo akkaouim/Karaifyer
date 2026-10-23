@@ -42,6 +42,9 @@ menus donne l'état de l'enregistrement et de l'analyse en un coup d'œil.
 (le dépôt cloné, trouvé automatiquement). « Tout est prêt » en vert signifie que rien ne manque. Sinon, un bandeau orange
 dans l'onglet Karaoké dit quoi faire, par exemple « disque débranché ».
 
+**Grilles ouvertes** (Réglages) : « Télécharger » récupère Chordonomicon et patadata (≈ 100 Mo, une fois, usage
+privé) et relie les morceaux par la feuille d'enregistrement (identifiants Spotify).
+
 **Détecteur d'accords** (Réglages) :
 - **Jiang 2019 (recommandé)** : le meilleur sur les morceaux testés ; nomme aussi les renversements, 9e et 11e ;
 - **BTC** : presque aussi bon, 7e et sus ;
@@ -188,6 +191,24 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
   (style iReal).
 - Ces corrections sont enregistrées dans `mesures/<id>.json` et reprises à chaque analyse : grille, vidéo, clic du
   Lecteur et iReal suivent.
+
+**Grilles d'accords (tablatures et grilles ouvertes)** :
+- **Rechercher la grille…** ouvre une recherche du morceau sur Ultimate Guitar et La Boîte à chansons : choisir la
+  version la plus fiable.
+- **Importer une grille…** : coller la grille (accords au-dessus des paroles, ChordPro, ou fichier patadata), puis
+  « Appliquer ». La grille est fusionnée avec la détection et remplace les cases tout de suite (⌘Z pour revenir) :
+  - un accord écrit au-dessus d'un mot tombe sur le temps où ce mot est chanté ;
+  - un refrain répété, ou un couplet de même harmonie, reprend les accords déjà placés ;
+  - même fondamentale que l'audio : l'accord de la grille gagne (C# devient C#m, A devient Amaj7) ;
+  - fondamentale ou basse différente : l'accord de la grille sur la basse entendue (A sur F# s'écrit F#m7), et la
+    mesure est entourée d'orange — « grille et audio diffèrent : à vérifier à l'oreille » ;
+  - ailleurs, l'accord détecté prend la version de la grille de même fondamentale.
+- **Grille trouvée dans patadata / Chordonomicon : appliquer ?** — proposée quand une grille ouverte existe pour le
+  morceau ; « Ignorer » ne la propose plus pour ce morceau.
+- **Afficher la progression d'accords** : la progression complète de Chordonomicon (une section par ligne), dans une
+  fenêtre flottante qui reste au-dessus jusqu'à sa fermeture ou celle de la fenêtre Corriger.
+- Les contours orange servent à la relecture et ne sont pas enregistrés ; « Enregistrer » garde la grille comme
+  correction (`accords/<id>.txt`).
 - **Annuler / Rétablir :** ⌘Z et ⇧⌘Z (ou les flèches en bas à gauche) annulent et rétablissent les
   modifications des paroles, des accords et de la tonalité. Pendant la saisie d'un champ, ⌘Z agit sur son texte.
 - **Paroles (à gauche) :** cliquer une ligne y va. Le temps et le texte sont modifiables. ⏱ cale le début de

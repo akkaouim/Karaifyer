@@ -54,6 +54,10 @@ Détection automatique : à vérifier à l'oreille. Jiang et BTC nomment 7e, sus
 écrit F#m7) ; madmom ne connaît que majeur/mineur. Le code et le modèle de chaque détecteur sont téléchargés à la
 première utilisation, à une version figée (`~/.cache/karaoke/chords/`).
 
+**Grilles ouvertes.** `karaoke grilles telecharger` (Chordonomicon + patadata dans `$KARAOKE_HOME/grilles/`),
+`karaoke grilles lier --feuille <feuille.csv>` (identifiants Spotify → colonne `spotify` du manifeste),
+`karaoke grilles fusionner --id 005 [--texte -] --json` (grille collée ou ouverte fusionnée avec la détection).
+
 **Paroles.** Sources, dans l'ordre :
 1. ta correction (`paroles/<id>.lrc`, écrite par l'éditeur de Karaifyer) ;
 2. LRCLIB, paroles synchronisées ; chaque ligne est recalée sur le moment où son premier mot est chanté, et

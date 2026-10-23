@@ -43,3 +43,7 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 35 | iReal : a song set to 12/8 imports as 12/8 Slow Rock; 4/4 + Swing as Medium Swing | |
 | 36 | Réglages: switch the chord detector, analyse a song without a chord correction; the journal names the detector and the grid shows 7th/sus/slash chords where heard | |
 | 37 | Danser analysed with Jiang (after removing or renaming accords/005.txt): F#m7 where Michel had written A/F# | |
+| 38 | Corriger: paste a tab from Ultimate Guitar for a French song → cells replaced at once (⌘Z undoes), summary line shown; listen with « Clic » to the orange bars | |
+| 39 | Corriger: « Grille trouvée dans patadata : appliquer ? » — Appliquer fills the grid; Ignorer hides it for that song, also after reopening | |
+| 40 | Corriger: « Afficher la progression d'accords » opens a floating panel that stays above, and closes with the Corriger window | |
+| 41 | Réglages: « Télécharger » the open charts — status shows « N morceaux reliés »; the date of the copy appears | |
