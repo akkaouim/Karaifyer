@@ -29,3 +29,67 @@ def test_chordonomicon_progression():
 def test_chord_only_lines_and_capo_in_a_tab():
     c = parse("Capo 3\nIntro: Am F C G\n\nAm\nla la\n")
     assert c.capo == 3 and c.lines[0].text == "" and [s for _, s in c.lines[0].chords] == ["Am", "F", "C", "G"]
+
+
+from karaoke.chord_sources import Chart, ChartLine, merge
+
+BEATS = [0.5 * i for i in range(16)]
+BARS = [0, 4, 8, 12]
+
+
+def words_at(*lines):            # (text, [start of each word])
+    return [list(zip(t.split(), ts)) for t, ts in lines], [t for t, _ in lines]
+
+
+def test_chart_type_wins_on_same_root():
+    w, lt = words_at(("la la", [0.0, 1.0]))
+    det = ["C#"] * 8 + ["A"] * 8
+    r = merge(Chart([ChartLine(None, "la la", [(0, "C#m")])]), BEATS, BARS, 4, det, w, lt)
+    assert r.cells[:2] == ["C#m", "C#m"] and r.flagged == []
+
+
+def test_different_root_takes_the_detected_bass_and_flags():
+    w, lt = words_at(("la la", [0.0, 2.0]))
+    det = ["F#m"] * 16
+    r = merge(Chart([ChartLine(None, "la la", [(0, "A")])]), BEATS, BARS, 4, det, w, lt)
+    assert r.cells[0] == "F#m7" and 0 in r.flagged          # A over F# → F#m7 (Michel's naming)
+
+
+def test_chorus_repeated_by_text_and_vocabulary_elsewhere():
+    w, lt = words_at(("refrain ici", [0.0, 1.0]), ("couplet", [2.0]), ("refrain ici", [6.0, 7.0]))
+    det = ["Am"] * 4 + ["C"] * 4 + ["Am"] * 4 + ["G"] * 4
+    chart = Chart([ChartLine("chorus", "refrain ici", [(0, "Am7")]), ChartLine("verse", "couplet", [(0, "Cmaj7")])])
+    r = merge(chart, BEATS, BARS, 4, det, w, lt)
+    assert r.cells[0] == "Am7" and r.cells[1] == "Cmaj7" and r.cells[3].startswith("Am7") and r.repeated >= 1
+
+
+def test_transposition_follows_the_detection():
+    w, lt = words_at(("la", [0.0]))
+    det = ["E"] * 16
+    r = merge(Chart([ChartLine(None, "la", [(0, "C")])], capo=4), BEATS, BARS, 4, det, w, lt)
+    assert r.cells[0] == "E" and r.flagged == []
+
+
+def test_placement_skips_unmatched_lines():
+    w, lt = words_at(("premier vers", [0.0, 0.5]), ("second vers", [4.0, 4.5]))
+    chart = Chart([ChartLine(None, "premier vers", [(0, "Am")]), ChartLine(None, "une ligne en trop", [(0, "D")]),
+                   ChartLine(None, "second vers", [(0, "G")])])
+    r = merge(chart, BEATS, BARS, 4, ["N.C."] * 16, w, lt)
+    assert r.cells[0] == "Am" and r.cells[2] == "G" and "D" not in "".join(r.cells)
+
+
+def test_merge_without_detection_or_words():
+    r = merge(Chart([ChartLine("verse_1", "", [(0, "Am"), (1, "F")])]), BEATS, BARS, 4, [], [], [])
+    assert len(r.cells) == 4 and all(r.cells)
+
+
+def test_verse_repeated_by_detected_roots():
+    # two sections (gap ≥ 4 s between them), same detected roots; chords only placed in the first
+    beats = [0.5 * i for i in range(32)]
+    bars = [0, 4, 8, 12, 16, 20, 24, 28]
+    w, lt = words_at(("premier couplet", [0.0, 2.0]), ("autre texte ici", [8.0, 10.0]))
+    det = (["A"] * 4 + ["D"] * 4 + ["N.C."] * 8) * 2
+    chart = Chart([ChartLine("verse", "premier couplet", [(0, "Amaj7"), (8, "D6")])])
+    r = merge(chart, beats, bars, 4, det, w, lt)
+    assert r.cells[0] == "Amaj7" and r.cells[1] == "D6"
+    assert r.cells[4] == "Amaj7" and r.cells[5] == "D6" and r.repeated >= 2
