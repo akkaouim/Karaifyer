@@ -188,7 +188,7 @@ final class EditorModel {
     func installSpaceKey() {
         guard keyMonitor == nil else { return }
         let title = windowTitle
-        keyMonitor = SpaceKey.monitor(accepts: { $0?.title == title }) { [weak self] in
+        keyMonitor = SpaceKey.monitor(accepts: { [weak self] w in w?.title == title && !(self?.syncing ?? false) }) { [weak self] in
             guard let self else { return }
             self.playing ? self.pause() : self.play()
         }
@@ -207,6 +207,7 @@ final class EditorModel {
         }
     }
     func removeSpaceKey() {
+        stopSync(done: false)
         if let m = keyMonitor { NSEvent.removeMonitor(m) }
         if let m = undoMonitor { NSEvent.removeMonitor(m) }
         keyMonitor = nil
@@ -292,6 +293,170 @@ final class EditorModel {
         seek(input: l.time - pad)
     }
     func seekBar(_ i: Int) { seek(input: barStart(i)) }
+
+    // MARK: lyric tap sync — Return stamps the active line at the moment it's sung (snapped to the voice)
+
+    var syncing = false
+    var replaceShown = false
+    var replaceDraft = ""
+    var sync: LyricsSync?
+    var syncMessage: String?
+    private(set) var syncIDs: [UUID] = []
+    @ObservationIgnored private var countIn: AVAudioPlayer?
+    @ObservationIgnored private var voiceEnvelope: [Float]?
+    @ObservationIgnored private var syncMonitor: Any?
+    @ObservationIgnored private var syncTimer: Timer?
+    private(set) var syncPaused = false
+
+    private var clicFile: String { song.paths.dossier + "/clic.flac" }
+    private var voiceFile: String { song.paths.dossier + "/guide_voix.flac" }
+    var syncAvailable: Bool {
+        song.padS != nil && player != nil && FileManager.default.fileExists(atPath: clicFile)
+            && FileManager.default.fileExists(atPath: voiceFile)
+    }
+    var syncActiveID: UUID? { sync?.active.flatMap { syncIDs.indices.contains($0) ? syncIDs[$0] : nil } }
+
+    /// Show time now: the count-in's own time while it plays, then pad + the recording's time.
+    private var syncShowNow: Double {
+        LyricsSync.showTime(countInPlaying: countIn?.isPlaying == true, countInTime: countIn?.currentTime ?? 0,
+                            recordingTime: player?.currentTime ?? 0, pad: pad)
+    }
+
+    /// The show's count-in: the first pad_s seconds of the delivered click track.
+    private func makeCountIn() -> AVAudioPlayer? {
+        guard let f = try? AVAudioFile(forReading: URL(fileURLWithPath: clicFile)) else { return nil }
+        let frames = AVAudioFrameCount(min(Double(f.length), pad * f.processingFormat.sampleRate))
+        guard frames > 0, let buf = AVAudioPCMBuffer(pcmFormat: f.processingFormat, frameCapacity: frames),
+              (try? f.read(into: buf, frameCount: frames)) != nil, let ch = buf.floatChannelData?[0] else { return nil }
+        let samples = Array(UnsafeBufferPointer(start: ch, count: Int(buf.frameLength)))
+        let p = try? AVAudioPlayer(data: ClickTrack.wav(samples))
+        p?.volume = volume
+        p?.prepareToPlay()
+        return p
+    }
+
+    func startSync(fromSelected: Bool) {
+        guard syncAvailable, let p = player, !lines.isEmpty else { return }
+        pause()
+        endEditing()
+        if voiceEnvelope == nil { voiceEnvelope = try? VocalOnset.load(url: URL(fileURLWithPath: voiceFile)) }
+        syncIDs = lines.map(\.id)
+        let start = fromSelected ? (selectedLine.flatMap { id in syncIDs.firstIndex(of: id) } ?? 0) : 0
+        sync = LyricsSync(count: syncIDs.count, startAt: start)
+        syncMessage = nil
+        syncPaused = false
+        if start == 0 {
+            countIn = makeCountIn()
+            p.currentTime = 0
+            let t0 = p.deviceCurrentTime + 0.1
+            countIn?.play(atTime: t0)
+            p.play(atTime: t0 + pad)
+            if let c = clickPlayer { c.currentTime = 0; c.play(atTime: t0 + pad) }
+        } else {
+            countIn = nil
+            p.currentTime = max(0, LyricsSync.startTime(from: start, times: lines.map(\.time)) - pad)
+            p.play()
+            startClick()
+        }
+        syncing = true
+        playing = true
+        installSyncKeys()
+        syncTimer?.invalidate()
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let p = self.player, self.syncing else { return }
+                self.position = p.currentTime
+                if !self.syncPaused, self.countIn?.isPlaying != true, p.currentTime >= p.duration - 0.05 || (!p.isPlaying && p.currentTime > 0) {
+                    self.stopSync(done: true)
+                }
+            }
+        }
+    }
+
+    private func installSyncKeys() {
+        guard syncMonitor == nil else { return }
+        let title = windowTitle
+        syncMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] ev in
+            nonisolated(unsafe) let e = ev
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self, self.syncing, e.window?.title == title, !(e.window?.firstResponder is NSText),
+                      e.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return false }
+                switch e.keyCode {
+                case 36, 76: self.syncStamp()                     // Return / keypad Enter
+                case 126, 51: self.syncCancel()                   // ↑ / ⌫
+                case 49: if !e.isARepeat { self.syncTogglePause() }   // Space
+                case 53: self.stopSync(done: false)               // Escape
+                default: return false
+                }
+                return true
+            }
+            return handled ? nil : ev
+        }
+    }
+
+    func syncStamp() {
+        guard var s = sync, let i = s.active, syncIDs.indices.contains(i),
+              let line = lines.first(where: { $0.id == syncIDs[i] }) else { return }
+        let press = syncShowNow
+        let t = voiceEnvelope.flatMap { VocalOnset.find(envelope: $0, near: press) } ?? press
+        edit { doc.stamp(line.id, at: t); lyricsDirty = true }
+        _ = s.stamp(oldTime: line.time)
+        sync = s
+        selectedLine = line.id
+    }
+
+    func syncCancel() {
+        guard var s = sync, let (i, old) = s.cancel(), syncIDs.indices.contains(i) else { return }
+        edit { doc.stamp(syncIDs[i], at: old); lyricsDirty = true }
+        sync = s
+    }
+
+    func syncTogglePause() {
+        guard syncing, let p = player else { return }
+        if syncPaused {
+            let at = p.deviceCurrentTime + 0.05
+            if let c = countIn, c.currentTime > 0, c.currentTime < c.duration - 0.01 {
+                c.play(atTime: at)
+                p.play(atTime: at + (c.duration - c.currentTime))
+            } else {
+                p.play(atTime: at)
+                if let c = clickPlayer { c.currentTime = p.currentTime + 0.05; c.play(atTime: at) }
+            }
+            syncPaused = false
+        } else {
+            countIn?.pause()
+            p.pause()
+            clickPlayer?.pause()
+            syncPaused = true
+        }
+    }
+
+    func stopSync(done: Bool) {
+        guard syncing else { return }
+        syncTimer?.invalidate()
+        syncTimer = nil
+        if let m = syncMonitor { NSEvent.removeMonitor(m) }
+        syncMonitor = nil
+        countIn?.stop()
+        countIn = nil
+        player?.pause()
+        clickPlayer?.pause()
+        let n = sync?.progress.done ?? 0
+        syncing = false
+        playing = false
+        syncPaused = false
+        syncMessage = done ? "\(n) ligne\(n > 1 ? "s" : "") synchronisée\(n > 1 ? "s" : "")" : nil
+    }
+
+    /// « Remplacer le texte… »: unchanged lines keep their times; new ones are placed between their neighbours.
+    func replaceText(_ text: String) {
+        let r = LyricsText.replace(old: lines.map { (time: $0.time, text: $0.text) }, with: text)
+        edit { doc = LyricsDoc(lines: r.lines.map { LyricLine(time: $0.time, text: $0.text) }); lyricsDirty = true }
+        if syncing {
+            syncIDs = lines.map(\.id)
+            sync = LyricsSync(count: syncIDs.count, startAt: r.firstChanged ?? sync?.active ?? syncIDs.count)
+        }
+    }
 
     func stampLine(_ id: UUID) { edit { doc.stamp(id, at: showTime); lyricsDirty = true } }
     func setText(_ id: UUID, _ text: String) { edit { doc.setText(id, text); lyricsDirty = true } }

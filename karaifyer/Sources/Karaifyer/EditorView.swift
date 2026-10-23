@@ -36,6 +36,7 @@ struct EditorView: View {
         .onAppear { model.installSpaceKey() }
         .onDisappear { model.removeSpaceKey(); ProgressionPanel.close(id: model.song.id) }
         .sheet(isPresented: $model.importShown) { importSheet }
+        .sheet(isPresented: $model.replaceShown) { replaceSheet }
         .background(WindowPlacer())   // open over the main window, on its screen, in front
         .alert(KaraokeUI.shared.alert ?? "", isPresented: Binding(get: { KaraokeUI.shared.alert != nil },
                                                                    set: { if !$0 { KaraokeUI.shared.alert = nil } })) {}
@@ -74,8 +75,24 @@ struct EditorView: View {
             HStack {
                 Text("Paroles").font(.headline)
                 Spacer()
+                Menu("Synchroniser") {
+                    Button("Synchroniser") { model.startSync(fromSelected: false) }
+                    Button("Synchroniser à partir de la ligne sélectionnée") { model.startSync(fromSelected: true) }
+                        .disabled(model.selectedLine == nil)
+                } primaryAction: { model.startSync(fromSelected: false) }
+                .fixedSize()
+                .disabled(!model.syncAvailable || model.syncing)
+                .help(model.syncAvailable ? "Lancer le morceau (avec le décompte) et caler chaque ligne avec Entrée" : "Analyser le morceau d'abord")
+                Button("Remplacer le texte…") {
+                    endEditing()
+                    model.replaceDraft = model.lines.map(\.text).joined(separator: "\n")
+                    model.replaceShown = true
+                }
+                .disabled(model.syncing && !model.syncPaused)
                 Button("Ligne", systemImage: "plus") { endEditing(); model.addLine() }
             }
+            if model.syncing { syncPanel }
+            if let m = model.syncMessage { Text(m).font(.caption).foregroundStyle(.green) }
             List {
                 ForEach(model.lines) { line in
                     let id = line.id
@@ -90,7 +107,8 @@ struct EditorView: View {
                             .labelStyle(.iconOnly).buttonStyle(.borderless)
                     }
                     .padding(2)
-                    .background(model.currentLine.map { model.lines[$0].id == id } == true ? Color.yellow.opacity(0.25) : Color.clear)
+                    .background(model.syncing && model.syncActiveID == id ? Color.accentColor.opacity(0.25)
+                                : model.currentLine.map { model.lines[$0].id == id } == true ? Color.yellow.opacity(0.25) : Color.clear)
                     .contentShape(Rectangle())
                     .onTapGesture { model.seekLine(id) }
                 }
@@ -225,6 +243,51 @@ struct EditorView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(model.importDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(16)
+    }
+
+    /// Sync mode: the line to stamp, large, between its neighbours, with the keys to use.
+    var syncPanel: some View {
+        let ids = model.syncIDs
+        let active = model.sync?.active
+        func text(_ i: Int?) -> String {
+            guard let i, ids.indices.contains(i), let l = model.lines.first(where: { $0.id == ids[i] }) else { return " " }
+            return l.text
+        }
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(text(active.map { $0 - 1 } ?? ids.count - 1)).foregroundStyle(.secondary).lineLimit(1)
+            Text(active == nil ? "Toutes les lignes sont calées" : text(active)).font(.title2.weight(.semibold)).lineLimit(2)
+            Text(text(active.map { $0 + 1 })).foregroundStyle(.secondary).lineLimit(1)
+            HStack {
+                if let p = model.sync?.progress { Text("\(p.done) / \(p.total)").monospacedDigit() }
+                if model.syncPaused { Text("en pause — le texte peut être modifié").foregroundStyle(.orange) }
+                Spacer()
+                Text("Entrée : caler la ligne · ↑ : annuler · Espace : pause · Échap : quitter")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Quitter") { model.stopSync(done: false) }
+            }
+        }
+        .padding(8)
+        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    var replaceSheet: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Remplacer le texte").font(.headline)
+            Text("Une ligne par ligne de paroles. ⌘A puis ⌘V pour tout remplacer ; les lignes inchangées gardent leur temps.")
+                .font(.caption).foregroundStyle(.secondary)
+            TextEditor(text: $model.replaceDraft).frame(minWidth: 560, minHeight: 360)
+            HStack {
+                Spacer()
+                Button("Annuler") { model.replaceShown = false }.keyboardShortcut(.cancelAction)
+                Button("Valider") {
+                    let t = model.replaceDraft
+                    model.replaceShown = false
+                    model.replaceText(t)
+                }
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)
