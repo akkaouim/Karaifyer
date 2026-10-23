@@ -30,6 +30,13 @@ the pipeline place them on the music.
   - « Appliquer » does the same as an import.
   - « Ignorer » hides the banner for this song, remembered.
   - Nothing is changed without Michel's click.
+- **« Afficher la progression d'accords »:**
+  - The button is enabled when Chordonomicon has the song. It opens a **floating panel**, a small non-modal window
+    above the Corriger window, that stays open until Michel closes it or closes the Corriger window.
+  - The panel shows the song's whole progression as Chordonomicon has it, one section per line:
+    `Intro 1 : E G D A`, `Couplet 1 : D A D A …`, `Refrain 1 : E D A E D E D A Bm D`…
+  - Section tags are written in French. Chord symbols use the grid's usual notation: `Bmin` → `Bm`, `Fs` → `F#`.
+  - It's for reading while listening. It changes nothing by itself.
 - **Saving:** as today, « Enregistrer » writes the grid to `accords/<id>.txt` (Michel's correction, which wins over
   the detection) and re-analyses the song.
 - **The orange marks are a review aid for the session.** They aren't saved.
@@ -51,6 +58,12 @@ the pipeline place them on the music.
     `karaoke grilles lier --feuille "<recording sheet.csv>"`.
   - Karaifyer runs it with the recording sheet it already knows.
   - Rows are matched on the sheet number at the start of each audio file name (« 41 - … »).
+- **Storing each progression:**
+  - After a download, and after `grilles lier`, every song with a Chordonomicon match gets its raw progression saved
+    as is in `$KARAOKE_HOME/grilles/progressions/<id>.txt`, e.g.
+    `<intro_1> E G D A <verse_1> D A D A … <chorus_1> E D A E D E D A Bmin D …`.
+  - `karaoke etat --json` exposes it as `progression` (null when there is none). That's the data the panel and the
+    banner use.
 - **Matching:**
   - Chordonomicon matches on `spotify`. A song with two different rows for one id is skipped as unreliable.
   - patadata matches on the artist folder and the song title, normalised: lower case, no accents, punctuation as
@@ -125,13 +138,16 @@ always matches), as cells, plus the list of flagged bars and the counts for the 
   - the bar count preserved;
   - dataset matching (Spotify id, slug), skipping duplicate ids;
   - `grilles lier` on a sheet fixture;
+  - the progression saved as is for a matched song, and exposed by `etat`;
   - `grilles fusionner --json`.
   - Real data: Danser with a pasted chord-above-lyrics tab built from Michel's chart. The merged grid must give F#m7
     where he wrote A/F#, and C#m everywhere.
 - **Swift:**
   - the import sheet's result applied as one undoable step;
   - flagged bars outlined;
-  - the banner shown only when the pipeline reports a chart and the song wasn't ignored.
+  - the banner shown only when the pipeline reports a chart and the song wasn't ignored;
+  - progression formatting (section tags in French, one per line, Harte-style symbols to chart notation).
+  - Manual: the panel opens, stays above the window, and closes with the window.
 - **Manual (Michel's checklist):**
   - paste a tab from Ultimate Guitar for a French song, listen with « Clic » to the orange bars;
   - accept and ignore a dataset suggestion;

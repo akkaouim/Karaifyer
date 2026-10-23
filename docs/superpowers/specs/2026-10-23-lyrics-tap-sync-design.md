@@ -13,9 +13,10 @@ A **« Synchroniser »** button in the Corriger window's lyrics column opens the
 
 ### Sync mode
 
-- **The song plays** from the start of its delivered tracks (`sortie/<dossier>/`), that is with the 4 count-in clicks.
-  It uses the Lecteur's engine with every track at unity: guide voix, accompagnement, the instrument parts and the
-  click.
+- **The song plays exactly as in the Corriger window's player:** the recording (`travail/<id>/input.wav`) at the
+  window's volume, with the « Clic » overlay if it's on.
+- **The count-in:** the 4 count-in clicks are played first. They are the first `pad_s` seconds of the song's click
+  track (`sortie/<dossier>/clic.flac`), the same count-in as the show. The recording starts right after them.
 - **What's on screen:**
   - the lyrics list, with the **active line** (the next one to stamp) highlighted in a large font;
   - the line before and the line after;
@@ -54,18 +55,22 @@ A **« Synchroniser »** button in the Corriger window's lyrics column opens the
 
 ## How it works
 
-- **Time base.** The delivered tracks start at the same zero as the video and the LRC: show time = input time +
-  pad. That's the time base the editor's lyric lines already use, so stamps are written directly as line times.
-- **Engine.** The sync mode creates a `PlayerEngine` (KaraifyerCore, the Lecteur's) on the song's 8 delivered tracks:
-  - all gains at 1, master 1, rate 1, no loop;
-  - the Lecteur's own player is paused if it was playing;
-  - the stamp time is `PlayerEngine.position`, already corrected for output latency.
+- **Time base.** Show time = input time + `pad_s`. That's the time base of the video, the LRC and the editor's lyric
+  lines. The count-in occupies show time 0 to `pad_s`, and the recording plays from `pad_s`. A stamp is the show time
+  of the key press: `pad_s` plus the recording player's current time, or, during the count-in, the count-in player's
+  time.
+- **Players.**
+  - The editor's existing `AVAudioPlayer` plays the recording, and its click overlay keeps working.
+  - A second `AVAudioPlayer` plays the count-in extracted from `clic.flac`.
+  - Both are started with `play(atTime:)` on the same device time, the recording delayed by `pad_s`, as the editor
+    already does for the click overlay.
+  - Starting from a line seeks the recording; the count-in is only played when starting from the beginning.
 - **Onset detection.** `VocalOnset` in KaraifyerCore:
   - It works on an RMS envelope of `guide_voix.flac` (10 ms hop), computed when the mode opens.
   - An onset is the first frame in the search window where the envelope rises above the window's noise floor plus
     12 dB and stays there for 50 ms. It returns nil when there's none.
-- **Missing files.** A song without its delivered tracks (not analysed yet) shows the button disabled, with the help
-  text « Analyser le morceau d'abord ».
+- **Missing files.** A song without `clic.flac` or `guide_voix.flac` (not analysed yet) shows the button disabled,
+  with the help text « Analyser le morceau d'abord ».
 
 ## Out of scope
 
