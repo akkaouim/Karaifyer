@@ -1,4 +1,5 @@
 import AppKit
+import KaraifyerCore
 import Observation
 import SwiftUI
 
@@ -24,6 +25,17 @@ struct SettingsView: View {
             row("Dossier karaoké", key: "karaokeHome", value: p.karaokeHome, folder: true)
             row("Gabarit Ableton", key: "gabarit", value: p.gabarit, folder: false)
             row("Projet karaoke (code)", key: "projectDir", value: p.projectDir, folder: true)
+            HStack {
+                Text("Détecteur d'accords").frame(width: 170, alignment: .leading)
+                Picker("", selection: Binding(get: { ChordEngine.from(saved: UserDefaults.standard.string(forKey: "chordEngine")) },
+                                              set: { store.set("chordEngine", $0.rawValue) })) {
+                    ForEach(ChordEngine.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .frame(width: 260)
+                Spacer()
+            }
+            Text("S'applique aux analyses suivantes ; changer de détecteur refait l'étape des accords (≈ 10 s par morceau). La première utilisation installe le détecteur (connexion requise une fois).")
+                .font(.caption).foregroundStyle(.secondary)
             Text(problems.isEmpty ? "Tout est prêt." : problems.joined(separator: "\n"))
                 .foregroundStyle(problems.isEmpty ? .green : .orange)
         }

@@ -28,6 +28,7 @@ struct Pipeline {
         e["PATH"] = Self.searchPath.joined(separator: ":")
         e["KARAOKE_HOME"] = karaokeHome
         e["KARAOKE_GABARIT"] = gabarit
+        e["KARAOKE_ACCORDS"] = ChordEngine.from(saved: UserDefaults.standard.string(forKey: "chordEngine")).rawValue
         e["PYTHONUNBUFFERED"] = "1"          // events must arrive line by line, not in 8 KB blocks
         e.removeValue(forKey: "VIRTUAL_ENV")
         return e
