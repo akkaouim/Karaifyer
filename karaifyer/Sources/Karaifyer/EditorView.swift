@@ -259,15 +259,16 @@ struct EditorView: View {
     /// Sync mode: the line to stamp, large, between its neighbours, with the keys to use.
     var syncPanel: some View {
         let ids = model.syncIDs
-        let active = model.sync?.active.flatMap { ids.firstIndex(of: $0) }
+        let current = model.sync?.current.flatMap { ids.firstIndex(of: $0) }      // being sung: blank until Entrée
+        let next = model.sync?.active.flatMap { ids.firstIndex(of: $0) }
         func text(_ i: Int?) -> String {
             guard let i, ids.indices.contains(i), let l = model.lines.first(where: { $0.id == ids[i] }) else { return " " }
             return l.text
         }
         return VStack(alignment: .leading, spacing: 4) {
-            Text(text(active.map { $0 - 1 } ?? ids.count - 1)).foregroundStyle(.secondary).lineLimit(1)
-            Text(active == nil ? "Toutes les lignes sont calées" : text(active)).font(.title2.weight(.semibold)).lineLimit(2)
-            Text(text(active.map { $0 + 1 })).foregroundStyle(.secondary).lineLimit(1)
+            Text(text(current.map { $0 - 1 })).foregroundStyle(.secondary).lineLimit(1)
+            Text(text(current)).font(.title2.weight(.semibold)).lineLimit(2)
+            Text(next == nil ? "Toutes les lignes sont calées" : "à venir : " + text(next)).foregroundStyle(.secondary).lineLimit(1)
             HStack {
                 if let p = model.sync?.progress { Text("\(p.done) / \(p.total)").monospacedDigit() }
                 if model.syncPaused { Text("en pause — le texte peut être modifié").foregroundStyle(.orange) }

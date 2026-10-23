@@ -194,8 +194,9 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
 
 **Synchroniser les paroles** :
 - **Synchroniser** lance le morceau avec les 4 clics du décompte, comme en spectacle (même son que le lecteur de la
-  fenêtre : volume et « Clic » compris). La ligne à caler s'affiche en grand, entre la précédente et la suivante.
-- **Entrée** cale la ligne au moment où elle est chantée et passe à la suivante. L'appui est ramené sur le début de la
+  fenêtre : volume et « Clic » compris). Au départ la ligne en grand est vide, la première ligne s'affiche « à venir ».
+- **Entrée**, quand la ligne commence à être chantée, la cale à cet instant : elle s'affiche en grand (et en surbrillance
+  dans la liste), la suivante passe « à venir ». L'appui est ramené sur le début de la
   voix entendue juste avant (jusqu'à 0,4 s) ; sans voix détectée, l'instant de l'appui est gardé.
 - **↑** (ou ⌫) annule le dernier calage, **Espace** met en pause, **Échap** quitte en gardant ce qui est calé. Chaque
   calage s'annule aussi avec ⌘Z.

@@ -16,7 +16,10 @@ public struct LyricsSync<ID: Hashable & Sendable>: Sendable {
         startID = s < ids.count ? ids[s] : nil
     }
 
+    /// The next line to stamp (Entrée).
     public var active: ID? { activePos.map { ids[$0] } }
+    /// The line being sung: the last one stamped (nil before the first Entrée — the screen stays blank).
+    public var current: ID? { history.last?.0 }
 
     public mutating func stamp(oldTime: Double) -> ID? {
         guard let p = activePos else { return nil }

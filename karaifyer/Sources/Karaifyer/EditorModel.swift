@@ -339,7 +339,7 @@ final class EditorModel {
         song.padS != nil && player != nil && FileManager.default.fileExists(atPath: clicFile)
             && FileManager.default.fileExists(atPath: voiceFile)
     }
-    var syncActiveID: UUID? { sync?.active }
+    var syncActiveID: UUID? { sync?.current }       // the line being sung (highlighted); sync?.active is the next
 
     /// Show time now: the count-in's own time while it plays, then pad + the recording's time.
     private var syncShowNow: Double {

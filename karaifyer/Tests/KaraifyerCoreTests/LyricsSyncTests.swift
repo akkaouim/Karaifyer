@@ -69,4 +69,13 @@ struct LyricsSyncTests {
         #expect(SyncTime.clamp(5.0, after: 5.2) == 5.21)
         #expect(SyncTime.clamp(6.0, after: 5.0) == 6.0 && SyncTime.clamp(3.0, after: nil) == 3.0)
     }
+
+    @Test func theSungLineIsTheLastStamped() {
+        var s = LyricsSync(ids: ["a", "b", "c"])
+        #expect(s.current == nil && s.active == "a")             // song starting: nothing sung yet
+        _ = s.stamp(oldTime: 1)
+        #expect(s.current == "a" && s.active == "b")             // Entrée: « a » is the line being sung
+        _ = s.stamp(oldTime: 2); _ = s.cancel()
+        #expect(s.current == "a")
+    }
 }
