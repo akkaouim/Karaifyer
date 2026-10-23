@@ -210,3 +210,38 @@ def apprendre_stop(secondes: float = typer.Option(20.0, help="Durée d'envoi")) 
         typer.echo(str(e), err=True)
         raise typer.Exit(1)
     typer.echo("Terminé.")
+
+
+grilles_app = typer.Typer(help="Grilles d'accords ouvertes (Chordonomicon, patadata) et fusion avec la détection.")
+app.add_typer(grilles_app, name="grilles")
+
+
+@grilles_app.command("telecharger")
+def grilles_telecharger() -> None:
+    """Télécharge Chordonomicon et patadata (≈ 100 Mo, une fois) dans $KARAOKE_HOME/grilles/."""
+    from karaoke import grilles
+    grilles.telecharger(_workspace(), log=typer.echo)
+    typer.echo("Grilles ouvertes à jour.")
+
+
+@grilles_app.command("lier")
+def grilles_lier(feuille: Path = typer.Option(..., help="Feuille d'enregistrement (CSV avec les liens Spotify)")) -> None:
+    """Relie chaque morceau à son id Spotify (numéro de ligne de la feuille au début du nom de fichier)."""
+    from karaoke import grilles
+    typer.echo(f"{grilles.lier(_workspace(), feuille)} morceaux reliés")
+
+
+@grilles_app.command("fusionner")
+def grilles_fusionner(id: str = typer.Option(..., help="Id du morceau"),
+                      texte: str = typer.Option(None, help="« - » : grille collée lue sur l'entrée standard"),
+                      source: str = typer.Option(None, help="patadata | chordonomicon"),
+                      json_out: bool = typer.Option(False, "--json", help="Sortie JSON (pour Karaifyer)")) -> None:
+    """Fusionne une grille (collée ou ouverte) avec la détection : cases de la grille et mesures à vérifier."""
+    import sys
+    from karaoke import grilles
+    cfg = _workspace()
+    song = next((s for s in read_manifest(cfg.manifest) if s.id == id), None)
+    if song is None:
+        raise typer.BadParameter(f"morceau {id} introuvable")
+    r = grilles.fusionner(cfg, song, sys.stdin.read() if texte == "-" else texte, source)
+    typer.echo(json.dumps(r, ensure_ascii=False) if json_out else " | ".join(r["cells"]))

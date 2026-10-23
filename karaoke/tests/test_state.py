@@ -115,3 +115,14 @@ def test_state_grid_drops_off_beat_downbeats_of_old_results(cfg):
     beats = [0.5 * i for i in range(16)]
     Workspace(cfg, s).write_marker("beats", {"result": {"beats": beats, "downbeats": [0.0, 1.7, 2.0, 4.0]}})
     assert song_state(cfg, s, steps({}))["grid"]["downbeats_detectees"] == [0.0, 2.0, 4.0]
+
+
+def test_state_exposes_progression_and_suggestion(cfg):
+    s = song()
+    g = cfg.home / "grilles"
+    (g / "progressions").mkdir(parents=True)
+    (g / "progressions" / "001.txt").write_text("<verse_1> Amin F")
+    (g / "correspondances.json").write_text(json.dumps({"001": {"patadata": "songs/x/y.sg", "chordonomicon": True}}))
+    st = song_state(cfg, s, steps({}))
+    assert st["progression"] == "<verse_1> Amin F" and st["grille_proposee"] == "patadata"
+    assert song_state(cfg, song(id="002"), steps({}))["grille_proposee"] is None

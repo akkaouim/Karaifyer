@@ -15,7 +15,7 @@ from mutagen import File as MutagenFile
 
 STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
 COLUMNS = ["id", "titre", "artiste", "album", "duree_ref_s", "isrc", "fichier",
-           "retirer", "decompte_mesures", "langue", "partie"]
+           "retirer", "decompte_mesures", "langue", "partie", "spotify"]
 
 
 class ManifestError(ValueError):
@@ -41,6 +41,7 @@ class Song:
     decompte_mesures: int
     langue: str
     partie: str
+    spotify: str = ""            # Spotify track id (from the recording sheet), for Chordonomicon
 
 
 def _parse_row(row: dict, line: int, errors: list[str]) -> Song | None:
@@ -63,7 +64,7 @@ def _parse_row(row: dict, line: int, errors: list[str]) -> Song | None:
                 album=nfc(row.get("album") or ""), duree_ref_s=duree, isrc=(row.get("isrc") or "").strip(),
                 fichier=Path((row.get("fichier") or "").strip()), retirer=tuple(retirer),
                 decompte_mesures=decompte, langue=(row.get("langue") or "fr").strip() or "fr",
-                partie=(row.get("partie") or "").strip())
+                partie=(row.get("partie") or "").strip(), spotify=(row.get("spotify") or "").strip())
 
 
 def read_manifest(path: Path) -> list[Song]:
@@ -92,7 +93,7 @@ def write_manifest(path: Path, songs: list[Song]) -> None:
         w.writerow(COLUMNS)
         for s in songs:
             w.writerow([s.id, s.titre, s.artiste, s.album, f"{s.duree_ref_s:.3f}", s.isrc, str(s.fichier),
-                        ";".join(s.retirer), s.decompte_mesures, s.langue, s.partie])
+                        ";".join(s.retirer), s.decompte_mesures, s.langue, s.partie, s.spotify])
     os.replace(tmp, path)
 
 

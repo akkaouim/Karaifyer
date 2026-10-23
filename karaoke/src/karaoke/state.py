@@ -57,4 +57,14 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
                       "accords_corrige": str(cfg.accords / f"{s.id}.txt"),
                       "mesures_corrige": str(cfg.mesures / f"{s.id}.json")},
             "pad_s": pkg.get("pad_s"), "bpm": pkg.get("bpm"), "beats_per_bar": ch.get("beats_per_bar"), "key": ch.get("key"),
-            "bars": ch.get("bars", []), "grid": grid}
+            "bars": ch.get("bars", []), "grid": grid, **_open_charts(cfg, s.id)}
+
+
+def _open_charts(cfg: Config, sid: str) -> dict:
+    """Chordonomicon progression (as is) and which open chart Corriger can suggest."""
+    g = cfg.home / "grilles"
+    p = g / "progressions" / f"{sid}.txt"
+    idx_path = g / "correspondances.json"
+    idx = json.loads(idx_path.read_text(encoding="utf-8")).get(sid, {}) if idx_path.exists() else {}
+    proposee = "patadata" if idx.get("patadata") else "chordonomicon" if idx.get("chordonomicon") else None
+    return {"progression": p.read_text(encoding="utf-8") if p.exists() else None, "grille_proposee": proposee}

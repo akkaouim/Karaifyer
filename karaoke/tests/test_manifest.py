@@ -99,3 +99,11 @@ def test_group_by_partie_keeps_order_and_unassigned():
     g = group_by_partie(songs)
     assert list(g) == ["B", "A", "sans-partie"]
     assert [s.id for s in g["B"]] == ["001", "003"]
+
+
+def test_manifest_without_spotify_column(tmp_path):
+    p = tmp_path / "m.csv"
+    p.write_text("id,titre,artiste,album,duree_ref_s,isrc,fichier,retirer,decompte_mesures,langue,partie\n"
+                 "001,T,A,,1,,/x.flac,,2,fr,\n", encoding="utf-8")
+    from karaoke.manifest import read_manifest
+    assert read_manifest(p)[0].spotify == ""
