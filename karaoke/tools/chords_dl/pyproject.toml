@@ -1,0 +1,7 @@
+[project]
+name = "karaoke-chords-dl"
+version = "0.1.0"
+requires-python = "==3.11.*"
+# Jiang 2019 + BTC (2019 code): numpy < 2; versions as verified in the spike (torch 2.14, librosa 0.11).
+dependencies = ["torch", "numpy<2", "librosa", "mir_eval", "pretty_midi", "h5py", "pumpp", "jams", "scikit-learn",
+                "pyyaml", "pandas", "pyrubberband", "matplotlib", "joblib", "pydub"]

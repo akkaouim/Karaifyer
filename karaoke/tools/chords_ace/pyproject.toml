@@ -1,0 +1,7 @@
+[project]
+name = "karaoke-chords-ace"
+version = "0.1.0"
+requires-python = "==3.11.*"
+dependencies = ["torch==2.6.0", "torchaudio==2.6.0", "librosa==0.11.0", "gin-config==0.5.0", "lightning==2.5.1",
+                "harte-library==0.4.5", "mir_eval==0.8.2", "jams==0.3.5", "pumpp==0.6.0", "scikit-learn",
+                "beat_this @ git+https://github.com/CPJKU/beat_this"]
