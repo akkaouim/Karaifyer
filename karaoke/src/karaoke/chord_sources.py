@@ -76,10 +76,11 @@ def parse(text: str) -> Chart:
     out, section, pending = [], None, None
     for raw in text.expandtabs(8).splitlines():
         line = raw.rstrip()
-        if re.match(r"^\s*(\{.*\}|\\(capo|selectlanguage|songcolumns|beginsong|cover|gtab|endsong|end\{|emph).*)$", line) \
-                or re.match(r"^\s*capo\b", line, re.I):
+        if re.match(r"^\s*(\{.*\}|\\(capo|selectlanguage|songcolumns|beginsong|cover|gtab|utab|musicnote|image|endsong"
+                    r"|end\{|emph|lilypond|textnote|ifchorded|else|fi)\b.*)$", line) \
+                or re.match(r"^\s*\[[a-z]+=\{", line) or re.match(r"^\s*capo\b", line, re.I):   # [by={…},album={…}]
             continue
-        if m := re.match(r"^\s*\\begin\{(\w+)\}", line):
+        if m := re.match(r"^\s*\\begin\{(\w+\*?)\}", line):
             section = m.group(1)
             continue
         if m := SECTION.match(line):
@@ -350,3 +351,121 @@ def merge(chart: Chart, beats: list[float], bar_starts: list[int], beats_per_bar
         if any(i in flagged_beats for i in range(s0, e)):
             flagged.append(b)
     return MergeResult(cells, flagged, placed, repeated, vocab)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Key of a chart and transposition into the song's key; plain-text rendering for « Visualiser »
+
+MAJOR_TRIADS = {0: "maj", 2: "min", 4: "min", 5: "maj", 7: "maj", 9: "min", 11: "dim"}   # diatonic, by degree
+FLAT_TONICS = {1, 3, 5, 6, 8, 10}            # Db Eb F Gb Ab Bb major: spell with flats
+SHARP_NAMES = ["C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B"]   # Chordonomicon spelling
+FLAT_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+SECTION_FR = {"intro": "Intro", "verse": "Couplet", "chorus": "Refrain", "prechorus": "Pré-refrain",
+              "pre-chorus": "Pré-refrain", "bridge": "Pont", "outro": "Outro", "solo": "Solo",
+              "instrumental": "Instrumental", "interlude": "Interlude"}
+
+
+def _kind(q: str) -> str:
+    if q.startswith("dim") or q == "m7b5":
+        return "dim"
+    return "min" if q.startswith("m") and not q.startswith("maj") else "maj"
+
+
+def chart_key(chart: Chart) -> int | None:
+    """Tonic of the major key (relative major for a minor song) that makes most of the chart's chords diatonic,
+    with a small bonus when the first or last chord is I or vi."""
+    syms = [p for l in chart.lines for _, s in l.chords if (p := _parts(s))]
+    if not syms:
+        return None
+
+    def score(k: int) -> float:
+        sc = sum(MAJOR_TRIADS.get((r - k) % 12) == _kind(q) for r, _, q in syms)
+        for r, _, q in (syms[0], syms[-1]):
+            d = (r - k) % 12
+            sc += 0.5 * ((d == 0 and _kind(q) == "maj") or (d == 9 and _kind(q) == "min"))
+        return sc
+    return max(range(12), key=lambda k: (score(k), -k))
+
+
+def song_tonic(key: str | None) -> int | None:
+    """« Ab major » → 8; « F minor » → its relative major (8)."""
+    m = re.match(r"^([A-G][#b]?)\s+(major|minor)$", (key or "").strip())
+    if not m:
+        return None
+    return (_pc(m.group(1)) + (3 if m.group(2) == "minor" else 0)) % 12
+
+
+def key_offset(chart: Chart, song_key: str | None) -> int:
+    """Semitones that bring the chart into the song's key (−5…+6); 0 when either key is unknown."""
+    a, b = chart_key(chart), song_tonic(song_key)
+    if a is None or b is None:
+        return 0
+    k = (b - a) % 12
+    return k - 12 if k > 6 else k
+
+
+_CH_TOKEN = re.compile(r"^([A-G])(s(?!us)|b)?([^/]*)(?:/([A-G])(s|b)?)?$")   # « s » = sharp, not « sus »
+
+
+def transpose_progression(raw: str, k: int) -> str:
+    """A Chordonomicon progression (« <verse_1> Em Bmin D/Fs … ») moved k semitones, in Chordonomicon notation
+    (`min`, `s` for sharp), spelled with flats in flat keys."""
+    tonic = chart_key(parse(raw))
+    names = FLAT_NAMES if tonic is not None and (tonic + k) % 12 in FLAT_TONICS else SHARP_NAMES
+    pc = lambda letter, acc: (_pc(letter) + {"s": 1, "b": -1}.get(acc or "", 0)) % 12
+    out = []
+    for tok in raw.split():
+        m = _CH_TOKEN.match(tok)
+        if tok.startswith("<") or not m:
+            out.append(tok)
+            continue
+        q = m.group(3)
+        if q.startswith("m") and not q.startswith("maj") and not q.startswith("min"):
+            q = "min" + q[1:]
+        t = names[(pc(m.group(1), m.group(2)) + k) % 12] + q
+        if m.group(4):
+            t += "/" + names[(pc(m.group(4), m.group(5)) + k) % 12]
+        out.append(t)
+    return " ".join(out)
+
+
+def transpose_sg(text: str, k: int) -> str:
+    """patadata / ChordPro chords (`\\[Em]`, `[Em]`) moved k semitones, the rest untouched."""
+    if not k:
+        return text
+    def sub(m):
+        s = normalise(m.group(2))
+        return f"{m.group(1)}[{_transpose(s, k)}]" if s and s != "N.C." else m.group(0)
+    return re.sub(r"(\\?)\[([^\]]+)\]", sub, text)
+
+
+def _section_title(sec: str | None) -> str | None:
+    if not sec:
+        return None
+    m = re.match(r"^([a-z-]+?)_(\d+)$", sec)
+    base, num = (m.group(1), " " + m.group(2)) if m else (sec, "")
+    return SECTION_FR.get(base.lower(), base[:1].upper() + base[1:]) + num
+
+
+def render(chart: Chart) -> str:
+    """Plain text for reading: Chordonomicon sections one per line (« Couplet 1 : D A »); other charts as headings
+    and chords above the lyrics."""
+    if chart.lines and all(not l.text and re.match(r"^[a-z_-]+_\d+$", l.section or "") for l in chart.lines):
+        return "\n".join(f"{_section_title(l.section)} : {' '.join(s for _, s in l.chords)}" for l in chart.lines)
+    blocks, cur, last = [], [], object()
+    for l in chart.lines:
+        if l.section != last:
+            if cur:
+                blocks.append("\n".join(cur))
+            cur = [f"[{_section_title(l.section)}]"] if l.section else []
+            last = l.section
+        if l.chords:
+            row = ""
+            for off, s in sorted(l.chords):
+                row += " " * max(off - len(row), 1 if row else 0) + s
+            cur.append(row)
+        if l.text:
+            cur.append(l.text)
+    if cur:
+        blocks.append("\n".join(cur))
+    return "\n\n".join(blocks)

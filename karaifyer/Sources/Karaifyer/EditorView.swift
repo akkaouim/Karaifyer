@@ -143,7 +143,11 @@ struct EditorView: View {
                 Button("Importer une grille…") { model.importDraft = ""; model.importShown = true }
                 Button("Afficher la progression d'accords") {
                     if let raw = model.song.progression {
-                        ProgressionPanel.show(id: model.song.id, title: "\(model.song.id) \(model.song.titre)", raw: raw)
+                        let orig = model.song.progressionOriginale.map(ProgressionText.plain)
+                        let text = ProgressionText.plain(raw)
+                        ProgressionPanel.show(id: model.song.id, kind: "progression",
+                                              title: "Progression — \(model.song.id) \(model.song.titre)", text: text,
+                                              original: orig, note: orig != nil && orig != text ? "dans la tonalité du morceau" : nil)
                     }
                 }
                 .disabled(model.song.progression == nil)
@@ -155,6 +159,7 @@ struct EditorView: View {
                     Image(systemName: "lightbulb").foregroundStyle(.yellow)
                     Text("Grille trouvée dans \(src) : appliquer ?")
                     Spacer()
+                    Button("Visualiser") { model.viewChart(source: src) }
                     Button("Appliquer") { endEditing(); model.runMerge(texte: nil, source: src) }
                     Button("Ignorer") { model.suggestionIgnored = true }
                 }

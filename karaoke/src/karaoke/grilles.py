@@ -14,7 +14,7 @@ import unicodedata
 import urllib.request
 from pathlib import Path
 
-from karaoke.chord_sources import merge, parse
+from karaoke.chord_sources import key_offset, merge, parse, render, transpose_progression, transpose_sg
 from karaoke.chords import chords_per_beat
 from karaoke.config import Config
 from karaoke.manifest import Song, read_manifest, write_manifest
@@ -120,14 +120,42 @@ def indexer(cfg: Config) -> dict:
         artist, title = pata.get(slug(s.artiste), {}), slug(s.titre)
         hit = artist.get(title) or next((v for k, v in artist.items() if title and (title in k or k in title)), None)
         prog = progressions.get(s.spotify) if s.spotify else None
-        out = g / "progressions" / f"{s.id}.txt"
-        if prog:
-            out.write_text(prog, encoding="utf-8")
+        out, orig = g / "progressions" / f"{s.id}.txt", g / "progressions" / f"{s.id}.original.txt"
+        k = 0
+        if prog:      # saved in the song's key (detected), the chart as written kept next to it
+            k = key_offset(parse(prog), _song_key(cfg, s))
+            out.write_text(transpose_progression(prog, k) if k else prog, encoding="utf-8")
+            orig.write_text(prog, encoding="utf-8")
         else:
             out.unlink(missing_ok=True)
-        index[s.id] = {"patadata": hit, "chordonomicon": bool(prog)}
+            orig.unlink(missing_ok=True)
+        index[s.id] = {"patadata": hit, "chordonomicon": bool(prog), "transposition": k}
     (g / "correspondances.json").write_text(json.dumps(index, ensure_ascii=False, indent=1), encoding="utf-8")
     return index
+
+
+def _song_key(cfg: Config, song: Song) -> str | None:
+    return ((Workspace(cfg, song).read_marker("chords") or {}).get("result") or {}).get("key")
+
+
+def voir(cfg: Config, song: Song, source: str | None = None) -> dict:
+    """The open chart as text, in the song's key and as written (« Visualiser »)."""
+    g = folder(cfg)
+    idx = json.loads((g / "correspondances.json").read_text(encoding="utf-8")).get(song.id, {})
+    src = source or ("patadata" if idx.get("patadata") else "chordonomicon")
+    if src == "patadata" and idx.get("patadata"):
+        raw = (g / "patadata" / idx["patadata"]).read_text(encoding="utf-8")
+        k = key_offset(parse(raw), _song_key(cfg, song))
+        moved = transpose_sg(raw, k)
+    elif idx.get("chordonomicon"):
+        src = "chordonomicon"
+        p = g / "progressions" / f"{song.id}.original.txt"
+        raw = p.read_text(encoding="utf-8") if p.exists() else (g / "progressions" / f"{song.id}.txt").read_text(encoding="utf-8")
+        k = key_offset(parse(raw), _song_key(cfg, song))
+        moved = transpose_progression(raw, k) if k else raw
+    else:
+        raise ValueError(f"aucune grille ouverte pour {song.id}")
+    return {"source": src, "texte": render(parse(moved)), "original": render(parse(raw)), "transposition": k}
 
 
 def fusionner(cfg: Config, song: Song, texte: str | None = None, source: str | None = None) -> dict:

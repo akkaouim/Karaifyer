@@ -36,3 +36,24 @@ public struct MergeResult: Decodable, Equatable, Sendable {
         return "\(placed) accords placés sur les paroles, \(repeated) complétés par répétition, \(f) mesure\(f > 1 ? "s" : "") à vérifier"
     }
 }
+
+extension ProgressionText {
+    /// The sections as lines of text (« Couplet 1 : Fm Ab »).
+    public static func plain(_ raw: String) -> String {
+        sections(raw).map { "\($0.title) : \($0.chords)" }.joined(separator: "\n")
+    }
+}
+
+/// `karaoke grilles voir --json`: an open chart as text, in the song's key and as written.
+public struct ChartText: Decodable, Equatable, Sendable {
+    public var source, texte, original: String
+    public var transposition: Int
+    public init(source: String, texte: String, original: String, transposition: Int) {
+        self.source = source; self.texte = texte; self.original = original; self.transposition = transposition
+    }
+    public var shift: String {
+        guard transposition != 0 else { return "dans sa tonalité d'origine" }
+        let n = abs(transposition)
+        return "transposée de \(transposition > 0 ? "+" : "−")\(n) demi-ton\(n > 1 ? "s" : "") dans la tonalité du morceau"
+    }
+}

@@ -34,6 +34,36 @@ def test_indexer_finds_both_sources_and_saves_the_progression(cfg):
     write_manifest(cfg.manifest, [song(spotify="2YNWgxevUxpjZDgW4i5Aky"), song(id="002", titre="Autre", spotify="dup")])
     grilles.indexer(cfg)
     idx = json.loads((g / "correspondances.json").read_text())
-    assert idx["001"] == {"patadata": "songs/zazie/je_suis_un_homme.sg", "chordonomicon": True}
+    assert {k: idx["001"][k] for k in ("patadata", "chordonomicon")} == {"patadata": "songs/zazie/je_suis_un_homme.sg", "chordonomicon": True}
     assert idx["002"]["chordonomicon"] is False                       # two different rows for one id: unreliable
     assert (g / "progressions" / "001.txt").read_text() == "<verse_1> Amin F"
+
+
+def test_indexer_saves_the_progression_in_the_song_key_and_the_original(cfg):
+    from karaoke.workspace import Workspace
+    g = cfg.home / "grilles"
+    g.mkdir(parents=True)
+    pq.write_table(pa.table({"chords": ["<verse_1> Em Bmin D Em G D C D "], "spotify_song_id": ["X" * 22]}),
+                   g / "chordonomicon.parquet")
+    s = song(spotify="X" * 22)
+    write_manifest(cfg.manifest, [s])
+    Workspace(cfg, s).write_marker("chords", {"result": {"key": "Ab major", "bars": []}})
+    idx = grilles.indexer(cfg)
+    assert (g / "progressions" / "001.txt").read_text() == "<verse_1> Fmin Cmin Eb Fmin Ab Eb Db Eb"
+    assert (g / "progressions" / "001.original.txt").read_text() == "<verse_1> Em Bmin D Em G D C D"
+    assert idx["001"]["transposition"] == 1
+
+
+def test_voir_returns_the_chart_in_the_song_key_and_as_written(cfg):
+    from karaoke.workspace import Workspace
+    g = cfg.home / "grilles"
+    (g / "patadata" / "songs" / "zazie").mkdir(parents=True)
+    (g / "patadata" / "songs" / "zazie" / "je_suis_un_homme.sg").write_text("\\begin{verse}\n\\[Em]la la \\[G]li\n\\end{verse}\n")
+    s = song()
+    write_manifest(cfg.manifest, [s])
+    Workspace(cfg, s).write_marker("chords", {"result": {"key": "F minor", "bars": []}})
+    grilles.indexer(cfg)
+    v = grilles.voir(cfg, s, "patadata")
+    assert v["source"] == "patadata" and v["transposition"] == 1
+    assert v["texte"].splitlines()[1:3] == ["Fm    Ab", "la la li"]
+    assert v["original"].splitlines()[1:3] == ["Em    G", "la la li"]

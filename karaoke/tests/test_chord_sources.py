@@ -126,3 +126,27 @@ def test_chord_lines_with_marks_and_odd_tokens_are_kept():
         c = parse(f"{line}\nla la la\n")
         assert c.lines and c.lines[0].text == "la la la" and c.lines[0].chords, line
     assert [s for _, s in parse("Hm  H7\nla\n").lines[0].chords] == ["Bm", "B7"]
+
+
+def test_chart_key_and_transposition_to_the_song_key():
+    from karaoke.chord_sources import chart_key, key_offset, transpose_progression, transpose_sg
+    prog = "<intro_1> Em Bmin D Em G D Em <verse_1> D G Em D G Em D C D "
+    assert chart_key(parse(prog)) == 7                              # G major / E minor
+    assert key_offset(parse(prog), "Ab major") == 1 and key_offset(parse(prog), "F minor") == 1
+    assert key_offset(parse(prog), None) == 0
+    assert transpose_progression(prog, 1) == "<intro_1> Fmin Cmin Eb Fmin Ab Eb Fmin <verse_1> Eb Ab Fmin Eb Ab Fmin Eb Db Eb"
+    assert transpose_progression("<verse_1> D/Fs Asus4", 2) == "<verse_1> E/Gs Bsus4"
+    assert transpose_sg("Il \\[Em]était un \\[D/F#]petit", 1) == "Il \\[Fm]était un \\[Eb/G]petit"
+
+
+def test_render_chart_with_chords_above_lyrics():
+    from karaoke.chord_sources import render
+    c = parse("\\begin{verse}\n\\[Am]On vous sou\\[F]haite\n\\end{verse}\n\\begin{chorus}\n\\[G]Tout le bonheur\n\\end{chorus}\n")
+    assert render(c) == "[Couplet]\nAm         F\nOn vous souhaite\n\n[Refrain]\nG\nTout le bonheur"
+    assert render(parse("<verse_1> D A <chorus_1> E")) == "Couplet 1 : D A\nRefrain 1 : E"
+
+
+def test_patadata_metadata_and_diagrams_are_not_lyrics():
+    c = parse("\\beginsong{X}\n  [by={Thomas Fersen},cover={x},album={Y}]\n  \\utab{Fm}{1013}\n  \\gtab{C}{X32010}\n"
+              "  \\musicnote{doucement}\n\\begin{verse*}\n  \\[Fm]On me dit\n\\end{verse*}\n")
+    assert [(l.section, l.text) for l in c.lines] == [("verse*", "On me dit")]

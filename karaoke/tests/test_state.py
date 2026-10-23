@@ -126,3 +126,12 @@ def test_state_exposes_progression_and_suggestion(cfg):
     st = song_state(cfg, s, steps({}))
     assert st["progression"] == "<verse_1> Amin F" and st["grille_proposee"] == "patadata"
     assert song_state(cfg, song(id="002"), steps({}))["grille_proposee"] is None
+
+
+def test_state_exposes_the_original_progression(cfg):
+    g = cfg.home / "grilles" / "progressions"
+    g.mkdir(parents=True)
+    (g / "001.txt").write_text("<verse_1> Fmin")
+    (g / "001.original.txt").write_text("<verse_1> Em")
+    st = song_state(cfg, song(), steps({}))
+    assert st["progression"] == "<verse_1> Fmin" and st["progression_originale"] == "<verse_1> Em"

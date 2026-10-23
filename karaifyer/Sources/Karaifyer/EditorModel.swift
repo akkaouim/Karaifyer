@@ -92,6 +92,27 @@ final class EditorModel {
         return .success(data)
     }
 
+    /// « Visualiser »: the open chart as text (song's key, and as written), in a floating panel.
+    func viewChart(source: String) {
+        let p = Pipeline()
+        let args = p.args(["grilles", "voir", "--id", song.id, "--source", source, "--json"])
+        let env = p.env, cwd = p.projectDir
+        let id = song.id, title = "\(source) — \(song.id) \(song.titre)"
+        Task.detached {
+            let result = Self.runProcess(args: args, env: env, cwd: cwd, input: nil)
+            await MainActor.run {
+                switch result {
+                case .success(let data):
+                    if let c = try? JSONDecoder().decode(ChartText.self, from: data) {
+                        ProgressionPanel.show(id: id, kind: "chart", title: title, text: c.texte, original: c.original, note: c.shift)
+                    } else { self.loadError = "Grille ouverte : réponse illisible" }
+                case .failure(let e):
+                    self.loadError = "Grille ouverte : \(e.message)"
+                }
+            }
+        }
+    }
+
     /// One undoable step: the merged cells and their orange marks.
     func applyMerge(_ r: MergeResult) {
         guard r.cells.count == cells.count else {

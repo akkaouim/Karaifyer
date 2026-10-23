@@ -17,4 +17,14 @@ struct ChordSourcesTests {
     @Test func susChordsStaySus() {
         #expect(ProgressionText.sections("<verse_1> Dsus4 Fs/As Asus2 Csmin ").first?.chords == "Dsus4 F#/A# Asus2 C#m")
     }
+
+    @Test func progressionAsPlainText() {
+        #expect(ProgressionText.plain("<verse_1> Fmin Ab <chorus_1> Db") == "Couplet 1 : Fm Ab\nRefrain 1 : Db")
+    }
+
+    @Test func chartTextFromVoir() throws {
+        let c = try JSONDecoder().decode(ChartText.self, from: Data(#"{"source":"patadata","texte":"[Couplet]\nFm","original":"[Couplet]\nEm","transposition":1}"#.utf8))
+        #expect(c.transposition == 1 && c.shift == "transposée de +1 demi-ton dans la tonalité du morceau")
+        #expect(ChartText(source: "x", texte: "a", original: "a", transposition: 0).shift == "dans sa tonalité d'origine")
+    }
 }

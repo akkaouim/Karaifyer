@@ -64,7 +64,9 @@ def _open_charts(cfg: Config, sid: str) -> dict:
     """Chordonomicon progression (as is) and which open chart Corriger can suggest."""
     g = cfg.home / "grilles"
     p = g / "progressions" / f"{sid}.txt"
+    o = g / "progressions" / f"{sid}.original.txt"
     idx_path = g / "correspondances.json"
     idx = json.loads(idx_path.read_text(encoding="utf-8")).get(sid, {}) if idx_path.exists() else {}
     proposee = "patadata" if idx.get("patadata") else "chordonomicon" if idx.get("chordonomicon") else None
-    return {"progression": p.read_text(encoding="utf-8") if p.exists() else None, "grille_proposee": proposee}
+    return {"progression": p.read_text(encoding="utf-8") if p.exists() else None,
+            "progression_originale": o.read_text(encoding="utf-8") if o.exists() else None, "grille_proposee": proposee}

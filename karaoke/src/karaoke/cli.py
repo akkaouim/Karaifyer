@@ -245,3 +245,17 @@ def grilles_fusionner(id: str = typer.Option(..., help="Id du morceau"),
         raise typer.BadParameter(f"morceau {id} introuvable")
     r = grilles.fusionner(cfg, song, sys.stdin.read() if texte == "-" else texte, source)
     typer.echo(json.dumps(r, ensure_ascii=False) if json_out else " | ".join(r["cells"]))
+
+
+@grilles_app.command("voir")
+def grilles_voir(id: str = typer.Option(..., help="Id du morceau"),
+                 source: str = typer.Option(None, help="patadata | chordonomicon"),
+                 json_out: bool = typer.Option(False, "--json", help="Sortie JSON (pour Karaifyer)")) -> None:
+    """La grille ouverte du morceau en texte, dans la tonalité du morceau et telle qu'écrite."""
+    from karaoke import grilles
+    cfg = _workspace()
+    song = next((s for s in read_manifest(cfg.manifest) if s.id == id), None)
+    if song is None:
+        raise typer.BadParameter(f"morceau {id} introuvable")
+    v = grilles.voir(cfg, song, source)
+    typer.echo(json.dumps(v, ensure_ascii=False) if json_out else v["texte"])
