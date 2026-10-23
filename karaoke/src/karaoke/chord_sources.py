@@ -200,8 +200,19 @@ def merge(chart: Chart, beats: list[float], bar_starts: list[int], beats_per_bar
             starts.append((i, t))
             pos = i + len(_norm_text(w))
         for off, sym in chords:
-            put(beat_at(max([t for o, t in starts if o <= off], default=starts[0][1])), sym)
+            put(nearby(beat_at(max([t for o, t in starts if o <= off], default=starts[0][1])), sym), sym)
         return len(chords)
+
+    def nearby(i: int, sym: str) -> int:
+        """A chord written on a word sung just before the change the audio makes lands on that change (the other way
+        round, the vocabulary rule already gives the heard beat the chart's chord)."""
+        want = _parts(sym)
+        if want is None or (det_parts[i] and det_parts[i][:2] == want[:2]):
+            return i
+        for j in (i + 1,):
+            if 0 <= j < n and j not in put_at and det_parts[j] and det_parts[j][:2] == want[:2]:
+                return j
+        return i
 
     # 2. placement on the words: chart lines matched to song lines in order, skips allowed
     placed = repeated = 0

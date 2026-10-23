@@ -33,7 +33,8 @@ struct EditorView: View {
         }
         .navigationTitle(model.windowTitle)
         .onAppear { model.installSpaceKey() }
-        .onDisappear { model.removeSpaceKey() }
+        .onDisappear { model.removeSpaceKey(); ProgressionPanel.close(id: model.song.id) }
+        .sheet(isPresented: $model.importShown) { importSheet }
         .background(WindowPlacer())   // open over the main window, on its screen, in front
         .alert(KaraokeUI.shared.alert ?? "", isPresented: Binding(get: { KaraokeUI.shared.alert != nil },
                                                                    set: { if !$0 { KaraokeUI.shared.alert = nil } })) {}
@@ -115,6 +116,32 @@ struct EditorView: View {
             }
             Text("« A B » = moitié-moitié · « Am . . F » = un symbole par temps · N.C. = sans accord · ex. Cmaj7 Dm7 G7 Am/G Gsus4 Edim7")
                 .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button("Rechercher la grille…") { searchChart() }
+                Button("Importer une grille…") { model.importDraft = ""; model.importShown = true }
+                Button("Afficher la progression d'accords") {
+                    if let raw = model.song.progression {
+                        ProgressionPanel.show(id: model.song.id, title: "\(model.song.id) \(model.song.titre)", raw: raw)
+                    }
+                }
+                .disabled(model.song.progression == nil)
+                .help(model.song.progression == nil ? "Pas de progression Chordonomicon pour ce morceau" : "Progression complète (Chordonomicon)")
+                if model.merging { ProgressView().controlSize(.small) }
+            }
+            if model.showSuggestion, let src = model.song.grilleProposee {
+                HStack {
+                    Image(systemName: "lightbulb").foregroundStyle(.yellow)
+                    Text("Grille trouvée dans \(src) : appliquer ?")
+                    Spacer()
+                    Button("Appliquer") { endEditing(); model.runMerge(texte: nil, source: src) }
+                    Button("Ignorer") { model.suggestionIgnored = true }
+                }
+                .padding(6)
+                .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            }
+            if let s = model.mergeSummary {
+                Text(s).font(.caption).foregroundStyle(.orange)
+            }
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
                     ForEach(Array(model.cells.enumerated()), id: \.offset) { i, cell in
@@ -151,13 +178,54 @@ struct EditorView: View {
                         }
                         .padding(4)
                         .background(i == model.currentBar ? Color.yellow.opacity(0.25) : Color.gray.opacity(0.08))
-                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(model.cellErrors[i] == nil ? Color.clear : Color.red))
-                        .help(model.cellErrors[i] ?? "Clic sur le numéro : aller à la mesure · clic droit : corriger le temps 1")
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                            model.cellErrors[i] != nil ? Color.red : model.flagged.contains(i) ? Color.orange : Color.clear,
+                            lineWidth: model.flagged.contains(i) && model.cellErrors[i] == nil ? 2 : 1))
+                        .help(model.cellErrors[i] ?? (model.flagged.contains(i) ? "grille et audio diffèrent : à vérifier à l'oreille"
+                              : "Clic sur le numéro : aller à la mesure · clic droit : corriger le temps 1"))
                     }
                 }
             }
         }
         .padding(8)
+    }
+
+    /// Ultimate Guitar and La Boîte à chansons searches in the browser: Michel picks the version he trusts.
+    func searchChart() {
+        let q = "\(model.song.titre) \(model.song.artiste)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        for u in ["https://www.ultimate-guitar.com/search.php?search_type=title&value=\(q)",
+                  "https://www.boiteachansons.net/recherche?q=\(q)"] {
+            if let url = URL(string: u) { NSWorkspace.shared.open(url) }
+        }
+    }
+
+    var importSheet: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Importer une grille").font(.headline)
+            Text("Coller une grille (accords au-dessus des paroles, ChordPro, patadata) ou ouvrir un fichier.")
+                .font(.caption).foregroundStyle(.secondary)
+            TextEditor(text: $model.importDraft).font(.system(.body, design: .monospaced)).frame(minWidth: 560, minHeight: 360)
+            HStack {
+                Button("Ouvrir un fichier…") {
+                    let panel = NSOpenPanel()
+                    panel.allowedContentTypes = [.plainText, .text]
+                    panel.allowsOtherFileTypes = true
+                    if panel.runModal() == .OK, let u = panel.url, let t = try? String(contentsOf: u, encoding: .utf8) {
+                        model.importDraft = t
+                    }
+                }
+                Spacer()
+                Button("Annuler") { model.importShown = false }.keyboardShortcut(.cancelAction)
+                Button("Appliquer") {
+                    let t = model.importDraft
+                    model.importShown = false
+                    model.runMerge(texte: t, source: nil)
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(model.importDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(16)
     }
 
     func closeAsking() {

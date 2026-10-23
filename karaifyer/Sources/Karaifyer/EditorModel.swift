@@ -22,6 +22,79 @@ final class EditorModel {
     var playing = false
     var selectedLine: UUID?
     var loadError: String?
+
+    // MARK: chord charts (pasted tab, open datasets) merged with the detection by `karaoke grilles fusionner`
+
+    /// Bars where the chart and the audio disagree (orange, « à vérifier à l'oreille »); a review aid, not saved.
+    var flagged: Set<Int> = []
+    var mergeSummary: String?
+    var merging = false
+    var importShown = false
+    var importDraft = ""
+    var suggestionIgnored: Bool {
+        get { UserDefaults.standard.bool(forKey: "chordSuggestionIgnored.\(song.id)") }
+        set { UserDefaults.standard.set(newValue, forKey: "chordSuggestionIgnored.\(song.id)"); ignoredRevision += 1 }
+    }
+    private var ignoredRevision = 0
+    var showSuggestion: Bool { _ = ignoredRevision; return song.grilleProposee != nil && !suggestionIgnored }
+
+    struct MergeError: Error { let message: String }
+
+    /// Run the merge in the background (a pasted chart on stdin, or the suggested open chart) and apply it.
+    func runMerge(texte: String?, source: String?) {
+        let p = Pipeline()
+        var args = p.args(["grilles", "fusionner", "--id", song.id, "--json"])
+        if let source { args += ["--source", source] }
+        if texte != nil { args += ["--texte", "-"] }
+        let env = p.env, cwd = p.projectDir
+        merging = true
+        Task.detached {
+            let result = Self.runProcess(args: args, env: env, cwd: cwd, input: texte)
+            await MainActor.run {
+                self.merging = false
+                switch result {
+                case .success(let data):
+                    if let r = try? JSONDecoder().decode(MergeResult.self, from: data) { self.applyMerge(r) }
+                    else { self.loadError = "Fusion de la grille : réponse illisible" }
+                case .failure(let e):
+                    self.loadError = "Fusion de la grille : \(e.message)"
+                }
+            }
+        }
+    }
+
+    nonisolated static func runProcess(args: [String], env: [String: String], cwd: String, input: String?) -> Result<Data, MergeError> {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: args[0])
+        proc.arguments = Array(args.dropFirst())
+        proc.environment = env
+        proc.currentDirectoryURL = URL(fileURLWithPath: cwd)
+        let out = Pipe(), err = Pipe(), inp = Pipe()
+        proc.standardOutput = out
+        proc.standardError = err
+        proc.standardInput = inp
+        do { try proc.run() } catch { return .failure(MergeError(message: error.localizedDescription)) }
+        if let input { inp.fileHandleForWriting.write(Data(input.utf8)) }
+        try? inp.fileHandleForWriting.close()
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        let errText = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else {
+            let last = errText.split(separator: "\n").last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
+            return .failure(MergeError(message: last.map(String.init) ?? "échec (\(proc.terminationStatus))"))
+        }
+        return .success(data)
+    }
+
+    /// One undoable step: the merged cells and their orange marks.
+    func applyMerge(_ r: MergeResult) {
+        guard r.cells.count == cells.count else {
+            loadError = "Fusion de la grille : \(r.cells.count) mesures, la grille en a \(cells.count) (réanalyser le morceau)"
+            return
+        }
+        edit { cells = r.cells; flagged = Set(r.flagged); chordsDirty = true }
+        mergeSummary = r.summary
+    }
     var pad: Double { song.padS ?? 0 }
     var bpb: Int { gridAvailable ? gridBPB : (song.beatsPerBar ?? 4) }
 
@@ -221,19 +294,20 @@ final class EditorModel {
     func deleteLine(_ id: UUID) { edit { doc.delete(id); lyricsDirty = true } }
     func setCell(_ i: Int, _ text: String) {
         guard cells.indices.contains(i), cells[i] != text else { return }
-        edit { cells[i] = text; chordsDirty = true }
+        edit { cells[i] = text; chordsDirty = true; flagged.remove(i) }
     }
     func setKey(_ k: String) { guard k != key else { return }; edit { key = k; chordsDirty = true } }
 
     // MARK: undo / redo (⌘Z, ⇧⌘Z) over lyrics, chords and key; the dirty flags come back too
 
     struct Snapshot {
-        var doc: LyricsDoc; var cells: [String]; var key: String; var fix: BarFix
+        var doc: LyricsDoc; var cells: [String]; var key: String; var fix: BarFix; var flagged: Set<Int>
         var lyricsDirty, chordsDirty, gridDirty: Bool
     }
     private var snapshot: Snapshot {
-        get { Snapshot(doc: doc, cells: cells, key: key, fix: fix, lyricsDirty: lyricsDirty, chordsDirty: chordsDirty, gridDirty: gridDirty) }
-        set { doc = newValue.doc; cells = newValue.cells; key = newValue.key; fix = newValue.fix
+        get { Snapshot(doc: doc, cells: cells, key: key, fix: fix, flagged: flagged, lyricsDirty: lyricsDirty,
+                       chordsDirty: chordsDirty, gridDirty: gridDirty) }
+        set { doc = newValue.doc; cells = newValue.cells; key = newValue.key; fix = newValue.fix; flagged = newValue.flagged
               lyricsDirty = newValue.lyricsDirty; chordsDirty = newValue.chordsDirty; gridDirty = newValue.gridDirty }
     }
     private var history = UndoHistory<Snapshot>()

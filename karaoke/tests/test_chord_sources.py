@@ -93,3 +93,10 @@ def test_verse_repeated_by_detected_roots():
     r = merge(chart, beats, bars, 4, det, w, lt)
     assert r.cells[0] == "Amaj7" and r.cells[1] == "D6"
     assert r.cells[4] == "Amaj7" and r.cells[5] == "D6" and r.repeated >= 2
+
+
+def test_a_chord_sung_a_beat_off_lands_on_the_change_heard_nearby():
+    w, lt = words_at(("la la", [0.0, 1.5]))              # second word sung at beat 3
+    det = ["Am"] * 4 + ["F"] * 12                         # the audio changes to F at beat 4
+    r = merge(Chart([ChartLine(None, "la la", [(0, "Am"), (3, "F")])]), BEATS, BARS, 4, det, w, lt)
+    assert r.cells[:2] == ["Am", "F"] and r.flagged == []
