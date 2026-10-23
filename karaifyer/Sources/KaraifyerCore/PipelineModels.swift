@@ -66,6 +66,8 @@ public struct SongState: Codable, Equatable, Identifiable, Sendable {
     public var key: String?
     public var bars: [BarInfo]
     public var grid: GridInfo?
+    public var progression: String?    // Chordonomicon's progression, as is (« <verse_1> D A … »)
+    public var grilleProposee: String? // open chart Corriger can suggest: patadata | chordonomicon
 
     public static func decodeList(_ data: Data) throws -> [SongState] {
         let d = JSONDecoder()
