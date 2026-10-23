@@ -1,6 +1,7 @@
 import AppKit
 import KaraifyerCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct EditorView: View {
     @Bindable var model: EditorModel
@@ -208,8 +209,9 @@ struct EditorView: View {
             HStack {
                 Button("Ouvrir un fichier…") {
                     let panel = NSOpenPanel()
+                    // .sg / ChordPro have no system type: name them, or they show greyed out
                     panel.allowedContentTypes = [.plainText, .text]
-                    panel.allowsOtherFileTypes = true
+                        + ["sg", "cho", "chopro", "crd", "pro", "chordpro"].compactMap { UTType(filenameExtension: $0) }
                     if panel.runModal() == .OK, let u = panel.url, let t = try? String(contentsOf: u, encoding: .utf8) {
                         model.importDraft = t
                     }

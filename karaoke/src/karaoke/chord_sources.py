@@ -20,7 +20,13 @@ def _root(r: str) -> str:
 
 
 def normalise(sym: str) -> str | None:
-    m = _TOKEN.match(sym.strip())
+    sym = sym.strip().strip("()*")
+    if sym.upper() in ("N.C.", "NC", "N.C"):
+        return "N.C."
+    if sym[:1] == "H":                                     # German notation: H = B
+        sym = "B" + sym[1:]
+    sym = sym.replace("no3d", "")
+    m = _TOKEN.match(sym)
     if not m:
         return None
     q = m.group(2)
@@ -43,13 +49,18 @@ class Chart:
     capo: int = 0
 
 
+REPEAT_MARK = re.compile(r"^\(?[x×]?\d+[x×]?\)?$|^[|/:-]+$", re.I)
+
+
 def _chord_line(line: str) -> list[tuple[int, str]] | None:
-    """A line made only of chord symbols (and bar marks / labels like « Intro: »): their columns, else None."""
+    """A line of chord symbols (bar marks, repeat marks like « (2x) » and labels like « Intro: » allowed; one odd token
+    in five tolerated): their columns, else None."""
     body = re.sub(r"^\s*[A-Za-zéÉ ]+\s*:", lambda m: " " * len(m.group(0)), line) if ":" in line else line
     toks = [(m.start(), m.group(0)) for m in re.finditer(r"\S+", body)]
-    toks = [(i, t) for i, t in toks if t not in ("|", "||", "-", "x2", "x3", "x4", "(x2)")]
+    toks = [(i, t) for i, t in toks if not REPEAT_MARK.match(t)]
     syms = [(i, normalise(t)) for i, t in toks]
-    return [(i, s) for i, s in syms] if toks and all(s for _, s in syms) else None
+    good = [(i, s) for i, s in syms if s]
+    return good if good and len(good) >= 0.8 * len(syms) else None
 
 
 def parse(text: str) -> Chart:
@@ -63,7 +74,7 @@ def parse(text: str) -> Chart:
         return Chart(lines, capo)
     inline = re.compile(r"\\?\[([^\]]+)\]")
     out, section, pending = [], None, None
-    for raw in text.splitlines():
+    for raw in text.expandtabs(8).splitlines():
         line = raw.rstrip()
         if re.match(r"^\s*(\{.*\}|\\(capo|selectlanguage|songcolumns|beginsong|cover|gtab|endsong|end\{|emph).*)$", line) \
                 or re.match(r"^\s*capo\b", line, re.I):
@@ -75,14 +86,16 @@ def parse(text: str) -> Chart:
             section = (m.group(1) or m.group(2)).strip()
             continue
         if inline.search(line) and not _chord_line(line):                     # ChordPro / patadata
+            clean = re.sub(r"\\(?!\[)\w+\*?(\{([^}]*)\})?", r"\2", line).replace("{", "").replace("}", "").strip()
             text_out, chords, pos = "", [], 0
-            for m in inline.finditer(line.strip()):
-                text_out += line.strip()[pos:m.start()]
+            for m in inline.finditer(clean):
+                text_out += clean[pos:m.start()]
                 if s := normalise(m.group(1)):
                     chords.append((len(text_out), s))
                 pos = m.end()
-            text_out += line.strip()[pos:]
-            out.append(ChartLine(section, re.sub(r"\\\w+\{([^}]*)\}", r"\1", text_out).strip(), chords))
+            text_out += clean[pos:]
+            lead = len(text_out) - len(text_out.lstrip())
+            out.append(ChartLine(section, text_out.strip(), [(max(0, o - lead), s) for o, s in chords]))
             continue
         if not line.strip():
             if pending:
@@ -94,7 +107,8 @@ def parse(text: str) -> Chart:
                 out.append(ChartLine(section, "", pending))
             pending = cl
             continue
-        out.append(ChartLine(section, line.strip(), [(min(i, len(line.strip())), s) for i, s in (pending or [])]))
+        indent = len(line) - len(line.lstrip())             # chord columns are relative to the lyric's first letter
+        out.append(ChartLine(section, line.strip(), [(max(0, i - indent), s) for i, s in (pending or [])]))
         pending = None
     if pending:
         out.append(ChartLine(section, "", pending))
@@ -135,9 +149,14 @@ def _transpose(sym: str, k: int) -> str:
     return NAME[(r + k) % 12] + q + (f"/{NAME[(b + k) % 12]}" if b != r else "")
 
 
+def _norm_char(c: str) -> str:
+    base = next((x for x in unicodedata.normalize("NFKD", c) if not unicodedata.combining(x)), " ")
+    return base.lower() if base.isalnum() else " "
+
+
 def _norm_text(s: str) -> str:
-    s = unicodedata.normalize("NFKD", s.lower())
-    return re.sub(r"[^a-z0-9 ]+", "", "".join(c for c in s if not unicodedata.combining(c))).strip()
+    """Lower case, no accents, punctuation as spaces — one character per character, so chart columns still apply."""
+    return "".join(_norm_char(c) for c in s)
 
 
 def _over_bass(chart_sym: str, bass_pc: int) -> str:
@@ -180,7 +199,7 @@ def merge(chart: Chart, beats: list[float], bar_starts: list[int], beats_per_bar
     def put(i: int, sym: str) -> None:
         put_at.add(i)
         d = det_parts[i]
-        if d is None:
+        if d is None or _parts(sym) is None:         # nothing heard, or the chart says N.C.
             out[i] = sym
             return
         cr, cb, _ = _parts(sym)
@@ -195,11 +214,18 @@ def merge(chart: Chart, beats: list[float], bar_starts: list[int], beats_per_bar
             return 0
         norm, starts, pos = _norm_text(text), [], 0
         for w, t in line_words:
-            i = norm.find(_norm_text(w), pos)
+            key = _norm_text(w).strip()
+            i = norm.find(key, pos) if key else -1
             i = pos if i < 0 else i
             starts.append((i, t))
-            pos = i + len(_norm_text(w))
+            pos = i + len(key)
+        end = len(text.rstrip())
+        after = 0
         for off, sym in chords:
+            if off >= end and off > 0:               # written past the end of the lyric: after its last word
+                after += 1
+                put(min(n - 1, beat_at(starts[-1][1]) + 2 * after), sym)
+                continue
             put(nearby(beat_at(max([t for o, t in starts if o <= off], default=starts[0][1])), sym), sym)
         return len(chords)
 
@@ -299,7 +325,7 @@ def merge(chart: Chart, beats: list[float], bar_starts: list[int], beats_per_bar
 
     # 4. vocabulary: what's left keeps the detection, with the chart's most frequent chord of the same root
     by_root: dict[int, str] = {}
-    for s, _ in Counter(syms).most_common():
+    for s, _ in Counter(x for x in syms if _parts(x)).most_common():
         by_root.setdefault(_parts(s)[0], s)
     vocab = 0
     for i in range(n):

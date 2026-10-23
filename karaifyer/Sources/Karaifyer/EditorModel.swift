@@ -42,6 +42,12 @@ final class EditorModel {
 
     /// Run the merge in the background (a pasted chart on stdin, or the suggested open chart) and apply it.
     func runMerge(texte: String?, source: String?) {
+        // the merge cuts chords on the bar lines the pipeline knows: unsaved bar fixes would shift every chord
+        guard !gridDirty else {
+            loadError = "Enregistrer d'abord la correction des mesures, puis importer la grille."
+            return
+        }
+        guard !merging else { return }
         let p = Pipeline()
         var args = p.args(["grilles", "fusionner", "--id", song.id, "--json"])
         if let source { args += ["--source", source] }

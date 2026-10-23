@@ -8,7 +8,8 @@ public enum ProgressionText {
 
     public static func symbol(_ t: String) -> String {
         var s = t.replacingOccurrences(of: "min", with: "m")
-        s = s.replacingOccurrences(of: #"(?<=[A-G])s"#, with: "#", options: .regularExpression)
+        // Chordonomicon's sharp is « s » right after a root (Fs, D/Fs) — never the « s » of « sus »
+        s = s.replacingOccurrences(of: #"(?<=^[A-G])s(?!us)|(?<=/[A-G])s(?!us)"#, with: "#", options: .regularExpression)
         return s
     }
 

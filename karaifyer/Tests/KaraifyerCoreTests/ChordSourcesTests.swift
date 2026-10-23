@@ -13,4 +13,8 @@ struct ChordSourcesTests {
         let r = try JSONDecoder().decode(MergeResult.self, from: Data(#"{"cells":["Am"],"flagged":[0],"placed":42,"repeated":18,"vocab":3,"source":"collé"}"#.utf8))
         #expect(r.summary == "42 accords placés sur les paroles, 18 complétés par répétition, 1 mesure à vérifier")
     }
+
+    @Test func susChordsStaySus() {
+        #expect(ProgressionText.sections("<verse_1> Dsus4 Fs/As Asus2 Csmin ").first?.chords == "Dsus4 F#/A# Asus2 C#m")
+    }
 }

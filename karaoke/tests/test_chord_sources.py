@@ -3,7 +3,7 @@ from karaoke.chord_sources import normalise, parse
 
 def test_normalise_spellings():
     assert [normalise(s) for s in ["Amin", "Fs", "Fsmin7", "D/Fs", "B&", "Em7", "Bbmaj7", "Gsus", "H", "Refrain"]] == \
-        ["Am", "F#", "F#m7", "D/F#", "Bb", "Em7", "Bbmaj7", "Gsus4", None, None]
+        ["Am", "F#", "F#m7", "D/F#", "Bb", "Em7", "Bbmaj7", "Gsus4", "B", None]      # H = B (German charts)
 
 
 def test_chords_above_lyrics_with_column_offsets():
@@ -100,3 +100,29 @@ def test_a_chord_sung_a_beat_off_lands_on_the_change_heard_nearby():
     det = ["Am"] * 4 + ["F"] * 12                         # the audio changes to F at beat 4
     r = merge(Chart([ChartLine(None, "la la", [(0, "Am"), (3, "F")])]), BEATS, BARS, 4, det, w, lt)
     assert r.cells[:2] == ["Am", "F"] and r.flagged == []
+
+
+def test_offsets_survive_punctuation_indentation_and_braces():
+    c = parse("     C            G\n    J'ai, d'abord, demandé\n")
+    assert c.lines[0].text == "J'ai, d'abord, demandé" and c.lines[0].chords == [(1, "C"), (14, "G")]
+    p = parse("\\[C]{O Mary}, don't \\[G]weep\n")
+    assert p.lines[0].text == "O Mary, don't weep" and p.lines[0].chords == [(0, "C"), (14, "G")]
+    w, lt = words_at(("J'ai, d'abord, l'ai demandé à la lune", [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
+    chart = Chart([ChartLine(None, "J'ai, d'abord, l'ai demandé à la lune", [(0, "C"), (30, "G")])])  # G over « la »
+    r = merge(chart, BEATS, BARS, 4, ["N.C."] * 16, w, lt)
+    assert r.cells[2] == "C G"                     # « la » is sung at 5.0 s = beat 10, mid bar 3
+
+
+def test_chords_past_the_end_of_the_lyric_are_kept():
+    c = parse("C       G        Am     F\nHi there\n")
+    w, lt = words_at(("Hi there", [0.0, 1.0]))
+    r = merge(c, BEATS, BARS, 4, ["N.C."] * 16, w, lt)
+    joined = " ".join(r.cells)
+    assert all(ch in joined.split() for ch in ("C", "G", "Am", "F"))
+
+
+def test_chord_lines_with_marks_and_odd_tokens_are_kept():
+    for line in ["C G (2x)", "N.C.  G", "(C)  G*", "Hm  H7", "| Am | F |  x4"]:
+        c = parse(f"{line}\nla la la\n")
+        assert c.lines and c.lines[0].text == "la la la" and c.lines[0].chords, line
+    assert [s for _, s in parse("Hm  H7\nla\n").lines[0].chords] == ["Bm", "B7"]
