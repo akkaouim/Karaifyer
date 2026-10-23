@@ -5,7 +5,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from chords_fetch import ensure, lab_to_segments, write_result
 
 src, out = sys.argv[1], sys.argv[2]
-repo = ensure("btc", log=lambda m: print(m, file=sys.stderr))
+try:
+    repo = ensure("btc", log=lambda m: print(m, file=sys.stderr))
+except RuntimeError as e:          # no network, corrupt download…: the step retries next run
+    print(e, file=sys.stderr)
+    sys.exit(75)
 with tempfile.TemporaryDirectory() as d:
     (Path(d) / "song.wav").symlink_to(Path(src).resolve())     # test.py reads a folder
     subprocess.run([sys.executable, "test.py", "--voca", "True", "--audio_dir", d, "--save_dir", d], cwd=repo, check=True)

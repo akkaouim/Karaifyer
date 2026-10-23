@@ -62,14 +62,17 @@ def ensure(engine: str, download=None, log=print) -> Path:
     tmp = dest.with_name(dest.name + ".tmp")
     shutil.rmtree(tmp, ignore_errors=True)
     try:
-        data = (download or _download)(f"https://codeload.github.com/{s['repo']}/tar.gz/{s['commit']}")
-        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as t:
-            for m in t.getmembers():
-                parts = Path(m.name).parts[1:]               # strip the top-level « repo-<sha> » folder
-                if not parts or ".." in parts:
-                    continue
-                m.name = str(Path(*parts))
-                t.extract(m, tmp)
+        try:
+            data = (download or _download)(f"https://codeload.github.com/{s['repo']}/tar.gz/{s['commit']}")
+            with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as t:
+                for m in t.getmembers():
+                    parts = Path(m.name).parts[1:]           # strip the top-level « repo-<sha> » folder
+                    if not parts or ".." in parts or not (m.isfile() or m.isdir()):
+                        continue
+                    m.name = str(Path(*parts))
+                    t.extract(m, tmp)
+        except (OSError, tarfile.TarError, EOFError) as e:
+            raise RuntimeError(f"détecteur {engine} : installation impossible (connexion requise une fois) : {e}") from e
         model = tmp / s["model"]
         if not model.exists() or hashlib.sha256(model.read_bytes()).hexdigest() != s["sha256"]:
             raise RuntimeError(f"détecteur {engine} : somme de contrôle du modèle incorrecte (téléchargement abîmé ?)")

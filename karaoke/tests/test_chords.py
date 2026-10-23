@@ -144,3 +144,10 @@ def test_symbol_is_always_a_valid_chart_symbol():
     basses = ["", "/3", "/b3", "/5", "/b7", "/7", "/2", "/4", "/6", "/F#"]
     for r, q, b in itertools.product(["C", "C#", "Eb", "F#", "Bb"], quals, basses):
         assert SYMBOL.match(symbol(f"{r}:{q}{b}")), f"{r}:{q}{b} → {symbol(f'{r}:{q}{b}')}"
+
+
+def test_slash_bass_spelled_from_the_chord_interval():
+    from karaoke.chords import spell, symbol
+    assert symbol("E:maj/3") == "E/G#" and symbol("B:maj/3") == "B/D#" and symbol("Eb:maj/3") == "Eb/G"
+    assert spell(["E/G#"], "A major") == ["E/G#"]
+    assert spell([symbol("C#:maj/3")], "Db major") == ["Db/F"]     # root respelled → bass follows

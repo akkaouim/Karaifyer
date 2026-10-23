@@ -76,3 +76,43 @@ def test_correction_wins_over_any_engine(cfg, monkeypatch):
     (cfg.accords / f"{ws.song.id}.txt").write_text("Tonalité : C major · 4/4\n\n| C | G |\n", encoding="utf-8")
     r = CH.CHORDS.run(ws, up)
     assert calls == [] and r["source"] == "correction"
+
+
+def test_correction_result_does_not_depend_on_the_engine(cfg, monkeypatch):
+    CH, ws, up, _ = setup(cfg, monkeypatch, {"chords_dl": DL, "chords_ace": DL, "chords": MADMOM}, engine="ace")
+    cfg.accords.mkdir(parents=True, exist_ok=True)
+    (cfg.accords / f"{ws.song.id}.txt").write_text("Tonalité : C major · 4/4\n\n| C | G |\n", encoding="utf-8")
+    r_ace, k_ace = CH.CHORDS.run(ws, up), CH.CHORDS.key(ws)
+    monkeypatch.setenv("KARAOKE_ACCORDS", "btc")
+    assert CH.CHORDS.run(ws, up) == r_ace and CH.CHORDS.key(ws) == k_ace     # no video/set re-render on a switch
+    assert "moteur" not in r_ace
+
+
+def test_engine_installation_failure_is_retried_not_emptied(cfg, monkeypatch):
+    import pytest
+    from karaoke.runner import StepRetry
+    from karaoke.tools import ToolError
+    CH, ws, up, _ = setup(cfg, monkeypatch, {}, engine="jiang")
+    def fail(tool, args, **kw):
+        raise ToolError(tool, 75, "détecteur jiang : installation impossible (connexion requise une fois) : timeout")
+    monkeypatch.setattr(CH, "run_tool", fail)
+    with pytest.raises(StepRetry, match="installation impossible"):
+        CH.CHORDS.run(ws, up)
+
+
+def test_soft_failure_is_logged(cfg, monkeypatch):
+    CH, ws, up, _ = setup(cfg, monkeypatch, {"chords_dl": {"segments": [], "key": None}, "chords": MADMOM}, engine="btc")
+    CH.CHORDS.run(ws, up)
+    assert "accords : BTC — aucun accord détecté" in (ws.work / "journal.log").read_text()
+
+
+def test_installation_is_announced_when_the_engine_is_not_cached(cfg, monkeypatch, tmp_path):
+    monkeypatch.setenv("KARAOKE_CHORDS_CACHE", str(tmp_path / "cache"))
+    CH, ws, up, _ = setup(cfg, monkeypatch, {"chords_dl": DL, "chords": MADMOM}, engine="jiang")
+    CH.CHORDS.run(ws, up)
+    assert "installation du détecteur Jiang 2019" in (ws.work / "journal.log").read_text()
+    (tmp_path / "cache" / "jiang-481f4ce").mkdir(parents=True)
+    (tmp_path / "cache" / "jiang-481f4ce" / ".ready").write_text("x")
+    (ws.work / "journal.log").write_text("")
+    CH.CHORDS.run(ws, up)
+    assert "installation" not in (ws.work / "journal.log").read_text()

@@ -60,3 +60,16 @@ def test_fetch_fails_clearly_when_a_patch_no_longer_applies(tmp_path, monkeypatc
 def test_write_result(tmp_path):
     F.write_result(tmp_path / "o.json", [[0.0, 1.0, "C:maj"]])
     assert json.loads((tmp_path / "o.json").read_text()) == {"segments": [[0.0, 1.0, "C:maj"]], "key": None}
+
+
+def test_download_failure_is_a_clear_french_error(tmp_path, monkeypatch):
+    src = {"repo": "x/y", "commit": "abc1234def", "model": "m.pt", "sha256": "0" * 64, "patches": []}
+    monkeypatch.setitem(F.SOURCES, "fake", src)
+    monkeypatch.setenv("KARAOKE_CHORDS_CACHE", str(tmp_path))
+    def boom(url):
+        raise OSError("network is unreachable")
+    with pytest.raises(RuntimeError, match="installation impossible"):
+        F.ensure("fake", download=boom, log=lambda *a: None)
+    with pytest.raises(RuntimeError, match="installation impossible"):
+        F.ensure("fake", download=lambda u: b"not a tarball", log=lambda *a: None)
+    assert list(tmp_path.iterdir()) == []

@@ -23,6 +23,17 @@ def _pc(note: str) -> int:
     return (PC[note[0]] + sum({"#": 1, "b": -1}.get(c, 0) for c in note[1:])) % 12
 
 
+LETTERS = "CDEFGAB"
+LETTER_STEP = {0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3, 7: 4, 8: 5, 9: 5, 10: 6, 11: 6}   # interval → letters up
+
+
+def _bass_name(root: str, pc: int) -> str:
+    """A bass note spelled from its interval above the chord's root (E's 3rd is G#, never Ab)."""
+    letter = LETTERS[(LETTERS.index(root[0]) + LETTER_STEP[(pc - _pc(root)) % 12]) % 7]
+    acc = (pc - PC[letter] + 6) % 12 - 6
+    return letter + {0: "", 1: "#", -1: "b"}[acc] if acc in (-1, 0, 1) else NAME[pc]
+
+
 def symbol(label: str) -> str:
     """Harte label (any engine: `C#:min7`, `A:maj/3`, `G:sus4(b7)`, `N`) → chart symbol (`C#m7`, `A/C#`, `G7sus4`).
     A slash chord whose notes form a chord rooted on its bass is named by it (A/F# → F#m7, Michel's convention);
@@ -47,7 +58,7 @@ def symbol(label: str) -> str:
         cand = next(v for v in HARTE.values() if v[0] == suf)
         if {(bass + i) % 12 for i in cand[1]} == notes:
             return NAME[bass] + suf
-    return f"{name}/{NAME[bass]}"
+    return f"{name}/{_bass_name(NAME[root], bass)}"
 
 
 SYMBOL = re.compile(r"^(N\.C\.|[A-G][#b]?(maj9|maj7|mM7|m7b5|m9|m7|m6|7sus4|dim7|dim|aug|sus2|sus4|add9|11|13|9|7|6|m)?"
@@ -119,8 +130,11 @@ def spell(symbols: list[str], key: str) -> list[str]:
     table = TO_FLAT if key in FLAT_KEYS else TO_SHARP if key in SHARP_KEYS else {}
     out = []
     for s in symbols:
-        root = s[:2] if len(s) > 1 and s[1] in "#b" else s
-        out.append(table.get(root, root) + s[len(root):] if root in table else s)
+        main, _, bass = s.partition("/")
+        root = main[:2] if len(main) > 1 and main[1] in "#b" else main[:1]
+        new_root = table.get(root, root) if s != "N.C." else root
+        main = new_root + main[len(root):]
+        out.append(f"{main}/{_bass_name(new_root, _pc(bass))}" if bass and new_root[:1] in PC else main)
     return out
 
 

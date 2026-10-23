@@ -48,6 +48,9 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
     if word_rate is not None and word_rate < 0.9:
         risk += round((0.9 - word_rate) * 200)
         alerts.append(f"paroles à vérifier : {word_rate * 100:.0f} % des mots calés (±0,5 s)")
+    ch = res("chords")
+    if ch.get("erreur"):
+        alerts.append(f"chords : {ch['moteur'] + ' — ' if ch.get('moteur') else ''}{ch['erreur']} (grille vide)")
     values = set(statuses.values())
     if "echec" in values:
         statut = "echec"
@@ -65,6 +68,7 @@ def song_report(song: Song, results: dict[str, dict]) -> dict:
             "clic_derive_ms": chk.get("drift_ms"),
             "paroles": {"source": lyr.get("source"), "lignes": len(lyr.get("lines", [])), "taux_calage": rate,
                         "taux_mots": word_rate},
+            "accords": {k: ch.get(k) for k in ("source", "moteur", "entree")},
             "alertes": alerts, "risque": risk}
 
 

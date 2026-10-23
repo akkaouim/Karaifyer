@@ -128,3 +128,13 @@ def test_transcribed_lyrics_are_flagged_for_proofreading():
     res = {**BASE, "lyrics": ok({"source": "transcription", "lines": [{}] * 10})}
     r = song_report(song(), res)
     assert "paroles transcrites automatiquement : à relire" in r["alertes"] and r["statut"] == "alerte"
+
+
+def test_report_names_the_chord_engine_and_flags_an_empty_chart():
+    from karaoke.report import song_report
+    from test_manifest import song
+    ok = {"status": "fait", "result": {"source": "detection", "moteur": "Jiang 2019", "entree": "harmonie", "bars": [1]}}
+    r = song_report(song(), {"chords": ok})
+    assert r["accords"] == {"source": "detection", "moteur": "Jiang 2019", "entree": "harmonie"}
+    empty = {"status": "fait", "result": {"moteur": "BTC", "bars": [], "erreur": "aucun accord détecté"}}
+    assert "chords : BTC — aucun accord détecté (grille vide)" in song_report(song(), {"chords": empty})["alertes"]

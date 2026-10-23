@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -17,7 +18,7 @@ from karaoke import audio
 from karaoke.chords import (bars_from, changes, chart_text, chords_per_beat, expand, merge_blips, parse_cell,
                              parse_chart, spell)
 from karaoke.grid import beats_per_bar, tempo_stats
-from karaoke.runner import Step
+from karaoke.runner import Step, StepRetry
 from karaoke.tools import TOOLS_DIR, ToolError, run_tool, tool_timeout
 from karaoke.workspace import Workspace
 
@@ -31,6 +32,16 @@ SILENT_DBFS = -45.0     # a harmonic stem quieter than this (a cappella song): l
 def engine() -> str:
     e = os.environ.get("KARAOKE_ACCORDS", "jiang")
     return e if e in ENGINES else "jiang"
+
+
+INSTALL_FAILED = 75    # wrapper exit code when the engine can't be installed (no network…): retry, don't empty
+
+
+def _installed(name: str) -> bool:
+    if ENGINES[name][0] == "chords":
+        return True
+    cache = Path(os.environ.get("KARAOKE_CHORDS_CACHE", Path.home() / ".cache" / "karaoke" / "chords"))
+    return any(cache.glob(f"{name}-*/.ready"))
 
 
 def _detect(ws: Workspace, wav, duration: float) -> tuple[list, str]:
@@ -85,12 +96,21 @@ def _run(ws: Workspace, upstream: dict) -> dict:
         label = ENGINES[engine()][2]
         failed = {"key": None, "bpm": 0.0, "beats_per_bar": 4, "bars": [], "changes": [], "source": "detection",
                   "signature": None, "swing": False, "moteur": label, "entree": entree}
+        if not _installed(engine()):
+            ws.log(f"installation du détecteur {label} (une seule fois, connexion requise) …")
         try:
             segments, key = _detect(ws, wav, upstream["ingest"]["duration_s"])
-        except (ToolError, OSError, ValueError, KeyError) as e:
+        except ToolError as e:
+            if e.code == INSTALL_FAILED:      # keep the previous chart and video; try again next run
+                raise StepRetry(e.stderr.strip().splitlines()[-1] if e.stderr.strip() else "installation impossible")
+            ws.log(f"accords : {label} — échec ({str(e)[-200:]})")
             # The chart is a draft: never block the video or the set. No accords.txt → retried next run.
             return {**failed, "erreur": str(e)[-300:]}
+        except (OSError, ValueError, KeyError) as e:
+            ws.log(f"accords : {label} — échec ({e})")
+            return {**failed, "erreur": str(e)[-300:]}
         if not segments:
+            ws.log(f"accords : {label} — aucun accord détecté")
             return {**failed, "erreur": "aucun accord détecté"}
         ws.log(f"accords : {label} ({entree})")
         labels = spell(merge_blips(chords_per_beat(segments, beats)), key)
@@ -101,14 +121,18 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     (ws.out / "accords.txt").write_text(
         f"{ws.song.titre} — {ws.song.artiste}\nTonalité : {key} · {bpm:.0f} BPM · {signature or f'{bpb}/4'}\n\n"
         + chart_text(bars, bpb) + "\n", encoding="utf-8")
-    return {"key": key, "bpm": bpm, "beats_per_bar": bpb, "bars": bars, "changes": changes(beats, labels),
-            "source": source, "signature": signature, "swing": swing, "moteur": ENGINES[engine()][2],
-            "entree": entree}
+    result = {"key": key, "bpm": bpm, "beats_per_bar": bpb, "bars": bars, "changes": changes(beats, labels),
+              "source": source, "signature": signature, "swing": swing}
+    if source == "detection":      # a corrected chart doesn't depend on the engine: switching must not re-render it
+        result |= {"moteur": ENGINES[engine()][2], "entree": entree}
+    return result
 
 
 def _key(ws: Workspace) -> str:
     p = ws.cfg.accords / f"{ws.song.id}.txt"
-    return f"{engine()}|spell-by-key|v2|" + (hashlib.sha1(p.read_bytes()).hexdigest() if p.exists() else "-")
+    if p.exists():                 # Michel's chart wins over any engine
+        return "correction|spell-by-key|v2|" + hashlib.sha1(p.read_bytes()).hexdigest()
+    return f"{engine()}|spell-by-key|v2|-"
 
 
 CHORDS = Step(name="chords", deps=("ingest", "separate", "beats"), key=_key, run=_run,
