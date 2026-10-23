@@ -10,7 +10,8 @@ TOOLS_DIR = Path(__file__).resolve().parents[2] / "tools"
 # Timeout = base + factor × song duration. Measured in phase 0 (M1 Pro): separate ≈ 0.15×,
 # align ≈ 0.12×, beats ≈ 0.02× real time; these leave ~10× headroom for a cold model load.
 _TIMEOUTS = {"separate": (300.0, 3.0), "beats": (120.0, 1.0), "align": (300.0, 3.0),
-             "vocals": (600.0, 4.0), "transcribe": (900.0, 4.0), "chords": (180.0, 1.0)}   # RoFormer / karaoke ≈ 0.78× real time (spike), model load included   # vocals split ≈ 0.76× real time (spike), model load included
+             "vocals": (600.0, 4.0), "transcribe": (900.0, 4.0), "chords": (180.0, 1.0),
+             "chords_engine": (1800.0, 2.0)}   # RoFormer / karaoke ≈ 0.78× real time (spike), model load included   # vocals split ≈ 0.76× real time (spike), model load included
 
 
 def tool_timeout(tool: str, duration_s: float) -> float:
