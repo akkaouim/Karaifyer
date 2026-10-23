@@ -5,7 +5,7 @@ public struct CellError: Error, Equatable { public let message: String }
 /// Chord-grid cells, same syntax as karaoke/chords.py `parse_cell`:
 /// `A B` splits the bar evenly; `Am . . F` gives one token per beat, `.` continues the previous chord.
 public enum ChordGrid {
-    static let symbol = #"^(N\.C\.|[A-G][#b]?(m|maj7|m7b5|m7|m6|7|6|9|dim|aug|sus2|sus4|add9)?(/[A-G][#b]?)?)$"#
+    static let symbol = #"^(N\.C\.|[A-G][#b]?(maj9|maj7|mM7|m7b5|m9|m7|m6|7sus4|dim7|dim|aug|sus2|sus4|add9|11|13|9|7|6|m)?(/[A-G][#b]?)?)$"#
 
     public static func isValidSymbol(_ s: String) -> Bool {
         s.range(of: symbol, options: .regularExpression) != nil

@@ -113,7 +113,7 @@ struct EditorView: View {
                 Toggle("Swing", isOn: Binding(get: { model.fix.swing }, set: { model.setSwing($0) }))
                     .toggleStyle(.checkbox).disabled(!model.gridAvailable)
             }
-            Text("« A B » = moitié-moitié · « Am . . F » = un symbole par temps · N.C. = sans accord · ex. Cmaj7 Dm7 G7 Am/G")
+            Text("« A B » = moitié-moitié · « Am . . F » = un symbole par temps · N.C. = sans accord · ex. Cmaj7 Dm7 G7 Am/G Gsus4 Edim7")
                 .font(.caption).foregroundStyle(.secondary)
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {

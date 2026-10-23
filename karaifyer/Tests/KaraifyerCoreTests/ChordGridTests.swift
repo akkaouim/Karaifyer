@@ -32,4 +32,11 @@ struct ChordGridTests {
         #expect(ChordGrid.barIndex(at: 2.5, bars: bars) == 1)
         #expect(ChordGrid.barIndex(at: 99, bars: bars) == 2)
     }
+
+    @Test func acceptsTheNewSymbols() {
+        for s in ["Edim7", "Am9", "Cmaj9", "G7sus4", "CmM7", "G11", "G13", "F#m7", "A/C#", "Bbm7b5", "N.C."] {
+            #expect(ChordGrid.isValidSymbol(s), "\(s)")
+        }
+        #expect(!ChordGrid.isValidSymbol("H7") && !ChordGrid.isValidSymbol("Cmaj13"))
+    }
 }
