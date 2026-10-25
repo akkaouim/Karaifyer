@@ -20,6 +20,8 @@ Application macOS pour préparer le spectacle karaoké. **Mode d'emploi complet,
   - la vidéo et un mixeur 8 pistes plus master (fader, mute, solo) ;
   - une barre de position, une boucle calée sur les mesures, le tempo en BPM et la transposition ;
   - le réglage de chaque morceau mémorisé ;
+  - la vidéo dessinée en direct (grille de mesures + paroles, ou accords sur les paroles ; accords transposés avec la
+    hauteur) ;
   - l'export du mix (vidéo + master ou master seul, format et qualité au choix).
 
 L'analyse elle-même reste faite par la commande `karaoke` (dossier `karaoke/`), que l'app pilote. Tout marche

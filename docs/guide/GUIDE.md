@@ -249,6 +249,20 @@ Tu peux aussi déposer un texte brut `paroles/<id>.txt` ; il sera calé automati
 
 ---
 
+## La vidéo des paroles
+
+Un cadre néon cyan sur un mur de briques, le titre et l'artiste en néon rose qui respire doucement (avec un léger
+clignotement de temps en temps) ; le cadre pulse sur chaque temps, plus fort sur le premier temps de la mesure.
+
+- **Grille + paroles** (par défaut) : en haut, **2 lignes de 4 mesures** — la ligne active est toujours en haut, la
+  mesure jouée surlignée et un **curseur** qui avance temps par temps ; quand la ligne se termine, celle du dessous
+  monte et les 4 mesures suivantes apparaissent. En bas, **les paroles seules** : la ligne chantée qui s'allume
+  syllabe par syllabe, la suivante en gris.
+- **Accords sur les paroles** : l'ancienne présentation (accords au-dessus des syllabes, rangée de 4 mesures pendant
+  les instrumentaux), sur le même fond.
+- Le menu **Vidéo** de l'onglet Karaoké choisit la disposition des vidéos rendues par l'analyse (`paroles.mp4`, sets
+  Ableton) ; en changer refait les vidéos à la prochaine analyse.
+
 ## 7 bis. Le Lecteur : répéter et vérifier
 
 L'onglet **Lecteur** joue un morceau analysé avec sa vidéo. C'est le Mac qui joue, sur sa sortie audio
@@ -261,7 +275,10 @@ habituelle, pas la XR18. Il sert à répéter chez soi en coupant sa partie, et 
   - cherche par titre, artiste ou numéro (sans te soucier des accents) ;
   - un clic **sélectionne seulement** ; **double-clic**, **Entrée** ou **Charger** ouvre le morceau ;
   - le morceau ouvert est marqué ▶︎, et un morceau grisé n'est pas encore prêt (le survol dit ce qui manque).
-- **Vidéo :** double-clic pour le **plein écran**, puis double-clic ou Échap pour en sortir.
+- **Vidéo :** dessinée **en direct**, calée sur le son (tempo, boucle et position suivent aussitôt). Double-clic pour
+  le **plein écran**, puis double-clic ou Échap pour en sortir. Un morceau analysé avant cette version garde l'ancienne
+  vidéo (« Réanalyser pour la vidéo en direct »).
+- **Disposition :** « Grille + paroles » (par défaut) ou « Accords sur les paroles », mémorisée.
 - **Transport :** ⏮ retour au début, ▶︎/⏸, et la **barre de position** à faire glisser pour aller n'importe où.
   **Espace** lance ou arrête la lecture, sauf pendant que tu tapes dans la recherche.
 - **Boucle :**
@@ -277,7 +294,9 @@ habituelle, pas la XR18. Il sert à répéter chez soi en coupant sa partie, et 
 - **Hauteur :**
   - de −6 à +6 demi-tons, sans changer le tempo ;
   - « Réinitialiser » revient à la tonalité d'origine ;
-  - la vidéo garde les accords d'origine, ce qu'un rappel signale.
+  - les accords de la vidéo suivent la transposition (pratique pour trouver où poser un capodastre) ; rien n'est
+    enregistré ;
+- **Exporter le mix… → Vidéo + master** : la vidéo est dessinée telle qu'affichée (disposition, transposition, tempo).
 - **Mixeur :**
   - une tranche par piste (Clic, Guide voix, Guitare, Basse, Piano, Batterie, Accompagnement, Back Vocals),
     chacune avec un fader (de −∞ à +6 dB), **M** (couper) et **S** (solo) ;

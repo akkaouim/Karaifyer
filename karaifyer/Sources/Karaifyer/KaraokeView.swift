@@ -91,6 +91,12 @@ struct KaraokeView: View {
                         .labelStyle(.iconOnly).buttonStyle(.borderless)
                 }
             }
+            Picker("Vidéo :", selection: $model.videoLayout) {
+                Text("Grille + paroles").tag("grille")
+                Text("Accords sur les paroles").tag("paroles")
+            }
+            .fixedSize()
+            .help("Disposition des vidéos rendues par l'analyse (paroles.mp4, sets Ableton) ; en changer refait les vidéos à la prochaine analyse")
             Button("Rapport") { open(model.pipeline.karaokeHome + "/rapport.html") }
             Button("iReal Pro") {
                 let dir = model.pipeline.karaokeHome + "/ireal"

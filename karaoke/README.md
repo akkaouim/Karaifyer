@@ -54,6 +54,11 @@ Détection automatique : à vérifier à l'oreille. Jiang et BTC nomment 7e, sus
 écrit F#m7) ; madmom ne connaît que majeur/mineur. Le code et le modèle de chaque détecteur sont téléchargés à la
 première utilisation, à une version figée (`~/.cache/karaoke/chords/`).
 
+**Vidéo.** L'étape `video` écrit la scène `sortie/<dossier>/video.json` et la fait dessiner par `karaifyer-render`
+(livré dans Karaifyer.app, chemin passé par `KARAOKE_RENDERER` ; sinon `karaifyer/.build/release/karaifyer-render`).
+`KARAOKE_VIDEO_LAYOUT` = `grille` (défaut) ou `paroles`. Sans le moteur Swift, repli sur l'ancien rendu Python (sans
+animation).
+
 **Grilles ouvertes.** `karaoke grilles telecharger` (Chordonomicon + patadata dans `$KARAOKE_HOME/grilles/`),
 `karaoke grilles lier --feuille <feuille.csv>` (identifiants Spotify → colonne `spotify` du manifeste),
 `karaoke grilles fusionner --id 005 [--texte -] --json` (grille collée ou ouverte fusionnée avec la détection).

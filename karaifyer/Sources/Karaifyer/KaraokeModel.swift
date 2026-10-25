@@ -14,6 +14,10 @@ final class KaraokeModel: RunDriver {
     var selection: Set<String> = []
     /// The table's search and column sort (click a header; again to reverse).
     var query = ""
+    /// Layout of the videos the analysis renders (paroles.mp4, used by the Ableton sets); read by Pipeline.env.
+    var videoLayout: String = UserDefaults.standard.string(forKey: "videoLayout") ?? "grille" {
+        didSet { UserDefaults.standard.set(videoLayout, forKey: "videoLayout") }
+    }
     var sortOrder: [KeyPathComparator<SongState>] = [KeyPathComparator(\SongState.id)]
     var displayedSongs: [SongState] { SongList.filtered(songs, query: query).sorted(using: sortOrder) }
     var log: [String] = []

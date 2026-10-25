@@ -51,3 +51,7 @@ Build: `cd karaifyer && ./build-app.sh --install`. Fill in each result (✅ / �
 | 43 | Corriger: ↑ cancels the last stamp; Espace pauses — fix a word, add a line, resume; Échap and closing the window stop the sound | |
 | 44 | Corriger: « Remplacer le texte… » with ⌘A ⌘V — unchanged lines keep their times; « Synchroniser à partir de la ligne sélectionnée » redoes one passage | |
 | 45 | After « Enregistrer », the video's lines appear on the voice | |
+| 46 | Lecteur: the video is drawn live, in sync (tempo, loop, seek follow at once), full screen too; the frame pulses on the beat | |
+| 47 | Lecteur: « Hauteur » transposes the chords shown in the video; « Disposition » switches Grille + paroles / Accords sur les paroles | |
+| 48 | Lecteur: « Exporter le mix… → Vidéo + master » keeps the layout, transposition and tempo shown | |
+| 49 | Karaoké tab: the « Vidéo » menu changes the layout of paroles.mp4 at the next analysis (and of the Ableton set's video) | |
