@@ -48,7 +48,7 @@ def test_video_step_writes_shifted_lrc_and_mp4(cfg):
     assert (ws.out / "paroles.lrc").read_text(encoding="utf-8") == (
         "[karaoke:decalage=2.000]\n[00:03.00]Un\n[00:05.00]Deux\n")
     assert abs(probe_duration(ws.out / "paroles.mp4") - 10.0) < 0.1 and r["duration_s"] == 10.0
-    assert sorted(p.name for p in VIDEO.artifacts(ws)) == ["paroles.lrc", "paroles.mp4"]
+    assert sorted(p.name for p in VIDEO.artifacts(ws)) == ["paroles.lrc", "paroles.mp4", "video.json"]
     assert r["states"] >= 4
 
 
@@ -106,7 +106,7 @@ def test_video_step_passes_bars_for_instrumentals(cfg, monkeypatch):
                      "bars": [{"start": 0.0, "chords": [[0, "Am"], [2, "F"]]}, {"start": 2.0, "chords": [[0, "G"]]}]}}
     V.VIDEO.run(ws, up)
     assert any(s.chart == ("Am F", "G") and s.chart_pos == 0 and s.start == 2.0 for s in seen["states"])
-    assert V.VIDEO.version == "8"
+    assert V.VIDEO.version == "9"
 
 
 def test_chart_row_clears_a_wrapped_title():
@@ -157,4 +157,66 @@ def test_lines_appear_half_a_second_before_they_are_sung(cfg, monkeypatch):
           "check": {"lines": [{"t": 3.0, "ok": True, "end": 3.5}]}}
     V.VIDEO.run(Workspace(cfg, song()), up)
     first = next(s for s in seen["states"] if s.kind == "ligne")
-    assert first.start == pytest.approx(5.0 - 0.5) and V.VIDEO.version == "8"
+    assert first.start == pytest.approx(5.0 - 0.5) and V.VIDEO.version == "9"
+
+
+@pytest.fixture(autouse=True)
+def _python_renderer_by_default(monkeypatch):
+    """Tests use the Python renderer unless they set KARAOKE_RENDERER themselves (the Swift tool may be built)."""
+    from karaoke.steps import video as V
+    monkeypatch.delenv("KARAOKE_RENDERER", raising=False)
+    if hasattr(V, "DEFAULT_RENDERER"):
+        monkeypatch.setattr(V, "DEFAULT_RENDERER", __import__("pathlib").Path("/nonexistent"))
+
+
+def video_inputs(cfg):
+    from karaoke.workspace import Workspace
+    from test_manifest import song
+    ws = Workspace(cfg, song(titre="Speed", artiste="Zazie"))
+    ws.work.mkdir(parents=True, exist_ok=True)
+    words1 = [{"text": "Un", "start": 1.0, "end": 1.4, "syllables": [{"text": "Un", "start": 1.0}]}]
+    up = {"package": {"pad_s": 2.0, "total_s": 10.0}, "beats": {"beats": BEATS, "downbeats": []},
+          "lyrics": {"lines": [{"t": 1.0, "text": "Un", "score": None, "words": words1}]},
+          "check": {"lines": [{"t": 1.0, "ok": True, "end": 2.5}]},
+          "chords": {"key": "C major", "beats_per_bar": 4, "changes": [],
+                     "bars": [{"start": 0.0, "chords": [[0, "Am"], [2, "F"]]}, {"start": 2.0, "chords": [[0, "G"]]}]}}
+    return ws, up
+
+
+def test_scene_json_written_and_swift_renderer_called(cfg, monkeypatch, tmp_path):
+    import json
+    from karaoke.steps import video as V
+    fake = tmp_path / "karaifyer-render"
+    fake.write_text("#!/bin/sh\ntouch \"$2\"\n"); fake.chmod(0o755)
+    monkeypatch.setenv("KARAOKE_RENDERER", str(fake))
+    monkeypatch.setenv("KARAOKE_VIDEO_LAYOUT", "grille")
+    ws, up = video_inputs(cfg)                      # helper: the same upstream dict the existing tests build
+    V.VIDEO.run(ws, up)
+    sc = json.loads((ws.out / "video.json").read_text())
+    assert sc["layout"] == "grille" and sc["states"] and sc["beats"][0] >= up["package"]["pad_s"] - 1
+    assert all(set(b) == {"start", "beats", "chords"} for b in sc["bars"])
+    assert (ws.out / "paroles.mp4").exists()
+    assert V.VIDEO.version == "9" and "|grille|swift" in V.VIDEO.key(ws)
+
+
+def test_video_falls_back_without_renderer(cfg, monkeypatch):
+    from karaoke.steps import video as V
+    monkeypatch.setenv("KARAOKE_RENDERER", "/nonexistent")
+    monkeypatch.setattr(V, "DEFAULT_RENDERER", __import__("pathlib").Path("/nonexistent"))
+    called = []
+    monkeypatch.setattr(V, "render_video", lambda states, out, work: (called.append(1), out.write_bytes(b"x")))
+    ws, up = video_inputs(cfg)
+    V.VIDEO.run(ws, up)
+    assert called and "moteur Python" in (ws.work / "journal.log").read_text() and "|python" in V.VIDEO.key(ws)
+
+
+def test_scene_without_bars(cfg, monkeypatch, tmp_path):
+    import json
+    from karaoke.steps import video as V
+    monkeypatch.setattr(V, "render_video", lambda states, out, work: out.write_bytes(b"x"))
+    monkeypatch.setenv("KARAOKE_RENDERER", "/nonexistent")
+    monkeypatch.setattr(V, "DEFAULT_RENDERER", __import__("pathlib").Path("/nonexistent"))
+    ws, up = video_inputs(cfg)
+    up["chords"] = {"bars": [], "changes": []}
+    V.VIDEO.run(ws, up)
+    assert json.loads((ws.out / "video.json").read_text())["bars"] == []

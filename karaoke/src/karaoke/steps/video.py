@@ -6,7 +6,11 @@ Outputs: sortie/<dossier>/paroles.lrc (line times + pad_s), paroles.mp4 (1920x10
          exactly total_s long); result {duration_s, states}.
 """
 from __future__ import annotations
+import json
+import os
+import subprocess
 from dataclasses import replace
+from pathlib import Path
 
 from karaoke import lrc
 from karaoke.runner import Step
@@ -16,6 +20,39 @@ from karaoke.workspace import Workspace
 
 
 LINE_LEAD_S = 0.5   # a line appears this long before its first word is sung (Michel: a consistent warning)
+# Karaifyer's renderer (one Swift renderer for the live Lecteur, its export and this step): the app passes it in
+# KARAOKE_RENDERER; a built checkout has it here. Without it, the Python renderer (old layout, no animation).
+DEFAULT_RENDERER = Path(__file__).resolve().parents[4] / "karaifyer" / ".build" / "release" / "karaifyer-render"
+
+
+def layout() -> str:
+    """« grille » (bar grid above, lyrics only below — the default) or « paroles » (chords over the lyrics)."""
+    v = os.environ.get("KARAOKE_VIDEO_LAYOUT", "grille")
+    return v if v in ("grille", "paroles") else "grille"
+
+
+def renderer() -> Path | None:
+    for p in (os.environ.get("KARAOKE_RENDERER"), str(DEFAULT_RENDERER)):
+        if p and Path(p).is_file() and os.access(p, os.X_OK):
+            return Path(p)
+    return None
+
+
+def scene(ws: Workspace, states, beats: list[float], chords: dict, pad: float, total: float) -> dict:
+    """The video as data for the Swift renderer (sortie/<dossier>/video.json), all times in show time."""
+    src = chords.get("bars", [])
+    starts = [b["start"] + pad for b in src]
+    bars = []
+    for k, b in enumerate(src):
+        s, e = starts[k], starts[k + 1] if k + 1 < len(starts) else total
+        bars.append({"start": round(s, 3), "beats": max(1, sum(1 for t in beats if s - 1e-3 <= t < e - 1e-3)),
+                     "chords": [[i, c] for i, c in b["chords"]]})
+    st = [{"start": round(x.start, 3), "end": round(x.end, 3), "kind": x.kind, "current": x.current, "next": x.next,
+           "countdown": x.countdown, "lit": x.lit, "chords": [list(c) for c in x.chords], "chart": list(x.chart),
+           "chart_pos": x.chart_pos, "next_chords": [list(c) for c in x.next_chords]} for x in states]
+    return {"version": 1, "layout": layout(), "titre": ws.song.titre, "artiste": ws.song.artiste,
+            "key": chords.get("key"), "pad_s": pad, "total_s": total, "beats": [round(b, 3) for b in beats],
+            "bars": bars, "states": st}
 
 
 def _timed_line(line: dict, end: float, pad: float) -> TimedLine:
@@ -53,11 +90,19 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     chords = upstream.get("chords", {})
     bars = [(b["start"] + pad, " ".join(c for _, c in b["chords"])) for b in chords.get("bars", [])]
     states = with_chart(states, bars, 4)
-    render_video(states, ws.out / "paroles.mp4", ws.work / "frames")
+    sc = scene(ws, states, beats, chords, pad, total)
+    (ws.out / "video.json").write_text(json.dumps(sc, ensure_ascii=False), encoding="utf-8")
+    r = renderer()
+    if r:
+        subprocess.run([str(r), str(ws.out / "video.json"), str(ws.out / "paroles.mp4")], check=True,
+                       capture_output=True)
+    else:
+        ws.log("rendu vidéo : moteur Python (sans animation)")
+        render_video(states, ws.out / "paroles.mp4", ws.work / "frames")
     return {"duration_s": total, "states": len(states)}
 
 
 VIDEO = Step(name="video", deps=("package", "beats", "lyrics", "check", "chords"),
-             key=lambda ws: f"{ws.song.titre}|{ws.song.artiste}", run=_run,
-             artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4"],
-             version="8")   # 6: line ends at last word, chord row from a 1-bar gap, preview chords; 7: lines appear 0.5 s ahead; 8: N.C. shown
+             key=lambda ws: f"{ws.song.titre}|{ws.song.artiste}|{layout()}|{'swift' if renderer() else 'python'}", run=_run,
+             artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4", ws.out / "video.json"],
+             version="9")   # 6: line ends at last word, chord row from a 1-bar gap, preview chords; 7: lines appear 0.5 s ahead; 8: N.C. shown; 9: scene video.json, Swift renderer (grid + lyrics, neon)
