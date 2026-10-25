@@ -16,6 +16,9 @@ public final class KaraokeRenderer {
     private var bricks: CGImage?
     private var frameImage: CGImage?
     private var titleImage: CGImage?
+    /// The glow images are mostly transparent: only these strips (in 1920×1080 coordinates) are composited per frame.
+    private var frameStrips: [(CGImage, CGRect)] = []
+    private var titleStrip: (CGImage, CGRect)?
     private var titleWidth: CGFloat = 0
 
     // Colours (Global Constraints of the plan)
@@ -66,8 +69,23 @@ public final class KaraokeRenderer {
         if bricks == nil { bricks = makeBricks() }
         if frameImage == nil { makeNeon() }
         drawImage(ctx, bricks!, alpha: 1)
-        drawImage(ctx, frameImage!, alpha: VideoClock.frameGlow(t: t, beats: scene.beats, downbeats: downbeats))
-        drawImage(ctx, titleImage!, alpha: VideoClock.titleBrightness(t: t))
+        let glow = VideoClock.frameGlow(t: t, beats: scene.beats, downbeats: downbeats)
+        for (img, r) in frameStrips { drawImage(ctx, img, in: r, alpha: glow) }
+        if let (img, r) = titleStrip { drawImage(ctx, img, in: r, alpha: VideoClock.titleBrightness(t: t)) }
+    }
+
+    /// Strips of a full-frame image, cut once (top-left rects; CGImage cropping counts from the top too).
+    private func strips(_ img: CGImage, _ rects: [CGRect]) -> [(CGImage, CGRect)] {
+        rects.compactMap { r in img.cropping(to: r).map { ($0, r) } }
+    }
+
+    private func drawImage(_ ctx: CGContext, _ img: CGImage, in r: CGRect, alpha: Double) {
+        ctx.saveGState()
+        ctx.setAlpha(alpha)
+        ctx.translateBy(x: r.minX, y: r.maxY)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(img, in: CGRect(x: 0, y: 0, width: r.width, height: r.height))
+        ctx.restoreGState()
     }
 
     /// Images are drawn in the flipped space: flip them back so they keep their orientation.
@@ -144,6 +162,14 @@ public final class KaraokeRenderer {
                 c.strokePath()
                 c.restoreGState()
             }
+        }
+        defer {
+            let band: CGFloat = 130            // the frame line + its glow: 60 ± ~65 px
+            frameStrips = strips(frameImage!, [CGRect(x: 0, y: 0, width: Self.W, height: band),
+                                               CGRect(x: 0, y: Self.H - band, width: Self.W, height: band),
+                                               CGRect(x: 0, y: band, width: band, height: Self.H - 2 * band),
+                                               CGRect(x: Self.W - band, y: band, width: band, height: Self.H - 2 * band)])
+            titleStrip = strips(titleImage!, [CGRect(x: 0, y: 0, width: Self.W, height: 150)]).first
         }
         titleImage = image { c in
             let baseline: CGFloat = 60 + size * 0.36

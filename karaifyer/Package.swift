@@ -14,6 +14,8 @@ let package = Package(
             dependencies: ["KaraifyerCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // The lyrics video renderer for the pipeline's video step (same drawing as the Lecteur).
+        .executableTarget(name: "karaifyer-render", dependencies: ["KaraifyerCore"]),
         .testTarget(
             name: "KaraifyerCoreTests",
             dependencies: ["KaraifyerCore"],

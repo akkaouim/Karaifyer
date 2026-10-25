@@ -12,6 +12,8 @@ APP=Karaifyer.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Karaifyer"
+swift build -c release --product karaifyer-render
+cp "$(swift build -c release --show-bin-path)/karaifyer-render" "$APP/Contents/MacOS/karaifyer-render"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 # Where the karaoke pipeline lives: this repo, wherever it was cloned (no fixed path).
 /usr/libexec/PlistBuddy -c "Add :KaraokeProjectDir string $(cd .. && pwd)/karaoke" "$APP/Contents/Info.plist"

@@ -28,6 +28,10 @@ struct Pipeline {
         e["PATH"] = Self.searchPath.joined(separator: ":")
         e["KARAOKE_HOME"] = karaokeHome
         e["KARAOKE_GABARIT"] = gabarit
+        // the lyrics video: the renderer bundled with the app, and the layout chosen in the Karaoké tab
+        let renderer = Bundle.main.bundlePath + "/Contents/MacOS/karaifyer-render"
+        if FileManager.default.isExecutableFile(atPath: renderer) { e["KARAOKE_RENDERER"] = renderer }
+        e["KARAOKE_VIDEO_LAYOUT"] = UserDefaults.standard.string(forKey: "videoLayout") ?? "grille"
         e["KARAOKE_ACCORDS"] = ChordEngine.from(saved: UserDefaults.standard.string(forKey: "chordEngine")).rawValue
         e["PYTHONUNBUFFERED"] = "1"          // events must arrive line by line, not in 8 KB blocks
         e.removeValue(forKey: "VIRTUAL_ENV")
