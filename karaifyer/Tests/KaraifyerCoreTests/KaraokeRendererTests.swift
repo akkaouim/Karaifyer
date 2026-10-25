@@ -42,4 +42,13 @@ struct KaraokeRendererTests {
         for k in 0..<60 { r.draw(at: 6 + Double(k) / 60, in: ctx, size: CGSize(width: 1920, height: 1080), layout: "grille", transpose: 0) }
         #expect(Date().timeIntervalSince(t0) / 60 < 0.030)          // well under a 25 fps frame, even in debug
     }
+
+    @Test func liveFramesAreFixedSizeAndCheap() {
+        let r = KaraokeRenderer(scene: scene())
+        let first = r.frame(at: 6, layout: "grille", transpose: 0)
+        #expect(first.width == 1920 && first.height == 1080)          // the screen scales it (GPU), whatever its size
+        let t0 = Date()
+        for k in 0..<30 { _ = r.frame(at: 6 + Double(k) / 30, layout: "grille", transpose: 0) }
+        #expect(Date().timeIntervalSince(t0) / 30 < 0.030)
+    }
 }

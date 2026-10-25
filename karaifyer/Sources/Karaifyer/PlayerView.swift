@@ -235,13 +235,25 @@ struct LiveVideoView: NSViewRepresentable {
     }
     func updateNSView(_ v: LiveVideoNSView, context: Context) {
         _ = (model.position, model.videoLayout, model.settings.semitones, model.isPlaying)   // redraw on these
-        v.needsDisplay = true
+        v.show()
     }
 }
 
 final class LiveVideoNSView: NSView {
     weak var model: PlayerModel?
     private var link: CADisplayLink?
+    private var shownRevision = -1
+    var isFullScreen = false
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.backgroundColor = .black
+        layer?.contentsGravity = .resizeAspect          // the 1080p frame is scaled by the GPU, letterboxed
+        layer?.magnificationFilter = .linear
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var wantsUpdateLayer: Bool { true }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -249,28 +261,33 @@ final class LiveVideoNSView: NSView {
         link = nil
         if window != nil {
             let l = displayLink(target: self, selector: #selector(refresh))
+            l.preferredFrameRateRange = CAFrameRateRange(minimum: 24, maximum: 30, preferred: 30)
             l.add(to: .main, forMode: .common)
             link = l
+            show()
         }
     }
 
     @objc private func refresh() {
-        if MainActor.assumeIsolated({ model?.isPlaying ?? false }) { needsDisplay = true }
+        MainActor.assumeIsolated {
+            guard let m = model else { return }
+            // the main window's view rests while the full-screen view covers the show screen
+            if !isFullScreen && FullScreenVideo.window != nil { return }
+            if m.isPlaying || m.videoRevision != shownRevision { show() }
+        }
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        ctx.setFillColor(.black)
-        ctx.fill(bounds)
+    func show() {
         MainActor.assumeIsolated {
-            guard let m = model, let r = m.renderer else { return }
-            let w = min(bounds.width, bounds.height * 16 / 9), h = w * 9 / 16
-            ctx.saveGState()
-            ctx.translateBy(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2)
-            r.draw(at: m.positionNow, in: ctx, size: CGSize(width: w, height: h), layout: m.videoLayout,
-                   transpose: m.settings.semitones)
-            ctx.restoreGState()
+            guard let m = model, let r = m.renderer else { layer?.contents = nil; return }
+            shownRevision = m.videoRevision
+            layer?.contents = r.frame(at: m.positionNow, layout: m.videoLayout, transpose: m.settings.semitones)
         }
+    }
+
+    func stop() {
+        link?.invalidate()
+        link = nil
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -286,9 +303,17 @@ final class LiveVideoNSView: NSView {
 @MainActor enum FullScreenVideo {
     static var window: NSWindow?
 
+    /// Closing stops the full-screen view's display link (it would otherwise keep the view alive and firing).
+    static func close(_ w: NSWindow) {
+        (w.contentView as? LiveVideoNSView)?.stop()
+        w.contentView = nil
+        w.orderOut(nil)
+        window = nil
+    }
+
     /// Full screen for the live video: a second live view on the same model.
     static func toggleLive(model: PlayerModel, screen: NSScreen?) {
-        if let w = window { w.orderOut(nil); window = nil; return }
+        if let w = window { close(w); return }
         let frame = (screen ?? NSScreen.main)?.frame ?? .zero
         let w = EscWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
         w.level = .mainMenu + 1
@@ -297,6 +322,7 @@ final class LiveVideoNSView: NSView {
         w.isReleasedWhenClosed = false
         let v = LiveVideoNSView(frame: NSRect(origin: .zero, size: frame.size))
         v.model = model
+        v.isFullScreen = true
         w.contentView = v
         w.makeKeyAndOrderFront(nil)
         window = w
@@ -323,7 +349,6 @@ final class LiveVideoNSView: NSView {
 final class EscWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) {
-        orderOut(nil)
-        MainActor.assumeIsolated { FullScreenVideo.window = nil }
+        MainActor.assumeIsolated { FullScreenVideo.close(self) }
     }
 }

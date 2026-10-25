@@ -31,12 +31,21 @@ public enum VideoExporter {
         writer.startSession(atSourceTime: .zero)
         let renderer = KaraokeRenderer(scene: scene)
         let n = max(1, Int((scene.totalS / max(rate, 0.01) * Double(fps)).rounded(.up)))
+        func failed() -> ExportError {
+            writer.cancelWriting()
+            try? FileManager.default.removeItem(at: url)
+            return ExportError(errorDescription: "vidéo : \(writer.error?.localizedDescription ?? "échec de l'encodage")")
+        }
         for k in 0..<n {
-            while !input.isReadyForMoreMediaData { usleep(2_000) }
-            guard let pool = adaptor.pixelBufferPool else { throw ExportError(errorDescription: "vidéo : tampon indisponible") }
+            // a writer that failed (disk full, drive unplugged) never becomes ready again: stop instead of waiting
+            while !input.isReadyForMoreMediaData {
+                if writer.status == .failed || writer.status == .cancelled { throw failed() }
+                usleep(2_000)
+            }
+            guard let pool = adaptor.pixelBufferPool else { throw failed() }
             var pb: CVPixelBuffer?
             CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb)
-            guard let buffer = pb else { throw ExportError(errorDescription: "vidéo : tampon indisponible") }
+            guard let buffer = pb else { throw failed() }
             CVPixelBufferLockBaseAddress(buffer, [])
             let ctx = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: w, height: h, bitsPerComponent: 8,
                                 bytesPerRow: CVPixelBufferGetBytesPerRow(buffer), space: CGColorSpaceCreateDeviceRGB(),
@@ -44,7 +53,7 @@ public enum VideoExporter {
             renderer.draw(at: Double(k) / Double(fps) * rate, in: ctx, size: CGSize(width: w, height: h),
                           layout: layout, transpose: transpose)
             CVPixelBufferUnlockBaseAddress(buffer, [])
-            adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(k), timescale: fps))
+            guard adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(k), timescale: fps)) else { throw failed() }
             if !progress(Double(k + 1) / Double(n)) {
                 writer.cancelWriting()
                 try? FileManager.default.removeItem(at: url)

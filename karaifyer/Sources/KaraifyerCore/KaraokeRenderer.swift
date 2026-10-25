@@ -44,6 +44,17 @@ public final class KaraokeRenderer {
 
     // MARK: drawing
 
+    private var offscreen: CGContext?
+
+    /// A live frame at the video's own size (1920×1080), drawn into a reused context; the screen scales it (layer
+    /// contents, on the GPU), so a Retina or 4K full screen costs the same as 1080p.
+    public func frame(at t: Double, layout: String, transpose: Int) -> CGImage {
+        if offscreen == nil { offscreen = Self.bitmap(width: Int(Self.W), height: Int(Self.H)) }
+        let ctx = offscreen!
+        draw(at: t, in: ctx, size: CGSize(width: Self.W, height: Self.H), layout: layout, transpose: transpose)
+        return ctx.makeImage()!
+    }
+
     public func draw(at t: Double, in ctx: CGContext, size: CGSize, layout: String, transpose: Int) {
         ctx.saveGState()
         defer { ctx.restoreGState() }

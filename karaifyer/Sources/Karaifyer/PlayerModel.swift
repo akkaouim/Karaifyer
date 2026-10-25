@@ -31,10 +31,14 @@ final class PlayerModel {
     private(set) var scene: VideoScene?
     @ObservationIgnored private(set) var renderer: KaraokeRenderer?
     var videoLayout: String = UserDefaults.standard.string(forKey: "playerVideoLayout") ?? "grille" {
-        didSet { UserDefaults.standard.set(videoLayout, forKey: "playerVideoLayout") }
+        didSet { UserDefaults.standard.set(videoLayout, forKey: "playerVideoLayout"); videoChanged() }
     }
     /// Read on every displayed frame, so the beat cursor moves smoothly (`position` is a 10 Hz copy for the UI).
     var positionNow: Double { engine?.position ?? position }
+    /// Bumped by any change the video shows while paused (seek, load, Hauteur, Disposition): every live view —
+    /// including the full-screen one, which SwiftUI doesn't drive — redraws when it changes.
+    @ObservationIgnored private(set) var videoRevision = 0
+    func videoChanged() { videoRevision &+= 1 }
     @ObservationIgnored private var engine: PlayerEngine?
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var keyMonitor: Any?
@@ -70,6 +74,7 @@ final class PlayerModel {
             loopOn = false
             scene = try? VideoScene.load(url: URL(fileURLWithPath: s.paths.dossier + "/video.json"))
             renderer = scene.map { KaraokeRenderer(scene: $0) }
+            videoChanged()
             videoPlayer.replaceCurrentItem(with: scene == nil
                 ? AVPlayerItem(url: URL(fileURLWithPath: s.paths.dossier + "/paroles.mp4")) : nil)
             videoPlayer.isMuted = true
@@ -124,6 +129,7 @@ final class PlayerModel {
     func restart() { seek(0) }
 
     func seek(_ t: Double) {
+        defer { videoChanged() }
         engine?.seek(to: t)
         position = engine?.position ?? t
         resyncVideo(force: true)
@@ -186,7 +192,7 @@ final class PlayerModel {
         save()
     }
 
-    func setSemitones(_ n: Int) { settings.semitones = Pitch.clamp(n); applyAll(); save() }
+    func setSemitones(_ n: Int) { settings.semitones = Pitch.clamp(n); applyAll(); save(); videoChanged() }
 
     /// Bar lines in song time: the analysis' bars are in input time; the song files start with the count-in.
     private var bars: [Double] {
