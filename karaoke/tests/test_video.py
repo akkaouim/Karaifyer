@@ -106,7 +106,7 @@ def test_video_step_passes_bars_for_instrumentals(cfg, monkeypatch):
                      "bars": [{"start": 0.0, "chords": [[0, "Am"], [2, "F"]]}, {"start": 2.0, "chords": [[0, "G"]]}]}}
     V.VIDEO.run(ws, up)
     assert any(s.chart == ("Am F", "G") and s.chart_pos == 0 and s.start == 2.0 for s in seen["states"])
-    assert V.VIDEO.version == "9"
+    assert V.VIDEO.version == "10"
 
 
 def test_chart_row_clears_a_wrapped_title():
@@ -157,7 +157,7 @@ def test_lines_appear_half_a_second_before_they_are_sung(cfg, monkeypatch):
           "check": {"lines": [{"t": 3.0, "ok": True, "end": 3.5}]}}
     V.VIDEO.run(Workspace(cfg, song()), up)
     first = next(s for s in seen["states"] if s.kind == "ligne")
-    assert first.start == pytest.approx(5.0 - 0.5) and V.VIDEO.version == "9"
+    assert first.start == pytest.approx(5.0 - 0.5) and V.VIDEO.version == "10"
 
 
 @pytest.fixture(autouse=True)
@@ -196,7 +196,7 @@ def test_scene_json_written_and_swift_renderer_called(cfg, monkeypatch, tmp_path
     assert sc["layout"] == "grille" and sc["states"] and sc["beats"][0] >= up["package"]["pad_s"] - 1
     assert all(set(b) == {"start", "beats", "chords"} for b in sc["bars"])
     assert (ws.out / "paroles.mp4").exists()
-    assert V.VIDEO.version == "9" and "|grille|swift" in V.VIDEO.key(ws)
+    assert V.VIDEO.version == "10" and "|grille|swift" in V.VIDEO.key(ws)
 
 
 def test_video_falls_back_without_renderer(cfg, monkeypatch):
@@ -220,3 +220,15 @@ def test_scene_without_bars(cfg, monkeypatch, tmp_path):
     up["chords"] = {"bars": [], "changes": []}
     V.VIDEO.run(ws, up)
     assert json.loads((ws.out / "video.json").read_text())["bars"] == []
+
+
+def test_renderer_failure_reason_reaches_the_journal(cfg, monkeypatch, tmp_path):
+    import pytest
+    from karaoke.steps import video as V
+    fake = tmp_path / "karaifyer-render"
+    fake.write_text("#!/bin/sh\necho 'karaifyer-render : vidéo : disque plein' >&2\nexit 1\n"); fake.chmod(0o755)
+    monkeypatch.setenv("KARAOKE_RENDERER", str(fake))
+    ws, up = video_inputs(cfg)
+    with pytest.raises(RuntimeError, match="disque plein"):
+        V.VIDEO.run(ws, up)
+    assert "disque plein" in (ws.work / "journal.log").read_text()

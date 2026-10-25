@@ -196,16 +196,16 @@ public final class KaraokeRenderer {
     // MARK: « Grille + paroles »
 
     static let gridX: CGFloat = 140, gridW: CGFloat = 1640, gap: CGFloat = 16
-    static let rowsY: [(CGFloat, CGFloat)] = [(170, 330), (350, 510)]
+    // the grid takes the top third of the frame (60…1020), the lyrics the rest
+    static let rowsY: [(CGFloat, CGFloat)] = [(116, 258), (270, 412)]
 
     private func grid(_ ctx: CGContext, t: Double, transpose: Int, flats: Bool) {
         guard let g = VideoClock.grid(scene, at: t) else {
             let f = font("ArialUnicodeMS", 160)
-            drawCentered(ctx, "♪", f, Self.grey, baseline: 400)
+            drawCentered(ctx, "♪", f, Self.grey, baseline: 320)
             return
         }
         let cellW = (Self.gridW - 3 * Self.gap) / 4
-        let chordFont = font("Arial-BoldMT", 64)
         for (r, row) in g.rows.enumerated() where r < 2 {
             let (y0, y1) = Self.rowsY[r]
             for (k, b) in row.enumerated() {
@@ -215,18 +215,28 @@ public final class KaraokeRenderer {
                 ctx.addPath(CGPath(roundedRect: cell, cornerWidth: 12, cornerHeight: 12, transform: nil))
                 ctx.fillPath()
                 let bar = scene.bars[b]
+                let beats = max(bar.beats, 1), inner = cellW - 48
+                // a chord written past the bar's last beat sits on its last beat; long names shrink to fit the cell
+                let labels = bar.chords.map { (min(max($0.beat, 0), beats - 1), ChordText.transpose($0.label, by: transpose, flats: flats)) }
+                var size: CGFloat = 52
+                while size > 28 && labels.reduce(CGFloat(0), { $0 + width(of: $1.1 + " ", font("Arial-BoldMT", size)) }) > inner { size -= 4 }
+                let chordFont = font("Arial-BoldMT", size)
+                ctx.saveGState()
+                ctx.clip(to: cell)
                 var right = -CGFloat.infinity
-                for c in bar.chords {
-                    let label = ChordText.transpose(c.label, by: transpose, flats: flats)
-                    let x = max(cell.minX + 24 + CGFloat(c.beat) / CGFloat(max(bar.beats, 1)) * (cellW - 48), right)
+                for (beat, label) in labels {
+                    let w = width(of: label, chordFont)
+                    var x = max(cell.minX + 24 + CGFloat(beat) / CGFloat(beats) * inner, right)
+                    x = max(min(x, cell.maxX - 16 - w), right)
                     let color = r == 0 ? Self.white : Self.grey.copy(alpha: 0.55)!
-                    drawText(ctx, label, chordFont, color, x: x, baseline: y0 + 100)
-                    right = x + width(of: label + " ", chordFont)
+                    drawText(ctx, label, chordFont, color, x: x, baseline: y0 + 88)
+                    right = x + w + width(of: " ", chordFont)
                 }
+                ctx.restoreGState()
                 if current, let beat = g.activeBeat {
-                    let x = cell.minX + 24 + CGFloat(beat) / CGFloat(max(bar.beats, 1)) * (cellW - 48)
+                    let x = cell.minX + 24 + CGFloat(min(beat, beats - 1)) / CGFloat(beats) * inner
                     ctx.setFillColor(Self.yellow)
-                    ctx.addPath(CGPath(roundedRect: CGRect(x: x, y: y1 - 26, width: 44, height: 10), cornerWidth: 5, cornerHeight: 5, transform: nil))
+                    ctx.addPath(CGPath(roundedRect: CGRect(x: x, y: y1 - 22, width: 40, height: 8), cornerWidth: 4, cornerHeight: 4, transform: nil))
                     ctx.fillPath()
                 }
             }
@@ -237,7 +247,7 @@ public final class KaraokeRenderer {
             for (i, b) in shown.enumerated() {
                 let x = Self.W / 2 + (CGFloat(i) - CGFloat(shown.count - 1) / 2) * 44
                 ctx.setFillColor(b <= t ? Self.yellow : Self.grey.copy(alpha: 0.5)!)
-                ctx.fillEllipse(in: CGRect(x: x - 9, y: 536, width: 18, height: 18))
+                ctx.fillEllipse(in: CGRect(x: x - 9, y: 424, width: 18, height: 18))
             }
         }
     }
@@ -245,16 +255,16 @@ public final class KaraokeRenderer {
     private func lyrics(_ ctx: CGContext, state: VideoScene.State?) {
         guard let s = state else { return }
         let big = font("Arial-BoldMT", 88), mid = font("ArialMT", 60)
-        var y: CGFloat = 690
+        var y: CGFloat = 610
         if let n = s.countdown {
-            drawCentered(ctx, String(n), font("Arial-BoldMT", 120), Self.red, baseline: 600)
+            drawCentered(ctx, String(n), font("Arial-BoldMT", 100), Self.red, baseline: 512)
         }
         switch s.kind {
         case "ligne":
             y = karaokeLine(ctx, s.current, lit: s.lit, font: big, firstBaseline: y)
-            if !s.next.isEmpty { _ = wrappedCentered(ctx, s.next, mid, Self.grey, firstBaseline: max(910, y - 110 + 100)) }
+            if !s.next.isEmpty { _ = wrappedCentered(ctx, s.next, mid, Self.grey, firstBaseline: min(990, max(860, y + 40))) }
         case "titre", "instrumental":
-            if !s.next.isEmpty { _ = wrappedCentered(ctx, s.next, mid, Self.grey, firstBaseline: 800) }
+            if !s.next.isEmpty { _ = wrappedCentered(ctx, s.next, mid, Self.grey, firstBaseline: 760) }
         default:
             break
         }

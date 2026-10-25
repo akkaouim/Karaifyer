@@ -92,11 +92,12 @@ public enum VideoClock {
         return (t >= s && t < s + 0.12) ? breath * 0.35 / 0.85 : breath
     }
 
-    /// The frame glows a little brighter on each beat, more on beat 1, decaying over about 0.25 s.
+    /// The frame swells gently on each beat, a little more on beat 1, decaying over about 0.25 s — a subtle pulse
+    /// around a steady glow, so it marks the tempo without drawing the eye.
     public static func frameGlow(t: Double, beats: [Double], downbeats: Set<Int>) -> Double {
-        guard let i = beats.lastIndex(where: { $0 <= t }) else { return 0.55 }
+        guard let i = beats.lastIndex(where: { $0 <= t }) else { return 0.75 }
         let amp = downbeats.contains(i) ? 1.6 : 1.0
-        return min(1, 0.55 + 0.45 * amp * exp(-(t - beats[i]) / 0.25))
+        return min(1, 0.75 + 0.12 * amp * exp(-(t - beats[i]) / 0.25))
     }
 }
 

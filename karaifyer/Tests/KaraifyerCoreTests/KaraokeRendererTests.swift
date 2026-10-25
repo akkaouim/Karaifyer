@@ -24,16 +24,16 @@ struct KaraokeRendererTests {
     @Test func drawsTitleGridAndLyrics() {
         let r = KaraokeRenderer(scene: scene()), ctx = KaraokeRenderer.bitmap(width: 1920, height: 1080)
         r.draw(at: 6.2, in: ctx, size: CGSize(width: 1920, height: 1080), layout: "grille", transpose: 0)
-        // CG origin is bottom-left: top band = high y
-        #expect(lit(ctx, CGRect(x: 600, y: 1000, width: 720, height: 70)) > 50)      // neon title
-        #expect(lit(ctx, CGRect(x: 140, y: 750, width: 1640, height: 160)) > 50)     // grid row 1
-        #expect(lit(ctx, CGRect(x: 140, y: 330, width: 1640, height: 140)) > 50)     // current lyric line
+        // lit() reads bitmap rows from the top of the picture
+        #expect(lit(ctx, CGRect(x: 600, y: 25, width: 720, height: 70)) > 50)        // neon title
+        #expect(lit(ctx, CGRect(x: 140, y: 122, width: 1640, height: 130)) > 50)     // grid row 1
+        #expect(lit(ctx, CGRect(x: 140, y: 520, width: 1640, height: 120)) > 50)     // current lyric line
     }
 
     @Test func oldLayoutAlsoDraws() {
         let r = KaraokeRenderer(scene: scene()), ctx = KaraokeRenderer.bitmap(width: 1920, height: 1080)
         r.draw(at: 6.2, in: ctx, size: CGSize(width: 1920, height: 1080), layout: "paroles", transpose: -2)
-        #expect(lit(ctx, CGRect(x: 140, y: 450, width: 1640, height: 300)) > 50)
+        #expect(lit(ctx, CGRect(x: 140, y: 300, width: 1640, height: 300)) > 50)    // chords + current line
     }
 
     @Test func drawsFast() {
@@ -50,5 +50,18 @@ struct KaraokeRendererTests {
         let t0 = Date()
         for k in 0..<30 { _ = r.frame(at: 6 + Double(k) / 30, layout: "grille", transpose: 0) }
         #expect(Date().timeIntervalSince(t0) / 30 < 0.030)
+    }
+
+    @Test func chordsStayInsideTheirCell() {
+        // a 1-beat bar holding a chord written on beat 2, and a long name: neither may reach the next cell
+        var sc = scene()
+        sc.bars[0] = VideoScene.Bar(start: 4, beats: 1, chords: [ChordAt(beat: 0, label: "Bbmaj7/Ab"), ChordAt(beat: 2, label: "C#m7b5")])
+        sc.bars[1] = VideoScene.Bar(start: 6, beats: 4, chords: [])
+        let r = KaraokeRenderer(scene: sc), ctx = KaraokeRenderer.bitmap(width: 1920, height: 1080)
+        r.draw(at: 4.2, in: ctx, size: CGSize(width: 1920, height: 1080), layout: "grille", transpose: 0)
+        let cellW = (1640 - 3 * 16) / 4.0
+        // the second cell of row 1 (empty bar) must stay dark; lit() reads bitmap rows from the top (rows 116…258)
+        #expect(lit(ctx, CGRect(x: 140 + cellW + 16 + 8, y: 122, width: cellW - 16, height: 130)) == 0)
+        #expect(lit(ctx, CGRect(x: 148, y: 122, width: cellW - 16, height: 130)) > 50)    // the chords are in their own cell
     }
 }

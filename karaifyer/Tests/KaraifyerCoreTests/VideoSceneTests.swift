@@ -51,4 +51,11 @@ struct VideoSceneTests {
         let s = try JSONDecoder.snake.decode(VideoScene.self, from: Data(json.utf8))
         #expect(s.padS == 4.8 && s.bars[0].chords[0].label == "Fm" && s.states[0].chords[0].label == "Am" && s.states[0].chartPos == 0)
     }
+
+    @Test func beatPulseIsSubtle() {
+        let beats = [0.0, 0.5, 1.0, 1.5, 2.0]
+        let peak = VideoClock.frameGlow(t: 2.0, beats: beats, downbeats: [4])
+        let rest = VideoClock.frameGlow(t: 1.95, beats: beats, downbeats: [4])
+        #expect(peak - rest < 0.3 && rest >= 0.7)                    // a gentle swell, never a flash
+    }
 }

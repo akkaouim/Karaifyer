@@ -94,8 +94,14 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     (ws.out / "video.json").write_text(json.dumps(sc, ensure_ascii=False), encoding="utf-8")
     r = renderer()
     if r:
-        subprocess.run([str(r), str(ws.out / "video.json"), str(ws.out / "paroles.mp4")], check=True,
-                       capture_output=True)
+        try:
+            subprocess.run([str(r), str(ws.out / "video.json"), str(ws.out / "paroles.mp4")], check=True,
+                           capture_output=True)
+        except subprocess.CalledProcessError as e:     # its reason in the journal, not just « exit status 1 »
+            err = (e.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+            msg = f"rendu vidéo : karaifyer-render a échoué — {err[-1] if err else f'code {e.returncode}'}"
+            ws.log(msg)
+            raise RuntimeError(msg) from e
     else:
         ws.log("rendu vidéo : moteur Python (sans animation)")
         render_video(states, ws.out / "paroles.mp4", ws.work / "frames")
@@ -105,4 +111,4 @@ def _run(ws: Workspace, upstream: dict) -> dict:
 VIDEO = Step(name="video", deps=("package", "beats", "lyrics", "check", "chords"),
              key=lambda ws: f"{ws.song.titre}|{ws.song.artiste}|{layout()}|{'swift' if renderer() else 'python'}", run=_run,
              artifacts=lambda ws: [ws.out / "paroles.lrc", ws.out / "paroles.mp4", ws.out / "video.json"],
-             version="9")   # 6: line ends at last word, chord row from a 1-bar gap, preview chords; 7: lines appear 0.5 s ahead; 8: N.C. shown; 9: scene video.json, Swift renderer (grid + lyrics, neon)
+             version="10")   # 6: line ends at last word, chord row from a 1-bar gap, preview chords; 7: lines appear 0.5 s ahead; 8: N.C. shown; 9: scene video.json, Swift renderer (grid + lyrics, neon)
