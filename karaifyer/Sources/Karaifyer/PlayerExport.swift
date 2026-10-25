@@ -7,6 +7,7 @@ import SwiftUI
 /// solos, master, tempo, pitch), then ffmpeg encodes it in the chosen format and quality.
 @MainActor @Observable final class ExportUI {
     static let shared = ExportUI()
+    @ObservationIgnored private var renderedVideo: URL?
     var shown = false
     var options = ExportOptions.decode(UserDefaults.standard.data(forKey: "playerExport"))
     var running = false
@@ -35,10 +36,31 @@ import SwiftUI
         let wav = FileManager.default.temporaryDirectory.appendingPathComponent("karaifyer-mix-\(UUID().uuidString).wav")
         let total = ExportOptions.duration(songSeconds: engine.length, rate: player.rate)
 
-        // 1. render (first half of the progress bar); the run loop is pumped so the sheet stays responsive
+        // 0. the video, drawn by the live renderer at the export's layout, transposition and tempo (first 40 %)
+        var video = s.paths.video, timed = false, share = 0.0
+        if options.kind == .videoMaster, let scene = player.scene {
+            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("karaifyer-video-\(UUID().uuidString).mp4")
+            share = 0.4
+            do {
+                try VideoExporter.export(scene: scene, to: tmp, layout: player.videoLayout, transpose: player.settings.semitones,
+                                         rate: Double(player.rate)) { p in
+                    MainActor.assumeIsolated { self.progress = p * share }
+                    RunLoop.main.run(until: Date())
+                    return !MainActor.assumeIsolated { self.cancelled }
+                }
+                video = tmp.path
+                timed = true
+                renderedVideo = tmp
+            } catch {
+                finish(error: cancelled ? nil : "Vidéo : \(error.localizedDescription)", out: out, wav: wav)
+                return
+            }
+        }
+
+        // 1. render (first half of what's left); the run loop is pumped so the sheet stays responsive
         do {
             try engine.renderOffline(to: wav) { p in
-                MainActor.assumeIsolated { self.progress = p * 0.5 }
+                MainActor.assumeIsolated { self.progress = share + p * (1 - share) / 2 }
                 RunLoop.main.run(until: Date())
                 return !MainActor.assumeIsolated { self.cancelled }
             }
@@ -49,14 +71,15 @@ import SwiftUI
 
         // 2. encode with ffmpeg (second half), progress from « -progress pipe:1 » (out_time_us)
         let args = [ff, "-y", "-progress", "pipe:1", "-nostats", "-loglevel", "error"]
-            + options.ffmpegArgs(wav: wav.path, video: s.paths.video, rate: player.rate, out: ExportOptions.partialURL(for: out).path)
+            + options.ffmpegArgs(wav: wav.path, video: video, rate: player.rate, out: ExportOptions.partialURL(for: out).path,
+                                 videoTimed: timed)
         var lastErr = ""
         do {
             ffmpeg = try SpawnedProcess(
                 args: args, env: ["PATH": Pipeline.searchPath.joined(separator: ":")], cwd: NSTemporaryDirectory(),
                 onLine: { [weak self] line in
                     if line.hasPrefix("out_time_us="), let us = Double(line.dropFirst(12)), total > 0 {
-                        self?.progress = 0.5 + 0.5 * min(1, us / 1e6 / total)
+                        self?.progress = share + (1 - share) * (0.5 + 0.5 * min(1, us / 1e6 / total))
                     } else if !line.contains("=") && !line.isEmpty {
                         lastErr = line
                     }
@@ -80,6 +103,7 @@ import SwiftUI
     /// already at `out` is left untouched.
     private func finish(error: String?, out: URL, wav: URL, ok: Bool = false) {
         try? FileManager.default.removeItem(at: wav)
+        if let v = renderedVideo { try? FileManager.default.removeItem(at: v); renderedVideo = nil }
         let partial = ExportOptions.partialURL(for: out)
         var ok = ok, error = error
         if ok {

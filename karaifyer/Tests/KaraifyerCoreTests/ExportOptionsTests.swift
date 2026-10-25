@@ -41,4 +41,16 @@ struct ExportOptionsTests {
         var o = ExportOptions.defaults; o.format = .flac; o.bits = 16
         #expect(ExportOptions.decode(o.encoded()) == o && ExportOptions.decode(Data("x".utf8)) == .defaults)
     }
+
+    @Test func preTimedVideoIsNotRetimed() {
+        var o = ExportOptions.defaults
+        o.kind = .videoMaster
+        o.height = 1080
+        let a = o.ffmpegArgs(wav: "m.wav", video: "v.mp4", rate: 0.9, out: "o.mp4", videoTimed: true)
+        #expect(!a.joined(separator: " ").contains("setpts") && !a.contains("-vf"))
+        #expect(a.contains("-shortest") && a.contains("+faststart"))
+        o.height = 720
+        let b = o.ffmpegArgs(wav: "m.wav", video: "v.mp4", rate: 0.9, out: "o.mp4", videoTimed: true).joined(separator: " ")
+        #expect(b.contains("scale=-2:720") && !b.contains("setpts"))
+    }
 }

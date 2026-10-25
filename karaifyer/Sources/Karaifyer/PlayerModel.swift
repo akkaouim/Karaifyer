@@ -26,6 +26,15 @@ final class PlayerModel {
     private(set) var position: Double = 0
     private(set) var length: Double = 0
     @ObservationIgnored let videoPlayer = AVPlayer()
+    /// The live video (one renderer for the Lecteur, its export and the pipeline): from sortie/<dossier>/video.json.
+    /// Songs analysed before it exist keep the pre-rendered paroles.mp4 in the AVPlayer.
+    private(set) var scene: VideoScene?
+    @ObservationIgnored private(set) var renderer: KaraokeRenderer?
+    var videoLayout: String = UserDefaults.standard.string(forKey: "playerVideoLayout") ?? "grille" {
+        didSet { UserDefaults.standard.set(videoLayout, forKey: "playerVideoLayout") }
+    }
+    /// Read on every displayed frame, so the beat cursor moves smoothly (`position` is a 10 Hz copy for the UI).
+    var positionNow: Double { engine?.position ?? position }
     @ObservationIgnored private var engine: PlayerEngine?
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var keyMonitor: Any?
@@ -59,7 +68,10 @@ final class PlayerModel {
             error = nil
             settings = PlayerSettings.decode(UserDefaults.standard.data(forKey: key(s.id)), retirer: s.retirer)
             loopOn = false
-            videoPlayer.replaceCurrentItem(with: AVPlayerItem(url: URL(fileURLWithPath: s.paths.dossier + "/paroles.mp4")))
+            scene = try? VideoScene.load(url: URL(fileURLWithPath: s.paths.dossier + "/video.json"))
+            renderer = scene.map { KaraokeRenderer(scene: $0) }
+            videoPlayer.replaceCurrentItem(with: scene == nil
+                ? AVPlayerItem(url: URL(fileURLWithPath: s.paths.dossier + "/paroles.mp4")) : nil)
             videoPlayer.isMuted = true
             applyAll()
         } catch {
@@ -144,6 +156,7 @@ final class PlayerModel {
 
     /// The video follows the audio: re-seek it when it drifts more than 40 ms (or always when forced).
     private func resyncVideo(force: Bool, previous: Double? = nil) {
+        guard scene == nil else { return }               // the live video reads the engine directly
         let now = engine?.position ?? 0
         let target = CMTime(seconds: now, preferredTimescale: 600)
         if force || VideoSync.needsResync(previous: previous ?? now, current: now,

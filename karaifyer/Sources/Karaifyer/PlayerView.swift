@@ -53,8 +53,12 @@ struct PlayerView: View {
     var video: some View {
         ZStack {
             Color.black
-            if model.loaded != nil {
+            if model.loaded != nil, model.scene != nil {
+                LiveVideoView(model: model)
+            } else if model.loaded != nil {
                 VideoView(player: model.videoPlayer)
+                Text("Réanalyser pour la vidéo en direct").font(.caption).foregroundStyle(.secondary)
+                    .frame(maxHeight: .infinity, alignment: .bottom).padding(6)
             } else {
                 Text("Choisir un morceau dans la liste").foregroundStyle(.secondary)
             }
@@ -142,10 +146,16 @@ struct PlayerView: View {
             Text(n == 0 ? "0" : String(format: "%+d", n)).monospacedDigit().frame(width: 28)
             Button("+") { model.setSemitones(n + 1) }
             Button("Réinitialiser") { model.setSemitones(0) }.fixedSize().disabled(n == 0)
-            if n != 0 {
+            if n != 0 && model.scene == nil {
                 Text("Transposé \(String(format: "%+d", n)) : accords de la vidéo dans la tonalité d'origine")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
+            Picker("Disposition :", selection: $model.videoLayout) {
+                Text("Grille + paroles").tag("grille")
+                Text("Accords sur les paroles").tag("paroles")
+            }
+            .fixedSize()
+            .disabled(model.scene == nil)
         }
     }
 
@@ -214,9 +224,84 @@ final class DoubleClickPlayerView: AVPlayerView {
     }
 }
 
+/// The live lyrics video: the renderer draws the frame at the engine's position, on every display refresh while
+/// playing (and once on any change while paused), letterboxed to 16:9. Double-click: full screen.
+struct LiveVideoView: NSViewRepresentable {
+    let model: PlayerModel
+    func makeNSView(context: Context) -> LiveVideoNSView {
+        let v = LiveVideoNSView()
+        v.model = model
+        return v
+    }
+    func updateNSView(_ v: LiveVideoNSView, context: Context) {
+        _ = (model.position, model.videoLayout, model.settings.semitones, model.isPlaying)   // redraw on these
+        v.needsDisplay = true
+    }
+}
+
+final class LiveVideoNSView: NSView {
+    weak var model: PlayerModel?
+    private var link: CADisplayLink?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        link?.invalidate()
+        link = nil
+        if window != nil {
+            let l = displayLink(target: self, selector: #selector(refresh))
+            l.add(to: .main, forMode: .common)
+            link = l
+        }
+    }
+
+    @objc private func refresh() {
+        if MainActor.assumeIsolated({ model?.isPlaying ?? false }) { needsDisplay = true }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        ctx.setFillColor(.black)
+        ctx.fill(bounds)
+        MainActor.assumeIsolated {
+            guard let m = model, let r = m.renderer else { return }
+            let w = min(bounds.width, bounds.height * 16 / 9), h = w * 9 / 16
+            ctx.saveGState()
+            ctx.translateBy(x: (bounds.width - w) / 2, y: (bounds.height - h) / 2)
+            r.draw(at: m.positionNow, in: ctx, size: CGSize(width: w, height: h), layout: m.videoLayout,
+                   transpose: m.settings.semitones)
+            ctx.restoreGState()
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2, let m = model {
+            MainActor.assumeIsolated { FullScreenVideo.toggleLive(model: m, screen: window?.screen) }
+        } else {
+            super.mouseDown(with: event)
+        }
+    }
+}
+
 /// A borderless window covering the screen with its own AVPlayerView on the same AVPlayer (one player, two layers).
 @MainActor enum FullScreenVideo {
     static var window: NSWindow?
+
+    /// Full screen for the live video: a second live view on the same model.
+    static func toggleLive(model: PlayerModel, screen: NSScreen?) {
+        if let w = window { w.orderOut(nil); window = nil; return }
+        let frame = (screen ?? NSScreen.main)?.frame ?? .zero
+        let w = EscWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        w.level = .mainMenu + 1
+        w.backgroundColor = .black
+        w.collectionBehavior = [.fullScreenAuxiliary, .canJoinAllSpaces]
+        w.isReleasedWhenClosed = false
+        let v = LiveVideoNSView(frame: NSRect(origin: .zero, size: frame.size))
+        v.model = model
+        w.contentView = v
+        w.makeKeyAndOrderFront(nil)
+        window = w
+    }
+
     static func toggle(player: AVPlayer, screen: NSScreen?) {
         if let w = window { w.orderOut(nil); window = nil; return }
         let frame = (screen ?? NSScreen.main)?.frame ?? .zero

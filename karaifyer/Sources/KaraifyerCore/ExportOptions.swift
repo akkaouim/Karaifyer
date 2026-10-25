@@ -24,11 +24,15 @@ public struct ExportOptions: Codable, Equatable, Sendable {
     public var ext: String { kind == .videoMaster ? "mp4" : format.ext }
 
     /// ffmpeg arguments after `-y`, given the rendered WAV, the song's video, the playback rate and the output.
-    public func ffmpegArgs(wav: String, video: String, rate: Float, out: String) -> [String] {
+    /// `videoTimed`: the video was rendered at the export's tempo already (Karaifyer's renderer) — no re-timing,
+    /// only a resize when the chosen height isn't the rendered 1080.
+    public func ffmpegArgs(wav: String, video: String, rate: Float, out: String, videoTimed: Bool = false) -> [String] {
         if kind == .videoMaster {
             let r = String(format: "%g", rate)
-            return ["-i", video, "-i", wav, "-map", "0:v:0", "-map", "1:a:0",
-                    "-vf", "setpts=PTS/\(r),scale=-2:\(height)", "-c:v", "libx264", "-crf", highQuality ? "18" : "23",
+            let filter = videoTimed ? (height == 1080 ? [] : ["-vf", "scale=-2:\(height)"])
+                                    : ["-vf", "setpts=PTS/\(r),scale=-2:\(height)"]
+            return ["-i", video, "-i", wav, "-map", "0:v:0", "-map", "1:a:0"]
+                + filter + ["-c:v", "libx264", "-crf", highQuality ? "18" : "23",
                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "\(videoKbps)k", "-shortest",
                     "-movflags", "+faststart", out]
         }
