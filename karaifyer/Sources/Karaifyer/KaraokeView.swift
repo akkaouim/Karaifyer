@@ -82,6 +82,15 @@ struct KaraokeView: View {
                 Button("Arrêter maintenant", systemImage: "stop.fill") { model.stopNow() }
             }
             Spacer()
+            HStack(spacing: 4) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Rechercher (titre, artiste, id, Set List)", text: $model.query)
+                    .textFieldStyle(.roundedBorder).frame(width: 260)
+                if !model.query.isEmpty {
+                    Button("Effacer", systemImage: "xmark.circle.fill") { model.query = "" }
+                        .labelStyle(.iconOnly).buttonStyle(.borderless)
+                }
+            }
             Button("Rapport") { open(model.pipeline.karaokeHome + "/rapport.html") }
             Button("iReal Pro") {
                 let dir = model.pipeline.karaokeHome + "/ireal"
@@ -94,11 +103,11 @@ struct KaraokeView: View {
     }
 
     var table: some View {
-        Table(model.songs, selection: $model.selection) {
+        Table(model.displayedSongs, selection: $model.selection, sortOrder: $model.sortOrder) {
             TableColumn("") { s in MarkView(mark: model.marks[s.id], paused: model.runState == .paused) }.width(22)
-            TableColumn("id") { s in Text(s.id).monospacedDigit() }.width(36)
-            TableColumn("Titre") { s in CommitField(value: s.titre, enabled: !model.locked) { commit(s, "titre", $0) } }
-            TableColumn("Artiste") { s in CommitField(value: s.artiste, enabled: !model.locked) { commit(s, "artiste", $0) } }
+            TableColumn("id", value: \.id) { s in Text(s.id).monospacedDigit() }.width(36)
+            TableColumn("Titre", value: \.titre) { s in CommitField(value: s.titre, enabled: !model.locked) { commit(s, "titre", $0) } }
+            TableColumn("Artiste", value: \.artiste) { s in CommitField(value: s.artiste, enabled: !model.locked) { commit(s, "artiste", $0) } }
             TableColumn("Retirer (joué en live)") { s in
                 HStack(spacing: 6) {
                     ForEach(RETIRER, id: \.0) { stem, label in
@@ -110,14 +119,14 @@ struct KaraokeView: View {
                     }
                 }
             }.width(min: 300)
-            TableColumn("Langue") { s in
+            TableColumn("Langue", value: \.langue) { s in
                 Picker("", selection: Binding(get: { s.langue }, set: { commit(s, "langue", $0) })) {
                     ForEach(Array(Set(LANGUES + [s.langue])).sorted(), id: \.self) { Text($0) }
                 }
                 .labelsHidden()
                 .disabled(model.locked)
             }.width(64)
-            TableColumn("Statut") { s in
+            TableColumn("Statut", value: \.statutRank) { s in
                 HStack(spacing: 6) {
                     Text(statutLabel(s.statut)).bold().foregroundStyle(color(statut: s.statut))
                     Text((s.alertes ?? []).joined(separator: " · ")).foregroundStyle(.secondary)
@@ -126,7 +135,7 @@ struct KaraokeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 .help(Help.statut(s.statut, alertes: s.alertes ?? []))
             }.width(min: 220, ideal: 360)
-            TableColumn("Étapes") { s in
+            TableColumn("Étapes", value: \.stepsDone) { s in
                 HStack(spacing: 3) {
                     ForEach(s.steps, id: \.name) { st in
                         Circle()

@@ -121,6 +121,10 @@ ligne est marquée ✗ « capture défectueuse » et aucun fichier abîmé n'est
 **Clic droit sur un morceau**
 - Ouvrir le dossier, la vidéo, le set Ableton, la grille d'accords ou le journal.
 - **Ouvrir dans le Lecteur** : charge le morceau dans l'onglet Lecteur et y bascule (morceau prêt uniquement).
+
+**Trier et chercher** : un clic sur l'en-tête d'une colonne trie le tableau (un second clic inverse) — le statut se
+trie par gravité (échec, à réessayer, à vérifier, ok), les étapes par avancement. Le champ « Rechercher » filtre par
+titre, artiste, id ou Set List (accents et majuscules ignorés).
 - **Corriger paroles et accords…** (section 7).
 - **Changer de Set List…** : la Set List range le set Ableton du morceau dans le bon dossier de la soirée.
 - **Refaire le morceau**, ou **Refaire une étape** ▸.

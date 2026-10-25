@@ -12,6 +12,10 @@ final class KaraokeModel: RunDriver {
     var pipeline = Pipeline()
     var songs: [SongState] = []
     var selection: Set<String> = []
+    /// The table's search and column sort (click a header; again to reverse).
+    var query = ""
+    var sortOrder: [KeyPathComparator<SongState>] = [KeyPathComparator(\SongState.id)]
+    var displayedSongs: [SongState] { SongList.filtered(songs, query: query).sorted(using: sortOrder) }
     var log: [String] = []
     var banner: String?
     var runState: RunState = .idle
