@@ -105,21 +105,27 @@ public enum VideoClock {
 public enum ChordText {
     static let sharps = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
     static let flats = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
-    static let pcs: [String: Int] = ["C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11]
+    static let pcs: [String: Int] = ["C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11, "H": 11]
 
     static func pc(_ note: String) -> Int? {
         guard let first = note.first, let base = pcs[String(first)] else { return nil }
         return (base + note.dropFirst().reduce(0) { $0 + ($1 == "#" ? 1 : $1 == "b" ? -1 : 0) } + 12) % 12
     }
 
+    /// The root at the start of the name is always moved; what follows « / » is a bass only when it's a note
+    /// (« C6/9 », « Bbsus2/4 » keep their « /9 », « /4 »). German H counts as B. Not a chord: unchanged.
     public static func transpose(_ symbol: String, by n: Int, flats useFlats: Bool) -> String {
         guard n % 12 != 0, symbol != "N.C.",
-              let m = symbol.wholeMatch(of: /([A-G][#b]?)([^\/]*)(?:\/([A-G][#b]?))?/),
-              let root = pc(String(m.1)) else { return symbol }
+              let m = symbol.wholeMatch(of: /([A-H][#b]?)(.*)/), let root = pc(String(m.1)) else { return symbol }
         let names = useFlats ? flats : sharps
-        var out = names[(root + n % 12 + 12) % 12] + m.2
-        if let b = m.3, let bass = pc(String(b)) { out += "/" + names[(bass + n % 12 + 12) % 12] }
-        return out
+        let shift = { (p: Int) in names[(p + n % 12 + 12) % 12] }
+        var rest = String(m.2)
+        var bass = ""
+        if let b = rest.wholeMatch(of: /(.*)\/([A-H][#b]?)/), let bp = pc(String(b.2)) {
+            rest = String(b.1)
+            bass = "/" + shift(bp)
+        }
+        return shift(root) + rest + bass
     }
 
     /// The key after the shift is a flat key (Db Eb F Gb Ab Bb major, or their relative minors).

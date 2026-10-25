@@ -58,4 +58,13 @@ struct VideoSceneTests {
         let rest = VideoClock.frameGlow(t: 1.95, beats: beats, downbeats: [4])
         #expect(peak - rest < 0.3 && rest >= 0.7)                    // a gentle swell, never a flash
     }
+
+    @Test func unusualChordNamesAreTransposedToo() {
+        #expect(ChordText.transpose("C6/9", by: 2, flats: false) == "D6/9")          // « /9 » is not a bass note
+        #expect(ChordText.transpose("C7(#9)", by: 2, flats: false) == "D7(#9)")
+        #expect(ChordText.transpose("Cmaj7#11/E", by: 2, flats: false) == "Dmaj7#11/F#")
+        #expect(ChordText.transpose("H7", by: 1, flats: false) == "C7")              // German H = B
+        #expect(ChordText.transpose("Bbsus2/4", by: 2, flats: false) == "Csus2/4")
+        #expect(ChordText.transpose("la", by: 2, flats: false) == "la")               // not a chord: unchanged
+    }
 }
