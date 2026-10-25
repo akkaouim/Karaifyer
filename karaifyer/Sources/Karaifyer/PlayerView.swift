@@ -142,9 +142,10 @@ struct PlayerView: View {
         let n = model.settings.semitones
         return HStack(spacing: 4) {
             Text("Hauteur :").fixedSize()
-            Button("−") { model.setSemitones(n - 1) }
+            // fixed size: with « Disposition » in the same row, SwiftUI squeezed these until their label vanished
+            Button("−") { model.setSemitones(n - 1) }.fixedSize()
             Text(n == 0 ? "0" : String(format: "%+d", n)).monospacedDigit().frame(width: 28)
-            Button("+") { model.setSemitones(n + 1) }
+            Button("+") { model.setSemitones(n + 1) }.fixedSize()
             Button("Réinitialiser") { model.setSemitones(0) }.fixedSize().disabled(n == 0)
             if n != 0 && model.scene == nil {
                 Text("Transposé \(String(format: "%+d", n)) : accords de la vidéo dans la tonalité d'origine")
