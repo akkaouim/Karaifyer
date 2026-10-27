@@ -15,7 +15,7 @@ from mutagen import File as MutagenFile
 
 STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
 COLUMNS = ["id", "titre", "artiste", "album", "duree_ref_s", "isrc", "fichier",
-           "retirer", "decompte_mesures", "langue", "partie", "spotify"]
+           "retirer", "decompte_mesures", "langue", "partie", "spotify", "dossier"]
 
 
 class ManifestError(ValueError):
@@ -42,6 +42,7 @@ class Song:
     langue: str
     partie: str
     spotify: str = ""            # Spotify track id (from the recording sheet), for Chordonomicon
+    dossier: str = ""            # output folder name (sortie/<dossier>, sets/…/<dossier>.als); empty = legacy <id>_…
 
 
 def _parse_row(row: dict, line: int, errors: list[str]) -> Song | None:
@@ -64,7 +65,8 @@ def _parse_row(row: dict, line: int, errors: list[str]) -> Song | None:
                 album=nfc(row.get("album") or ""), duree_ref_s=duree, isrc=(row.get("isrc") or "").strip(),
                 fichier=Path((row.get("fichier") or "").strip()), retirer=tuple(retirer),
                 decompte_mesures=decompte, langue=(row.get("langue") or "fr").strip() or "fr",
-                partie=(row.get("partie") or "").strip(), spotify=(row.get("spotify") or "").strip())
+                partie=(row.get("partie") or "").strip(), spotify=(row.get("spotify") or "").strip(),
+                dossier=nfc((row.get("dossier") or "").strip()))
 
 
 def read_manifest(path: Path) -> list[Song]:
@@ -93,7 +95,7 @@ def write_manifest(path: Path, songs: list[Song]) -> None:
         w.writerow(COLUMNS)
         for s in songs:
             w.writerow([s.id, s.titre, s.artiste, s.album, f"{s.duree_ref_s:.3f}", s.isrc, str(s.fichier),
-                        ";".join(s.retirer), s.decompte_mesures, s.langue, s.partie, s.spotify])
+                        ";".join(s.retirer), s.decompte_mesures, s.langue, s.partie, s.spotify, s.dossier])
     os.replace(tmp, path)
 
 
@@ -110,8 +112,10 @@ def songs_from_sysrec(audio_dir: Path) -> list[Song]:
         track = re.match(r"\d+", _tag(audio, "tracknumber") or _tag(audio, "track") or flac.name)
         if not track:
             continue
-        songs.append(Song(id=f"{int(track.group()):03d}", titre=_tag(audio, "title"),
-                          artiste=_tag(audio, "artist"), album=_tag(audio, "album"),
+        sid, titre, artiste = f"{int(track.group()):03d}", _tag(audio, "title"), _tag(audio, "artist")
+        taken = {s.dossier: s.id for s in songs}
+        songs.append(Song(id=sid, titre=titre, artiste=artiste, album=_tag(audio, "album"),
+                          dossier=unique_dossier(display_name(titre, artiste) or sid, sid, taken),
                           duree_ref_s=float(audio.info.length), isrc="", fichier=flac, retirer=(),
                           decompte_mesures=2, langue="fr", partie=""))
     return songs
@@ -126,6 +130,32 @@ def group_by_partie(songs: list[Song]) -> dict[str, list[Song]]:
 
 
 AUDIO_EXT = {".flac", ".wav", ".mp3", ".m4a", ".aac", ".aiff", ".aif"}
+
+
+def _clean(s: str) -> str:
+    t = s.strip()
+    if t.startswith("(") and t.endswith(")") and len(t) > 2:
+        t = t[1:-1].strip()
+    return re.sub(r"\s*/\s*", " & ", t)
+
+
+def display_name(titre: str, artiste: str) -> str:
+    """« Titre - Artiste », cleaned like the recorder's file names (Karaifyer FileNaming.clean + sanitize)."""
+    t, a = _clean(titre), _clean(artiste)
+    s = (f"{t} - {a}" if a else t).replace(":", " -")
+    for ch in '/\\?*"<>|':
+        s = s.replace(ch, "")
+    s = re.sub(r"\s+", " ", s).strip(" .")
+    return nfc(s[:200])
+
+
+def unique_dossier(name: str, sid: str, taken: dict[str, str]) -> str:
+    """`name`, or `name (2)`, `name (3)`… when another song (`taken`: folder name → song id) holds it."""
+    n, cand = 1, name
+    while cand in taken and taken[cand] != sid:
+        n += 1
+        cand = f"{name} ({n})"
+    return cand
 
 
 def next_id(songs: list[Song]) -> str:
@@ -152,8 +182,11 @@ def songs_from_files(paths: list[Path], existing: list[Song]) -> tuple[list[Song
             continue
         audio = MutagenFile(p, easy=True)
         ok = audio is not None   # a tagless file is falsy (dict-like), but still has a duration
-        added.append(Song(id=next_id(existing + added), titre=(_tag(audio, "title") if ok else "") or nfc(p.stem),
-                          artiste=_tag(audio, "artist") if ok else "",
+        sid = next_id(existing + added)
+        titre, artiste = (_tag(audio, "title") if ok else "") or nfc(p.stem), _tag(audio, "artist") if ok else ""
+        taken = {s.dossier: s.id for s in existing + added if s.dossier}
+        added.append(Song(id=sid, titre=titre, artiste=artiste,
+                          dossier=unique_dossier(display_name(titre, artiste) or sid, sid, taken),
                           album=_tag(audio, "album") if ok else "",
                           duree_ref_s=float(audio.info.length) if ok else 0.0, isrc="", fichier=p,
                           retirer=(), decompte_mesures=2, langue="fr", partie=""))

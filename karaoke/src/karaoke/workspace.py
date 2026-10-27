@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from karaoke.config import Config
-from karaoke.manifest import Song
+from karaoke.manifest import Song, display_name, unique_dossier  # noqa: F401 (re-exported)
 
 
 def slug(text: str, max_len: int = 40) -> str:
@@ -32,8 +32,9 @@ class Workspace:
 
     @staticmethod
     def folder_name(song: Song) -> str:
-        """sortie/<this>: computable without creating travail/<id> (as constructing a Workspace does)."""
-        return f"{song.id}_{slug(song.artiste)}_{slug(song.titre)}"
+        """sortie/<this>: the manifest's `dossier` (« Titre - Artiste »), else the legacy <id>_<artiste>_<titre>.
+        Computable without creating travail/<id> (as constructing a Workspace does)."""
+        return song.dossier or f"{song.id}_{slug(song.artiste)}_{slug(song.titre)}"
 
     def adopt_previous_folder(self) -> None:
         """If the song's title/artist changed, rename its existing show folder instead of
