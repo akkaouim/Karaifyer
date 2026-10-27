@@ -60,7 +60,7 @@ struct KaraokeView: View {
                 table.onChange(of: model.retirerCollapsed) {
                     // the rebuilt table starts at the top: bring the selected song back into view
                     guard let id = model.displayedSongs.first(where: { model.selection.contains($0.id) })?.id else { return }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { proxy.scrollTo(id, anchor: .center) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { proxy.scrollTo(id, anchor: .leading) }   // left edge kept
                 }
             }
             footer
@@ -174,7 +174,7 @@ struct KaraokeView: View {
                 TableColumn(model.retirerCollapsed ? "Retirer ▸" : "Retirer (joué en live) ▾", value: \.retirerHeader) { s in
                     retirerCell(s)
                 }
-                .width(min: model.retirerCollapsed ? 96 : 300, ideal: model.retirerCollapsed ? 96 : 340)
+                .width(Self.retirerWidth(folded: model.retirerCollapsed))
                 TableColumn("Langue", value: \.langue) { s in langueCell(s) }.width(Self.headerFit("Langue", content: 64))
             }
             Group {
@@ -469,6 +469,16 @@ struct KaraokeView: View {
 
     /// Fixed width showing the whole header (in the table header's own font, with room for the sort arrow), never
     /// narrower than the cells need.
+    /// « Retirer » sized to what it shows: the five labelled checkboxes, or folded the bare checkboxes (or its
+    /// header, if wider).
+    static func retirerWidth(folded: Bool) -> CGFloat {
+        let box: CGFloat = 18
+        if folded { return headerFit("Retirer ▸", content: CGFloat(RETIRER.count) * (box + 2) + 12) }
+        let caption = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let labels = RETIRER.map { ceil(($0.1 as NSString).size(withAttributes: [.font: caption]).width) }
+        return labels.reduce(0) { $0 + box + 4 + $1 } + CGFloat(RETIRER.count - 1) * 6 + 16
+    }
+
     static func headerFit(_ title: String, content: CGFloat) -> CGFloat {
         let font = NSTableHeaderCell().font ?? .systemFont(ofSize: NSFont.smallSystemFontSize)
         let text = ceil((title as NSString).size(withAttributes: [.font: font]).width)
