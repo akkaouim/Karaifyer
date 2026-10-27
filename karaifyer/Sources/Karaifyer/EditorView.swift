@@ -79,10 +79,11 @@ struct EditorView: View {
                 Text("Paroles").font(.headline)
                 Spacer()
                 Menu("Synchroniser") {
-                    Button("Synchroniser") { model.startSync(fromSelected: false) }
-                    Button("Synchroniser à partir de la ligne sélectionnée") { model.startSync(fromSelected: true) }
-                        .disabled(model.selectedLine == nil)
-                } primaryAction: { model.startSync(fromSelected: false) }
+                    Button("Synchroniser") { model.startSync(fromCurrent: false) }
+                    Button("Synchroniser à partir de la ligne en jaune") { model.startSync(fromCurrent: true) }
+                        .disabled(model.currentLine == nil)
+                        .help("La ligne sous la lecture ; cliquer une ligne (ou sa flèche) l'y place")
+                } primaryAction: { model.startSync(fromCurrent: false) }
                 .fixedSize()
                 .disabled(!model.syncAvailable || model.syncing)
                 .help(model.syncAvailable ? "Lancer le morceau (avec le décompte) et caler chaque ligne avec Entrée" : "Analyser le morceau d'abord")

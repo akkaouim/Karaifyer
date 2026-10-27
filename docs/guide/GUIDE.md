@@ -274,7 +274,7 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
   voix entendue juste avant (jusqu'à 0,4 s) ; sans voix détectée, l'instant de l'appui est gardé.
 - **↑** (ou ⌫) annule le dernier calage, **Espace** met en pause, **Échap** quitte en gardant ce qui est calé. Chaque
   calage s'annule aussi avec ⌘Z.
-- **Synchroniser à partir de la ligne sélectionnée** reprend 2 s avant la ligne précédente, sans tout rejouer.
+- **Synchroniser à partir de la ligne en jaune** reprend 2 s avant la ligne précédente, sans tout rejouer.
 - En pause, le texte se corrige comme d'habitude (mot, + Ligne), et **Remplacer le texte…** permet de tout remplacer
   (⌘A ⌘V) : les lignes inchangées gardent leur temps.
 - **Enregistrer** garde les temps comme correction des paroles (`paroles/<id>.lrc`), qui passe avant LRCLIB ; la

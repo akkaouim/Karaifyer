@@ -360,13 +360,15 @@ final class EditorModel {
         return p
     }
 
-    func startSync(fromSelected: Bool) {
+    /// `fromCurrent`: from the line under the playhead (the yellow one), the line Michel sees — a click on a line
+    /// (or its arrow) puts the playhead there.
+    func startSync(fromCurrent: Bool) {
         guard syncAvailable, let p = player, !lines.isEmpty else { return }
         pause()
         endEditing()
         if voiceEnvelope == nil { voiceEnvelope = try? VocalOnset.load(url: URL(fileURLWithPath: voiceFile)) }
         syncIDs = lines.map(\.id)
-        let start = fromSelected ? (selectedLine.flatMap { id in syncIDs.firstIndex(of: id) } ?? 0) : 0
+        let start = fromCurrent ? (currentLine ?? 0) : 0
         sync = LyricsSync(ids: syncIDs, startAt: start)
         syncMessage = nil
         syncPaused = false
