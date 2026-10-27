@@ -149,6 +149,9 @@ bleu propose « Renommer… », une fois. Fermez d'abord les sets ouverts dans L
 secondes par morceau), rien d'autre n'est réanalysé, les anciens sets vont à la Corbeille et une copie du manifeste
 est gardée.
 
+**Colonne Retirer repliable :** cliquer sur son titre la replie à la largeur du mot « Retirer » : il ne reste que
+les cases, sans leur nom (le survol l'indique). Un nouveau clic la déplie. Le choix est gardé.
+
 **Actions rapides :** sur un morceau analysé, ✏️ ouvre la fenêtre Corriger et ▶️ le joue dans le Lecteur.
 
 **Première colonne :** pendant une analyse, l'avancement de chaque morceau ; en dehors, ⟳ orange signale un

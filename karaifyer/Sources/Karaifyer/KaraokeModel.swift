@@ -18,7 +18,19 @@ final class KaraokeModel: RunDriver {
     var videoLayout: String = UserDefaults.standard.string(forKey: "videoLayout") ?? "grille" {
         didSet { UserDefaults.standard.set(videoLayout, forKey: "videoLayout") }
     }
-    var sortOrder: [KeyPathComparator<SongState>] = [KeyPathComparator(\SongState.id)]
+    var sortOrder: [KeyPathComparator<SongState>] = [KeyPathComparator(\SongState.id)] {
+        didSet {
+            let r = SongList.headerClick(new: sortOrder, previous: oldValue)
+            if r.toggleRetirer {
+                retirerCollapsed.toggle()
+                sortOrder = r.order
+            }
+        }
+    }
+    /// The « Retirer » column folded to its checkboxes only (a click on its header switches).
+    var retirerCollapsed: Bool = UserDefaults.standard.bool(forKey: "retirerCollapsed") {
+        didSet { UserDefaults.standard.set(retirerCollapsed, forKey: "retirerCollapsed") }
+    }
     var displayedSongs: [SongState] { SongList.filtered(songs, query: query).sorted(using: sortOrder) }
     var log: [String] = []
     var banner: String?

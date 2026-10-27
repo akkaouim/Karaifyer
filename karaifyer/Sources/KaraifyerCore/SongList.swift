@@ -2,6 +2,14 @@ import Foundation
 
 /// The Karaoké table's search and sort keys.
 public enum SongList {
+    /// SwiftUI tables only report header clicks as a new sort order: a click on « Retirer » (its stand-in sort key)
+    /// folds or unfolds that column and keeps the previous sort.
+    public static func headerClick(new: [KeyPathComparator<SongState>], previous: [KeyPathComparator<SongState>])
+        -> (order: [KeyPathComparator<SongState>], toggleRetirer: Bool) {
+        guard new.contains(where: { $0.keyPath == \SongState.retirerHeader }) else { return (new, false) }
+        return (previous, true)
+    }
+
     /// Title, artist, id or Set List contains the query (case and accents ignored); an empty query keeps all.
     public static func filtered(_ songs: [SongState], query: String) -> [SongState] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -22,6 +30,8 @@ extension SongState {
     /// Steps done, for sorting the « Étapes » column by progress.
     public var stepsDone: Int { steps.filter { $0.status == "a_jour" }.count }
 
+    /// Not a sort: the « Retirer » header's click target (see SongList.headerClick).
+    public var retirerHeader: Int { 0 }
     public var isVerified: Bool { !(verifie ?? "").isEmpty }
     public var verifiedSort: Int { isVerified ? 1 : 0 }
     public var bpmRounded: Int? { bpm.map { Int($0.rounded()) } }

@@ -69,3 +69,20 @@ struct CorrectionsTests {
         #expect(SongList.filtered([a, b], query: "Corrige").count == 1)
     }
 }
+
+struct RetirerHeaderTests {
+    @Test func clickingRetirerTogglesAndKeepsTheSort() {
+        let previous = [KeyPathComparator(\SongState.titre)]
+        let r = SongList.headerClick(new: [KeyPathComparator(\SongState.retirerHeader)] + previous, previous: previous)
+        #expect(r.toggleRetirer && r.order == previous)
+        let flipped = SongList.headerClick(new: [KeyPathComparator(\SongState.retirerHeader, order: .reverse)], previous: previous)
+        #expect(flipped.toggleRetirer && flipped.order == previous)
+    }
+
+    @Test func otherHeadersSortAsUsual() {
+        let previous = [KeyPathComparator(\SongState.titre)]
+        let new = [KeyPathComparator(\SongState.bpmSort)]
+        let r = SongList.headerClick(new: new, previous: previous)
+        #expect(!r.toggleRetirer && r.order == new)
+    }
+}

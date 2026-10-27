@@ -165,7 +165,11 @@ struct KaraokeView: View {
                 TableColumn("id", value: \.id) { s in Text(s.id).monospacedDigit() }.width(36)
                 TableColumn("Titre", value: \.titre) { s in titleCell(s) }
                 TableColumn("Artiste", value: \.artiste) { s in artistCell(s) }
-                TableColumn("Retirer (joué en live)") { s in retirerCell(s) }.width(min: 300)
+                TableColumn(model.retirerCollapsed ? "Retirer ▸" : "Retirer (joué en live) ▾", value: \.retirerHeader) { s in
+                    retirerCell(s)
+                }
+                .width(min: model.retirerCollapsed ? 96 : 300, ideal: model.retirerCollapsed ? 96 : 340,
+                       max: model.retirerCollapsed ? 96 : .infinity)
                 TableColumn("Langue", value: \.langue) { s in langueCell(s) }.width(64)
             }
             Group {
@@ -355,13 +359,16 @@ struct KaraokeView: View {
         CommitField(value: s.artiste, enabled: !model.locked) { commit(s, "artiste", $0) }
     }
 
+    /// Unfolded: each checkbox with its label. Folded (click the header): the checkboxes alone, named on hover.
     func retirerCell(_ s: SongState) -> some View {
-        HStack(spacing: 6) {
+        let folded = model.retirerCollapsed
+        return HStack(spacing: folded ? 2 : 6) {
             ForEach(RETIRER, id: \.0) { stem, label in
-                Toggle(label, isOn: Binding(get: { current(s).retirer.contains(stem) }, set: { on in
+                Toggle(folded ? "" : label, isOn: Binding(get: { current(s).retirer.contains(stem) }, set: { on in
                     commit(s, "retirer", Retirer.toggled(current(s).retirer, stem, on: on, order: RETIRER.map(\.0)))
                 }))
                 .toggleStyle(.checkbox).font(.caption)
+                .help(label)
                 .disabled(model.locked)
             }
         }
