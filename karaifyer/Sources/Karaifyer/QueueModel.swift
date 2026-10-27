@@ -131,7 +131,8 @@ final class QueueModel {
     // MARK: - Derived
 
     var listName: String { listURL?.deletingPathExtension().lastPathComponent ?? "Karaifyer" }
-    var listDir: URL { outputRoot.appendingPathComponent(FileNaming.sanitize(listName), isDirectory: true) }
+    /// The chosen folder itself: every list records into it (songs already there count as done).
+    var listDir: URL { outputRoot }
     var counts: (done: Int, failed: Int, total: Int) {
         let done = states.values.filter { $0.status == .done }.count
         let failed = states.values.filter { if case .failed = $0.status { return true } else { return false } }.count
@@ -139,23 +140,34 @@ final class QueueModel {
     }
     var currentRow: TrackRow? { currentIndex.map { rows[$0] } }
 
-    private var numberWidth: Int {
-        max(2, rows.compactMap { Int($0.number) }.max().map { String($0).count } ?? 2)
-    }
-
     func directory(for row: TrackRow) -> URL {
         guard groupByProposer, !row.proposer.isEmpty else { return listDir }
         return listDir.appendingPathComponent(FileNaming.sanitize(row.proposer), isDirectory: true)
     }
 
-    /// Existing finished FLAC for a row, matched on the "NN - " prefix so it
-    /// works even when the name came from Spotify metadata.
+    /// Existing finished FLAC for a row: the file in its folder carrying the row's Spotify id, whatever its name.
     func existingFile(for row: TrackRow) -> URL? {
         let dir = directory(for: row)
-        let prefix = (Int(row.number).map { String(format: "%0\(numberWidth)d", $0) } ?? row.number) + " - "
-        let items = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
-        return items.first { $0.lastPathComponent.hasPrefix(prefix) && $0.pathExtension == "flac" }
+        return index(for: dir).file(for: row.trackID).map { dir.appendingPathComponent($0) }
     }
+
+    /// The folder's recordings by Spotify id (.karaifyer-index.json), tags re-read only for new or changed files.
+    func index(for dir: URL) -> RecordingIndex {
+        var idx = indexes[dir] ?? RecordingIndex.load(dir: dir)
+        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
+        let items = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys)) ?? []
+        let listing = items.filter { ["flac", "mp3"].contains($0.pathExtension.lowercased()) }.map { u in
+            let v = try? u.resourceValues(forKeys: Set(keys))
+            return (name: u.lastPathComponent, size: Int64(v?.fileSize ?? 0),
+                    mtime: v?.contentModificationDate?.timeIntervalSince1970 ?? 0)
+        }
+        if idx.refresh(listing: listing, read: { RecordingTags.read(dir.appendingPathComponent($0)) }), !items.isEmpty {
+            idx.save(dir: dir)
+        }
+        indexes[dir] = idx
+        return idx
+    }
+    @ObservationIgnored private var indexes: [URL: RecordingIndex] = [:]
 
     // MARK: - Commands
 
@@ -259,6 +271,7 @@ final class QueueModel {
         banner = nil
         deviceChanged = false
         preventSleep()
+        log("— Lot « \(listName) » (\(rows.count) morceaux) —")
         defer {
             tap?.stop()
             tap = nil
@@ -461,16 +474,12 @@ final class QueueModel {
         let dir = directory(for: row)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
-        // Duplicate of an already-recorded row: copy with this row's tags.
-        if let src = row.duplicateOf, let srcFile = states[src]?.file, states[src]?.status == .done {
-            states[row.index] = RowState(status: .encoding)
-            let base = dir.appendingPathComponent(FileNaming.baseName(
-                row: row, spotifyTitle: nil, spotifyArtist: nil, width: numberWidth))
-            let tags = TrackTags(title: "", artist: "", album: "", trackNumber: row.number,
-                                 comment: comment(for: row), spotifyURI: row.uri, artworkURL: "")
-            let r = try await PostProcess.duplicate(from: srcFile, to: base, tags: tags, makeMP3: makeMP3)
-            states[row.index] = RowState(status: .done, file: r.flac, note: "copy of row \(rows[src].number)")
-            log("Row \(row.number): copied from row \(rows[src].number) → \(r.flac.lastPathComponent)")
+        // Already in the folder (a duplicate row of a track just recorded, or a file added meanwhile): one file per
+        // track, nothing is copied.
+        if let f = existingFile(for: row) {
+            let note = row.duplicateOf.map { "même morceau que la ligne \(rows[$0].number)" }
+            states[row.index] = RowState(status: .done, file: f, note: note)
+            log("Row \(row.number): already recorded → \(f.lastPathComponent)")
             return
         }
 
@@ -610,11 +619,14 @@ final class QueueModel {
 
         // 5. Trim, encode, tag.
         states[row.index] = RowState(status: .encoding)
-        let base = dir.appendingPathComponent(FileNaming.baseName(
-            row: row, spotifyTitle: meta.title, spotifyArtist: meta.artist, width: numberWidth))
+        let name = RecordingNaming.unique(
+            base: RecordingNaming.base(title: row.title.isEmpty ? meta.title : row.title,
+                                       artist: row.artist.isEmpty ? meta.artist : row.artist),
+            trackID: row.trackID, ext: "flac", existing: index(for: dir).entries.mapValues(\.trackID))
+        let base = dir.appendingPathComponent((name as NSString).deletingPathExtension)
         let tags = TrackTags(title: meta.title, artist: meta.artist, album: meta.album,
                              trackNumber: row.number, comment: comment(for: row),
-                             spotifyURI: playingURI, artworkURL: meta.artworkURL)
+                             spotifyURI: row.uri, artworkURL: meta.artworkURL)   // the sheet's id: a relinked take still matches its row
         if seg.discontinuities > 0, (shortRetries[row.index] ?? 0) < 1 {
             shortRetries[row.index, default: 0] += 1
             throw RowFailure(message: "Capture had \(seg.discontinuities) gap(s)", requeue: true)
@@ -649,6 +661,7 @@ final class QueueModel {
             throw RowFailure(message: r.warning!, requeue: true)
         }
         states[row.index] = RowState(status: .done, file: r.flac, note: r.warning)
+        _ = index(for: dir)          // the new file joins the index (its duplicates rows read « done »)
         log(String(format: "Row %@: %@ — %.0f Hz, %.2fs, lead-in trimmed %.3fs, peak %.1f dBFS, %d gaps%@",
                    row.number, r.flac.lastPathComponent, seg.sampleRate, Double(durMs) / 1000,
                    r.trimmedSeconds, 20 * log10(max(seg.peak, 1e-9)), seg.discontinuities,
