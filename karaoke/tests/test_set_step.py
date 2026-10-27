@@ -52,3 +52,19 @@ def test_set_step_removes_stale_sets_of_the_same_song(cfg, tmp_path, monkeypatch
 def test_set_step_version_rebuilds_existing_sets():
     # lead-in bar + bar-1 start marker: every existing set must be regenerated on the next run
     assert SET_ABLETON.version == "2"
+
+
+def test_stale_sets_found_by_dossier_never_another_songs(cfg, tmp_path, monkeypatch):
+    monkeypatch.setenv("KARAOKE_GABARIT", str(FIX / "gabarit.als"))
+    s = song(id="050", titre="Danser", artiste="Loïc Nottet", partie="Dessert", dossier="Danser - Loïc Nottet")
+    ws = Workspace(cfg, s)
+    src = make_song(tmp_path / "src", "050", 3.0)
+    shutil.copytree(src.folder, ws.out)
+    stale = [cfg.sets / "apero" / "Danser - Loïc Nottet.als", cfg.sets / "apero" / "050_loic-nottet_danser.als"]
+    other = cfg.sets / "apero" / "Danser - Loïc Nottet (2).als"          # another song
+    for p in stale + [other]:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("old")
+    SET_ABLETON.run(ws, {"package": {"faders": src.faders}, "video": {}})
+    assert not any(p.exists() for p in stale) and other.exists()
+    assert (cfg.sets / "dessert" / "Danser - Loïc Nottet.als").exists()

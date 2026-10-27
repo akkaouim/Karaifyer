@@ -115,3 +115,20 @@ def test_recording_of_two_removed_rows_is_counted_and_trashed_once(cfg, tmp_path
     trashed = []
     R.retirer(cfg, ["005", "050"], audio=True, trash=lambda ps: trashed.extend(ps))
     assert [Path(t).name for t in trashed].count(a.name) == 1
+
+
+def test_removal_finds_outputs_by_dossier_and_legacy_names(cfg, tmp_path):
+    a = tmp_path / "a.flac"; a.write_bytes(b"x")
+    write_manifest(cfg.manifest, [song(id="050", titre="Danser", artiste="Loïc Nottet", fichier=a,
+                                       dossier="Danser - Loïc Nottet")])
+    new = cfg.sortie / "Danser - Loïc Nottet"; new.mkdir(parents=True)
+    legacy = cfg.sortie / "050_loic-nottet_danser"; legacy.mkdir()
+    (cfg.sets / "a").mkdir(parents=True)
+    s1 = cfg.sets / "a" / "Danser - Loïc Nottet.als"; s1.write_text("x")
+    s2 = cfg.sets / "a" / "050_loic-nottet_danser.als"; s2.write_text("x")
+    other = cfg.sets / "a" / "Danser - Loïc Nottet (2).als"; other.write_text("x")
+    trashed = []
+    R.retirer(cfg, ["050"], analyse=True, trash=lambda ps: trashed.extend(ps))
+    names = {Path(p).name for p in trashed}
+    assert {"Danser - Loïc Nottet", "050_loic-nottet_danser", "Danser - Loïc Nottet.als", "050_loic-nottet_danser.als"} <= names
+    assert "Danser - Loïc Nottet (2).als" not in names

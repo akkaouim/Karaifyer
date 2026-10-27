@@ -5,6 +5,7 @@ Inputs:  package result {faders}; the song folder (all audio files + paroles.mp4
 Outputs: $KARAOKE_HOME/sets/<partie>/<dossier du morceau>.als; result {set, warnings}.
 """
 from __future__ import annotations
+import glob
 
 from karaoke.ableton.build import SongEntry, build_set
 from karaoke.runner import Step
@@ -23,7 +24,8 @@ def _key(ws: Workspace) -> str:
 
 def remove_stale_sets(ws: Workspace, keep) -> None:
     """Older sets of this song (another partie, or a renamed folder) would open the wrong version."""
-    for p in ws.cfg.sets.glob(f"*/{ws.song.id}_*.als"):
+    # by name (« Titre - Artiste », never another song's « … (2) »), and the legacy <id>_… names
+    for p in {*ws.cfg.sets.glob(f"*/{glob.escape(ws.out.name)}.als"), *ws.cfg.sets.glob(f"*/{ws.song.id}_*.als")}:
         if p != keep:
             p.unlink()
 

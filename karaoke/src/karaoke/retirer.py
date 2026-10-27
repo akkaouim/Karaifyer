@@ -1,6 +1,7 @@
 """Removing songs from the manifest (Karaifyer's « Retirer du manifeste… »): the row goes, a backup of the
 manifest is kept, the chosen files go to the macOS Trash (never deleted outright), and everything derived from
 the manifest — the grilles index, the report, the iReal pages — is rebuilt without the removed songs."""
+import glob
 import json
 import shutil
 import subprocess
@@ -28,10 +29,13 @@ def _group(paths: list[Path]) -> dict:
     return {"fichiers": [str(p) for p in paths], "taille": sum(_size(p) for p in paths)}
 
 
-def _analyse(cfg: Config, sid: str) -> list[Path]:
-    """Built by the analysis: travail/<id>, sortie/<id>_*, sets/*/<id>_*.als (any partie, also a stale one)."""
-    return ([cfg.travail / sid] + sorted(p for p in cfg.sortie.glob(f"{sid}_*") if p.is_dir())
-            + sorted(cfg.sets.glob(f"*/{sid}_*.als")))
+def _analyse(cfg: Config, song) -> list[Path]:
+    """Built by the analysis: travail/<id>, sortie/<dossier>, sets/*/<dossier>.als (any partie, also a stale one),
+    and the legacy <id>_… names."""
+    name, sid = Workspace.folder_name(song), song.id
+    found = {cfg.travail / sid, cfg.sortie / name, *(p for p in cfg.sortie.glob(f"{sid}_*") if p.is_dir()),
+             *cfg.sets.glob(f"*/{glob.escape(name)}.als"), *cfg.sets.glob(f"*/{sid}_*.als")}
+    return sorted(found)
 
 
 def _corrections(cfg: Config, sid: str) -> list[Path]:
@@ -65,7 +69,7 @@ def plan(cfg: Config, ids: list[str]) -> list[dict]:
         audio = _group([] if key in seen else [s.fichier])   # two removed rows, one recording: listed once
         seen.add(key)
         out.append({"id": sid, "titre": s.titre, "artiste": s.artiste,
-                    "analyse": _group(_analyse(cfg, sid)), "corrections": _group(_corrections(cfg, sid)),
+                    "analyse": _group(_analyse(cfg, s)), "corrections": _group(_corrections(cfg, sid)),
                     "audio": {**audio, "fichier": str(s.fichier), "partage": _same_file_key(s.fichier) in kept}})
     return out
 

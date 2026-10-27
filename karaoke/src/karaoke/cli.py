@@ -71,7 +71,8 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
             continue
         ws = Workspace(cfg, s)
         adopt_legacy_marker(ws)
-        ws.adopt_previous_folder()
+        if not s.dossier:            # legacy <id>_… folder: follow a title change; named folders are renamed by modifier
+            ws.adopt_previous_folder()
         if json_out:
             ws.on_log = lambda line, sid=s.id: _emit({"event": "log", "id": sid, "line": line})
             _emit({"event": "song_start", "id": s.id})
