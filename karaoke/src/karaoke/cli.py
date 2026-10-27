@@ -121,6 +121,9 @@ def modifier(id: str = typer.Option(..., help="Id du morceau"), champ: str = typ
     cfg = _workspace()
     try:
         s = set_field(cfg.manifest, id, champ, valeur)
+        if champ in ("titre", "artiste"):
+            from karaoke.workspace import renommer_dossier
+            renommer_dossier(cfg, id)
     except ManifestError as e:
         typer.echo(str(e), err=True)
         raise typer.Exit(1)

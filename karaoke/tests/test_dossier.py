@@ -47,3 +47,63 @@ def test_two_added_songs_with_the_same_name_get_distinct_folders(cfg, tmp_path):
     a = audio_file(tmp_path / "a" / "Danser.flac"); b = audio_file(tmp_path / "b" / "Danser.flac")
     added, _ = songs_from_files([a, b], [])
     assert added[0].dossier != added[1].dossier
+
+
+from karaoke.workspace import renommer_dossier
+from karaoke.manifest import set_field
+
+
+def _outputs(cfg, name, partie="a"):
+    (cfg.sortie / name).mkdir(parents=True)
+    (cfg.sortie / name / "paroles.mp4").write_bytes(b"v")
+    (cfg.sets / partie).mkdir(parents=True, exist_ok=True)
+    (cfg.sets / partie / f"{name}.als").write_text("set")
+
+
+def test_title_edit_renames_folder_and_sets(cfg):
+    write_manifest(cfg.manifest, [song(id="050", titre="Danser", artiste="Loïc Nottet", dossier="Danser - Loïc Nottet")])
+    _outputs(cfg, "Danser - Loïc Nottet")
+    set_field(cfg.manifest, "050", "titre", "Danse")
+    renommer_dossier(cfg, "050")
+    s = read_manifest(cfg.manifest)[0]
+    assert s.dossier == "Danse - Loïc Nottet"
+    assert (cfg.sortie / "Danse - Loïc Nottet" / "paroles.mp4").exists() and not (cfg.sortie / "Danser - Loïc Nottet").exists()
+    assert (cfg.sets / "a" / "Danse - Loïc Nottet.als").exists() and not (cfg.sets / "a" / "Danser - Loïc Nottet.als").exists()
+
+
+def test_title_edit_of_a_never_analysed_song_just_sets_the_name(cfg):
+    write_manifest(cfg.manifest, [song(id="050", titre="Danser", artiste="Loïc Nottet", dossier="Danser - Loïc Nottet")])
+    set_field(cfg.manifest, "050", "titre", "Danse")
+    renommer_dossier(cfg, "050")
+    assert read_manifest(cfg.manifest)[0].dossier == "Danse - Loïc Nottet"
+
+
+def test_title_edit_onto_another_songs_name_gets_a_suffix(cfg):
+    write_manifest(cfg.manifest, [song(id="050", titre="Danser", artiste="Loïc Nottet", dossier="Danser - Loïc Nottet"),
+                                  song(id="060", titre="Danse", artiste="Loïc Nottet", dossier="Danse - Loïc Nottet")])
+    _outputs(cfg, "Danser - Loïc Nottet")
+    _outputs(cfg, "Danse - Loïc Nottet", partie="b")
+    set_field(cfg.manifest, "050", "titre", "Danse")
+    renommer_dossier(cfg, "050")
+    by = {s.id: s for s in read_manifest(cfg.manifest)}
+    assert by["050"].dossier == "Danse - Loïc Nottet (2)" and by["060"].dossier == "Danse - Loïc Nottet"
+    assert (cfg.sortie / "Danse - Loïc Nottet (2)").exists() and (cfg.sets / "b" / "Danse - Loïc Nottet.als").exists()
+
+
+def test_legacy_row_gets_a_named_folder_on_its_first_edit(cfg):
+    write_manifest(cfg.manifest, [song(id="050", titre="Danser", artiste="Loïc Nottet")])
+    _outputs(cfg, "050_loic-nottet_danser")
+    set_field(cfg.manifest, "050", "titre", "Danse")
+    renommer_dossier(cfg, "050")
+    assert read_manifest(cfg.manifest)[0].dossier == "Danse - Loïc Nottet"
+    assert (cfg.sortie / "Danse - Loïc Nottet").exists() and (cfg.sets / "a" / "Danse - Loïc Nottet.als").exists()
+
+
+def test_cli_modifier_titre_renames(cfg, monkeypatch):
+    from typer.testing import CliRunner
+    from karaoke.cli import app
+    write_manifest(cfg.manifest, [song(id="050", titre="Danser", artiste="Loïc Nottet", dossier="Danser - Loïc Nottet")])
+    _outputs(cfg, "Danser - Loïc Nottet")
+    monkeypatch.setenv("KARAOKE_HOME", str(cfg.home))
+    r = CliRunner().invoke(app, ["modifier", "--id", "050", "--champ", "artiste", "--valeur", "L. Nottet"])
+    assert r.exit_code == 0 and (cfg.sortie / "Danser - L. Nottet").exists()

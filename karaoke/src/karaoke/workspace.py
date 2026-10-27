@@ -66,3 +66,36 @@ class Workspace:
             f.write(f"[{datetime.now().isoformat(timespec='seconds')}] {msg}\n")
         if self.on_log:
             self.on_log(msg)
+
+
+def renommer_dossier(cfg: Config, sid: str) -> str:
+    """After a title or artist edit: the song's output folder and its sets take the new « Titre - Artiste » name
+    (` (2)`… when another song holds it), and the manifest's `dossier` follows. A song never analysed only gets
+    the name. A legacy <id>_… folder is found by its id prefix (its name used the old title)."""
+    import glob
+    from dataclasses import replace
+    from karaoke.manifest import read_manifest, write_manifest
+    songs = read_manifest(cfg.manifest)
+    s = next(x for x in songs if x.id == sid)
+    taken = {x.dossier: x.id for x in songs if x.dossier and x.id != sid}
+    if s.dossier:
+        old_dirs = [cfg.sortie / s.dossier]
+        old_sets = list(cfg.sets.glob(f"*/{glob.escape(s.dossier)}.als"))
+    else:
+        old_dirs = [p for p in cfg.sortie.glob(f"{sid}_*") if p.is_dir()]
+        old_sets = list(cfg.sets.glob(f"*/{sid}_*.als"))
+    old_dir = next((p for p in old_dirs if p.is_dir()), None)
+    new = unique_dossier(display_name(s.titre, s.artiste) or sid, sid, taken)
+    while (cfg.sortie / new).exists() and cfg.sortie / new != old_dir:     # a folder no row claims: never merged into
+        taken[new] = "?"
+        new = unique_dossier(display_name(s.titre, s.artiste) or sid, sid, taken)
+    if new == s.dossier:
+        return new
+    if old_dir is not None:
+        old_dir.rename(cfg.sortie / new)
+    for p in old_sets:
+        target = p.with_name(f"{new}.als")
+        if not target.exists():
+            p.rename(target)
+    write_manifest(cfg.manifest, [replace(x, dossier=new) if x.id == sid else x for x in songs])
+    return new
