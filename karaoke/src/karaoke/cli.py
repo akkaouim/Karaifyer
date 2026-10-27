@@ -168,6 +168,35 @@ def rapport() -> None:
 
 
 @app.command()
+def retirer(ids: str = typer.Option(..., help="Identifiants à retirer, séparés par des virgules"),
+            analyse: bool = typer.Option(False, help="Mettre à la Corbeille travail/, sortie/ et le set .als"),
+            corrections: bool = typer.Option(False, help="Mettre à la Corbeille paroles/, accords/, mesures/"),
+            audio: bool = typer.Option(False, help="Mettre à la Corbeille l'enregistrement (jamais s'il est partagé)"),
+            plan: bool = typer.Option(False, "--plan", help="Seulement lister ce qui serait retiré, avec les tailles"),
+            as_json: bool = typer.Option(False, "--json")) -> None:
+    """Retire des morceaux du manifeste (sauvegarde gardée) ; les fichiers choisis partent à la Corbeille."""
+    from karaoke import retirer as R
+    cfg = _workspace()
+    wanted = [i.strip() for i in ids.split(",") if i.strip()]
+    try:
+        out = R.plan(cfg, wanted) if plan else R.retirer(cfg, wanted, analyse=analyse, corrections=corrections,
+                                                         audio=audio, trash=lambda ps: R.system_trash(ps))
+    except ValueError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1)
+    if as_json:
+        typer.echo(json.dumps(out, ensure_ascii=False))
+    elif plan:
+        for it in out:
+            typer.echo(f"{it['id']} {it['titre']} : analyse {it['analyse']['taille']} o, "
+                       f"corrections {it['corrections']['taille']} o, audio {it['audio']['taille']} o"
+                       + (" (partagé)" if it["audio"]["partage"] else ""))
+    else:
+        typer.echo(f"Retiré : {', '.join(out['retires'])} — sauvegarde {out['sauvegarde']}, "
+                   f"{len(out['corbeille'])} élément(s) à la Corbeille")
+
+
+@app.command()
 def sets(partie: str = typer.Option(None, help="Ne générer que cette partie")) -> None:
     """Génère un set Ableton (.als) par morceau, rangé par partie de soirée, à partir du gabarit."""
     cfg = _workspace()

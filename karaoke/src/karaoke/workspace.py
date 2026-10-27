@@ -25,10 +25,15 @@ class Workspace:
     def __init__(self, cfg: Config, song: Song):
         self.cfg, self.song = cfg, song
         self.work = cfg.travail / song.id
-        self.out = cfg.sortie / f"{song.id}_{slug(song.artiste)}_{slug(song.titre)}"
+        self.out = cfg.sortie / self.folder_name(song)
         self.stems = self.work / "stems"
         self.on_log = None   # optional listener (Karaifyer's live terminal via traiter --json)
         self.work.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def folder_name(song: Song) -> str:
+        """sortie/<this>: computable without creating travail/<id> (as constructing a Workspace does)."""
+        return f"{song.id}_{slug(song.artiste)}_{slug(song.titre)}"
 
     def adopt_previous_folder(self) -> None:
         """If the song's title/artist changed, rename its existing show folder instead of
