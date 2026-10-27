@@ -56,7 +56,13 @@ struct KaraokeView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.bottom, 4)
             }
-            table
+            ScrollViewReader { proxy in
+                table.onChange(of: model.retirerCollapsed) {
+                    // the rebuilt table starts at the top: bring the selected song back into view
+                    guard let id = model.displayedSongs.first(where: { model.selection.contains($0.id) })?.id else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { proxy.scrollTo(id, anchor: .center) }
+                }
+            }
             footer
         }
         .task { await model.refresh(); await model.checkOutputRenames() }
@@ -168,20 +174,20 @@ struct KaraokeView: View {
                 TableColumn(model.retirerCollapsed ? "Retirer ▸" : "Retirer (joué en live) ▾", value: \.retirerHeader) { s in
                     retirerCell(s)
                 }
-                .width(min: model.retirerCollapsed ? 96 : 300, ideal: model.retirerCollapsed ? 96 : 340,
-                       max: model.retirerCollapsed ? 96 : .infinity)
-                TableColumn("Langue", value: \.langue) { s in langueCell(s) }.width(64)
+                .width(min: model.retirerCollapsed ? 96 : 300, ideal: model.retirerCollapsed ? 96 : 340)
+                TableColumn("Langue", value: \.langue) { s in langueCell(s) }.width(min: 48, ideal: 64)
             }
             Group {
-                TableColumn("BPM", value: \.bpmSort) { s in bpmCell(s) }.width(44)
-                TableColumn("Tonalité", value: \.keyShort) { s in keyCell(s) }.width(60)
-                TableColumn("Vérifié", value: \.verifiedSort) { s in verifiedCell(s) }.width(52)
-                TableColumn("Corrigé", value: \.correctionsSort) { s in correctionsCell(s) }.width(56)
+                TableColumn("BPM", value: \.bpmSort) { s in bpmCell(s) }.width(min: 36, ideal: 44)
+                TableColumn("Tonalité", value: \.keyShort) { s in keyCell(s) }.width(min: 44, ideal: 60)
+                TableColumn("Vérifié", value: \.verifiedSort) { s in verifiedCell(s) }.width(min: 36, ideal: 52)
+                TableColumn("Corrigé", value: \.correctionsSort) { s in correctionsCell(s) }.width(min: 40, ideal: 56)
                 TableColumn("Statut", value: \.statutRank) { s in statutCell(s) }.width(min: 220, ideal: 360)
                 TableColumn("Étapes", value: \.stepsDone) { s in stepsCell(s) }.width(130)
             }
         }
-        .background(TableColumnResizer(titlePrefix: "Retirer", width: model.retirerCollapsed ? 96 : 340))
+        // SwiftUI lays table columns out once: folding « Retirer » rebuilds the table, then shows the selected song again
+        .id(model.retirerCollapsed)
         .contextMenu(forSelectionType: String.self) { ids in
             if let id = ids.first, let s = model.songs.first(where: { $0.id == id }) {
                 Button("Ouvrir le dossier") { open(s.paths.dossier) }
