@@ -106,7 +106,11 @@ struct EditorView: View {
                             .labelStyle(.iconOnly).help("Placer la lecture au début de cette ligne")
                         Button("Caler", systemImage: "stopwatch") { endEditing(); model.stampLine(id) }
                             .labelStyle(.iconOnly).help("Caler le début de la ligne sur la lecture")
+                        Button("−0,5 s", systemImage: "arrow.counterclockwise") { endEditing(); model.shiftTime(id, by: -0.5) }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless).help("Commencer 0,5 s plus tôt")
                         CommitField(value: LRC.timecode(line.time), resignOnCommit: true) { model.setTime(id, $0) }.frame(width: 70)
+                        Button("+0,5 s", systemImage: "arrow.clockwise") { endEditing(); model.shiftTime(id, by: 0.5) }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless).help("Commencer 0,5 s plus tard")
                         CommitField(value: line.text, resignOnCommit: true) { model.setText(id, $0) }
                         Button("Supprimer", systemImage: "trash") { endEditing(); model.deleteLine(id) }
                             .labelStyle(.iconOnly).buttonStyle(.borderless)

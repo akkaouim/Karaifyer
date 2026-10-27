@@ -499,6 +499,7 @@ final class EditorModel {
     func stampLine(_ id: UUID) { edit { doc.stamp(id, at: showTime); lyricsDirty = true } }
     func setText(_ id: UUID, _ text: String) { edit { doc.setText(id, text); lyricsDirty = true } }
     func setTime(_ id: UUID, _ s: String) { edit { doc.setTime(id, s); lyricsDirty = true } }
+    func shiftTime(_ id: UUID, by seconds: Double) { edit { doc.shift(id, by: seconds); lyricsDirty = true } }
     func addLine() { edit { selectedLine = doc.add(at: showTime); lyricsDirty = true } }
     func deleteLine(_ id: UUID) { edit { doc.delete(id); lyricsDirty = true } }
     func setCell(_ i: Int, _ text: String) {

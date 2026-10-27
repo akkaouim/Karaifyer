@@ -261,6 +261,8 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
 - **Lecture** (Espace quand aucun champ n'est en cours de saisie, ou ⌥ Espace) joue l'enregistrement. La ligne et la mesure en cours sont surlignées en jaune.
 - **Volume :** le curseur à droite de la barre de lecture règle le volume (mémorisé pour tous les morceaux).
 - **Aller à une ligne :** le bouton ⇥ avant le chronomètre place la lecture au début de la ligne.
+- **Décaler d'une demi-seconde :** ↺ à gauche du temps fait commencer la ligne 0,5 s plus tôt, ↻ à droite 0,5 s plus
+  tard (⌘Z annule).
 - **Clic :** la case « Clic » ajoute un clic sur chaque temps (plus aigu sur le temps 1), avec son propre volume ;
   le compteur « 1/4 » montre le temps en cours, et chaque case affiche en haut à droite son nombre de temps (« 4 t. », en orange quand il diffère de la mesure). Il suit la grille telle qu'elle est dans la fenêtre.
 - **Temps 1 décalé :** clic droit sur le numéro d'une mesure :

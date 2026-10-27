@@ -27,6 +27,8 @@ public struct LyricsDoc: Sendable {
         guard let t = LRC.parseTimecode(s) else { return }
         edit(id) { $0.time = t }
     }
+    /// ↺ / ↻ in Corriger: the line starts `seconds` earlier or later, never before 0.
+    public mutating func shift(_ id: UUID, by seconds: Double) { edit(id) { $0.time = Self.round($0.time + seconds) } }
     public mutating func delete(_ id: UUID) { lines.removeAll { $0.id == id } }
     @discardableResult public mutating func add(at t: Double) -> UUID {
         let l = LyricLine(time: Self.round(t), text: "")

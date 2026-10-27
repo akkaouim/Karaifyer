@@ -22,3 +22,21 @@ struct LRCTests {
         #expect(LRC.parseTimecode("abc") == nil)
     }
 }
+
+struct LyricsNudgeTests {
+    @Test func shiftsByHalfASecondNeverBelowZero() {
+        let a = LyricLine(time: 10.0, text: "a"), b = LyricLine(time: 0.3, text: "b")
+        var doc = LyricsDoc(lines: [a, b])
+        doc.shift(a.id, by: 0.5)
+        doc.shift(b.id, by: -0.5)
+        #expect(doc.lines.first { $0.id == a.id }?.time == 10.5)
+        #expect(doc.lines.first { $0.id == b.id }?.time == 0)
+    }
+
+    @Test func aShiftedLineKeepsTheOrderByTime() {
+        let a = LyricLine(time: 10.0, text: "a"), b = LyricLine(time: 10.3, text: "b")
+        var doc = LyricsDoc(lines: [a, b])
+        doc.shift(a.id, by: 0.5)
+        #expect(doc.lines.map(\.text) == ["b", "a"])
+    }
+}
