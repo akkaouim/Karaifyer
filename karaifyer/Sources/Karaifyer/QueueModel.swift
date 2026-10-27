@@ -453,6 +453,33 @@ final class QueueModel {
 
     func skipCurrent() { skipRequested = true }
 
+    /// « Ajouter un morceau… »: one song after the list's rows, for this session only (gone on quit or list load).
+    @discardableResult
+    func addManual(trackID: String, title: String, artist: String, proposer: String) -> TrackRow? {
+        guard !isRunning, let row = ManualTrack.row(trackID: trackID, title: title, artist: artist, proposer: proposer, after: rows)
+        else { return nil }
+        rows.append(row)
+        refreshDoneStates()
+        return row
+    }
+
+    /// « Retirer de la liste » for added songs: the row goes, a recorded file stays.
+    func removeManual(_ ids: Set<Int>) {
+        guard !isRunning else { return }
+        let keep = rows.filter { !(ids.contains($0.index) && $0.number.hasPrefix("M")) }
+        guard keep.count != rows.count else { return }
+        var newStates: [Int: RowState] = [:], m = 0, renumbered: [TrackRow] = []
+        for (i, r) in keep.enumerated() {
+            if let s = states[r.index] { newStates[i] = s }
+            if r.number.hasPrefix("M") { m += 1 }
+            renumbered.append(TrackRow(index: i, number: r.number.hasPrefix("M") ? "M\(m)" : r.number, title: r.title,
+                                       artist: r.artist, proposer: r.proposer, trackID: r.trackID, duplicateOf: r.duplicateOf))
+        }
+        rows = renumbered
+        states = newStates
+        selection = []
+    }
+
     func retryFailed() {
         for (i, s) in states where { if case .failed = s.status { return true }; return s.status == .skipped }() {
             states[i] = RowState()

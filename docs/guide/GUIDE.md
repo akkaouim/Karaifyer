@@ -87,6 +87,10 @@ Le journal du morceau indique le détecteur utilisé.
 ![Onglet Enregistrement](images/05-enregistrement.png)
 
 - **Load List…** charge la feuille exportée en CSV (colonnes titre, artiste, lien Spotify, proposé par).
+- **Ajouter un morceau…** ajoute une chanson sans passer par le CSV : coller le lien Spotify du morceau (le titre
+  et l'artiste s'affichent), et éventuellement « Proposé par ». Le morceau s'ajoute à la fin de la liste (M1, M2…)
+  pour cette session seulement : en quittant sans l'avoir enregistré, ou en chargeant une autre liste, il
+  disparaît. Clic droit → « Retirer de la liste » l'enlève (un fichier déjà enregistré est gardé).
 - **Start** lance l'enregistrement. Chaque ligne est jouée dans Spotify, enregistrée sans perte (FLAC, plus
   un MP3 en option) puis découpée exactement à la fin du titre. L'enregistrement capte uniquement Spotify,
   pas les autres sons du Mac.

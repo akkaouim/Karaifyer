@@ -16,6 +16,17 @@ public struct TrackRow: Identifiable, Hashable, Sendable {
     public let duplicateOf: Int?
 
     public var uri: String { "spotify:track:\(trackID)" }
+
+    public init(index: Int, number: String, title: String, artist: String, proposer: String, trackID: String,
+                duplicateOf: Int?) {
+        self.index = index
+        self.number = number
+        self.title = title
+        self.artist = artist
+        self.proposer = proposer
+        self.trackID = trackID
+        self.duplicateOf = duplicateOf
+    }
 }
 
 public struct TrackListParseResult: Sendable {

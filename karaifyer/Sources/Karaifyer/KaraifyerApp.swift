@@ -257,7 +257,13 @@ struct QueueView: View {
                     moveRows(model.rows.filter { ids.contains($0.index) })
                 }
                 .disabled(ids.isEmpty || model.isRunning || KaraokeModel.shared.locked)
+                if model.rows.contains(where: { ids.contains($0.index) && $0.number.hasPrefix("M") }) {
+                    Button("Retirer de la liste") { model.removeManual(ids) }
+                        .disabled(model.isRunning)
+                        .help("Seulement les morceaux ajoutés à la main ; un fichier déjà enregistré est gardé")
+                }
             }
+            .sheet(isPresented: Bindable(AddTrackUI.shared).shown) { AddTrackSheet(model: model) }
             Divider()
             footer
         }
@@ -272,6 +278,7 @@ struct QueueView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Button("Load List…", action: loadList).disabled(model.isRunning)
+                Button("Ajouter un morceau…") { AddTrackUI.shared.open() }.disabled(model.isRunning)
                 Text(model.listURL?.lastPathComponent ?? "No list loaded").foregroundStyle(.secondary)
                 Spacer()
                 if model.isRunning {
