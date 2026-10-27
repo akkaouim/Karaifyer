@@ -37,5 +37,8 @@ if [[ "${1:-}" == "--install" ]]; then
   mkdir -p ~/Applications
   rm -rf ~/Applications/Karaifyer.app
   cp -R "$APP" ~/Applications/
+  # A replaced bundle keeps macOS's cached "no icon" entry (blank Dock icon): register the new copy.
+  touch ~/Applications/Karaifyer.app
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f ~/Applications/Karaifyer.app
   echo "Installed ~/Applications/Karaifyer.app"
 fi
