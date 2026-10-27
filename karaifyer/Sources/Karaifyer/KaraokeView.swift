@@ -169,7 +169,7 @@ struct KaraokeView: View {
                 TableColumn("", value: \.reanalysisSort) { s in markCell(s) }.width(22)
                 TableColumn("") { s in quickActions(s) }.width(48)
                 TableColumn("id", value: \.id) { s in Text(s.id).monospacedDigit() }.width(36)
-                TableColumn("Titre", value: \.titre) { s in titleCell(s) }
+                TableColumn("Titre", value: \.titre) { s in titleCell(s) }.width(min: 100, ideal: 205)   // + Statut's 90
                 TableColumn("Artiste", value: \.artiste) { s in artistCell(s) }
                 TableColumn(model.retirerCollapsed ? "Retirer ▸" : "Retirer (joué en live) ▾", value: \.retirerHeader) { s in
                     retirerCell(s)
@@ -182,7 +182,7 @@ struct KaraokeView: View {
                 TableColumn("Tonalité", value: \.keyShort) { s in keyCell(s) }.width(Self.headerFit("Tonalité", content: 40))
                 TableColumn("Vérifié", value: \.verifiedSort) { s in verifiedCell(s) }.width(Self.headerFit("Vérifié", content: 30))
                 TableColumn("Corrigé", value: \.correctionsSort) { s in correctionsCell(s) }.width(Self.headerFit("Corrigé", content: 40))
-                TableColumn("Statut", value: \.statutRank) { s in statutCell(s) }.width(min: 220, ideal: 360)
+                TableColumn("Statut", value: \.statutRank) { s in statutCell(s) }.width(min: 165, ideal: 270)   // was 360
                 TableColumn("Étapes", value: \.stepsDone) { s in stepsCell(s) }.width(130)
             }
         }
