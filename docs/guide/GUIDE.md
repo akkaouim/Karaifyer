@@ -90,8 +90,34 @@ Le journal du morceau indique le détecteur utilisé.
 - **Start** lance l'enregistrement. Chaque ligne est jouée dans Spotify, enregistrée sans perte (FLAC, plus
   un MP3 en option) puis découpée exactement à la fin du titre. L'enregistrement capte uniquement Spotify,
   pas les autres sons du Mac.
-- **Reprise :** une ligne déjà enregistrée (son fichier existe) est sautée. Pour réenregistrer un titre,
-  supprime ses fichiers et relance **Start**.
+- **Dossier de sortie :** tous les enregistrements vont dans le dossier choisi (« Change… »), quelle que soit
+  la liste chargée ; aucun sous-dossier n'est créé par liste. Le journal `sysrec-log.txt` de ce dossier
+  s'allonge à chaque série, avec le nom de la liste.
+- **Noms des fichiers :** « Titre - Artiste.flac » (et .mp3), sans numéro. Si ce nom est déjà pris par un autre
+  morceau, un suffixe est ajouté : « Titre - Artiste (2).flac ». Aucun fichier n'est jamais écrasé.
+- **Reprise :** un morceau est reconnu par son identifiant Spotify, rangé dans le fichier (pas par son nom) :
+  une ligne dont le morceau est déjà dans le dossier est sautée, même s'il vient d'une autre liste. Le même
+  morceau présent deux fois dans une liste n'est enregistré qu'une fois. Pour réenregistrer un titre, supprime
+  ses fichiers et relance **Start**. Un petit fichier caché `.karaifyer-index.json` évite de relire tous les
+  fichiers à chaque fois ; le supprimer ne fait rien perdre.
+- **Change… (dossier de sortie) :** après le choix du dossier, trois boutons :
+  - « Déplacer les fichiers » : les enregistrements et le journal partent dans le nouveau dossier ;
+  - « Utiliser sans déplacer » ;
+  - « Annuler » (ou Échap) : rien ne change.
+  Le déplacement n'est pas proposé vers un dossier situé à l'intérieur du dossier actuel.
+- **Déplacer vers…** (clic droit sur des lignes) : leurs fichiers (FLAC, MP3) partent dans le dossier choisi,
+  sans jamais écraser un fichier existant (il est alors laissé en place et signalé). Le manifeste karaoké suit
+  (une copie est gardée) et rien n'est réanalysé. Les lignes déplacées apparaissent « à enregistrer » tant que
+  le dossier de sortie n'est pas celui-là.
+- **Mise à jour des noms (une fois) :** au premier lancement de cette version, une fenêtre liste les
+  changements avant de les faire :
+  - les fichiers « 05 - Titre - Artiste » perdent leur numéro ;
+  - les enregistrements des autres listes, rangés dans des sous-dossiers, rejoignent le dossier principal,
+    qui devient le dossier de sortie ;
+  - les sous-dossiers sans morceau nouveau (par exemple « old takes ») ne sont pas touchés ;
+  - un même morceau enregistré deux fois est gardé avec un suffixe « (2) », pour que tu le supprimes ;
+  - le manifeste karaoké suit et chaque changement est noté dans `sysrec-log.txt`.
+  « Plus tard » la reproposera au lancement suivant.
 - **Réglages Spotify conseillés :** qualité Lossless (ou Très élevée), normalisation du volume désactivée,
   fondu enchaîné à 0 s.
 
@@ -105,6 +131,11 @@ ligne est marquée ✗ « capture défectueuse » et aucun fichier abîmé n'est
 ## 4. L'onglet Karaoké
 
 ![Onglet Karaoké](images/01-karaoke.png)
+
+**Enregistrements introuvables :** si des lignes du manifeste pointent vers un fichier qui n'existe plus
+(déplacé dans le Finder, disque débranché), un bandeau orange les signale. « Retrouver… » cherche dans le
+dossier choisi : par identifiant Spotify, sinon par nom « Titre - Artiste ». La liste trouvée est montrée avant
+la mise à jour du manifeste (une copie est gardée).
 
 **Barre d'outils**
 - **Ajouter des morceaux…** accepte n'importe quels fichiers audio (FLAC, WAV, MP3, M4A, AIFF). Le titre et
