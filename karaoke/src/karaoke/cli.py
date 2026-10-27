@@ -15,7 +15,7 @@ from karaoke.steps.set_ableton import remove_stale_sets
 from karaoke.tools import TOOLS_DIR, ToolError, run_tool
 from karaoke.steps import STEPS
 from karaoke.steps.ingest import adopt_legacy_marker
-from karaoke.verification import WATCHED, outputs_changed
+from karaoke.verification import WATCHED, forget, outputs_changed, remember, unchanged_since_verified
 from karaoke.workspace import Workspace, slug
 
 app = typer.Typer(help="Karaoké live : manifeste → dossiers prêts à jouer.", no_args_is_help=True)
@@ -82,8 +82,12 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
         res = run_song(ws, STEPS, force=_csv_set(forcer) or set(), only={etape} if etape else None,
                        on_event=_emit if json_out else None)
         if s.verifie and outputs_changed(before, res):
-            set_field(cfg.manifest, s.id, "verifie", "")
-            ws.log("« vérifié » retiré : paroles, accords, mix ou vidéo ont changé")
+            if unchanged_since_verified(ws, STEPS):
+                ws.log("« vérifié » gardé : l'analyse applique ce qui a été vérifié")
+            else:
+                set_field(cfg.manifest, s.id, "verifie", "")
+                forget(ws)
+                ws.log("« vérifié » retiré : paroles, accords, mix ou vidéo ont changé depuis")
         rep = song_report(s, res)
         ws.out.mkdir(parents=True, exist_ok=True)
         (ws.out / "rapport.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -125,6 +129,9 @@ def modifier(id: str = typer.Option(..., help="Id du morceau"), champ: str = typ
     cfg = _workspace()
     try:
         s = set_field(cfg.manifest, id, champ, valeur)
+        if champ == "verifie":       # what « Vérifié » covers, so a re-analysis applying it keeps it
+            ws = Workspace(cfg, s)
+            remember(ws, STEPS) if valeur else forget(ws)
         if champ in ("titre", "artiste"):
             from karaoke.workspace import renommer_dossier
             try:

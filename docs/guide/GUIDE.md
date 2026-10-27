@@ -160,9 +160,11 @@ montre que les morceaux corrigés.
 
 **Colonnes BPM, Tonalité, Vérifié :** le tempo habituel du morceau et sa tonalité détectée (« C#m », « Eb »),
 une fois analysé. Le bouton « Vérifié » marque un morceau comme contrôlé (la date est gardée dans le manifeste) ; le
-statut affiche alors « vérifié » en vert. Un nouveau clic le retire. Une analyse qui change les paroles, les
-accords, le mix ou la vidéo le retire aussi, pour que « vérifié » corresponde toujours à ce qui est là ; une
-analyse qui ne refait rien le garde.
+statut affiche alors « vérifié » en vert. Un nouveau clic le retire. « Vérifié » couvre ce qui
+existait au moment du clic, corrections enregistrées comprises : on peut donc corriger, enregistrer, cocher
+« Vérifié » puis lancer « Analyser », la vérification est gardée. Elle est retirée seulement si quelque chose a
+changé après le clic (nouvelle correction, titre modifié, réglage ou gabarit changé, mise à jour de l'app qui refait
+la vidéo…) et que l'analyse en change les paroles, les accords, le mix ou la vidéo.
 
 **Barre d'outils**
 - **Ajouter des morceaux…** accepte n'importe quels fichiers audio (FLAC, WAV, MP3, M4A, AIFF). Le titre et

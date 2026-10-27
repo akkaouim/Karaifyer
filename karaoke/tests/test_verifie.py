@@ -67,3 +67,45 @@ def test_etat_reports_manual_corrections_with_dates(cfg, tmp_path):
     c = song_state(cfg, s, STEPS)["corrections"]
     assert c["paroles"] and c["mesures"] and c["accords"] is None
     assert len(c["paroles"]) == 10 and c["paroles"][4] == "-"            # YYYY-MM-DD
+
+
+def _traiter_with(cfg, monkeypatch, tmp_path, video_hash):
+    from typer.testing import CliRunner
+    from karaoke import cli
+    monkeypatch.setenv("KARAOKE_HOME", str(cfg.home))
+    monkeypatch.setattr(cli, "run_song", lambda ws, steps, **kw:
+                        {"video": {"status": "fait", "output_hash": video_hash, "result": {}, "error": "", "seconds": 0}})
+    return CliRunner().invoke(cli.app, ["traiter"])
+
+
+def test_verified_after_saving_corrections_survives_the_analysis_that_applies_them(cfg, monkeypatch, tmp_path):
+    from typer.testing import CliRunner
+    from karaoke import cli
+    from karaoke.workspace import Workspace
+    a = tmp_path / "a.flac"; a.write_bytes(b"x")
+    write_manifest(cfg.manifest, [song(id="050", fichier=a)])
+    Workspace(cfg, read_manifest(cfg.manifest)[0]).write_marker("video", {"key": "k", "result": {}, "output_hash": "OLD"})
+    cfg.paroles.mkdir(parents=True, exist_ok=True)
+    (cfg.paroles / "050.lrc").write_text("[00:01.00]corrigé")                  # saved in Corriger
+    monkeypatch.setenv("KARAOKE_HOME", str(cfg.home))
+    r = CliRunner().invoke(cli.app, ["modifier", "--id", "050", "--champ", "verifie", "--valeur", "2026-10-28"])
+    assert r.exit_code == 0, r.output                                           # then « Vérifié »
+    r = _traiter_with(cfg, monkeypatch, tmp_path, "NEW")                         # the analysis applies the corrections
+    assert r.exit_code == 0, r.output
+    assert read_manifest(cfg.manifest)[0].verifie == "2026-10-28"
+
+
+def test_a_change_made_after_verifying_still_clears_it(cfg, monkeypatch, tmp_path):
+    from typer.testing import CliRunner
+    from karaoke import cli
+    from karaoke.workspace import Workspace
+    a = tmp_path / "a.flac"; a.write_bytes(b"x")
+    write_manifest(cfg.manifest, [song(id="050", fichier=a)])
+    Workspace(cfg, read_manifest(cfg.manifest)[0]).write_marker("video", {"key": "k", "result": {}, "output_hash": "OLD"})
+    monkeypatch.setenv("KARAOKE_HOME", str(cfg.home))
+    CliRunner().invoke(cli.app, ["modifier", "--id", "050", "--champ", "verifie", "--valeur", "2026-10-28"])
+    cfg.paroles.mkdir(parents=True, exist_ok=True)
+    (cfg.paroles / "050.lrc").write_text("[00:01.00]corrigé après")              # edited after « Vérifié »
+    r = _traiter_with(cfg, monkeypatch, tmp_path, "NEW")
+    assert r.exit_code == 0, r.output
+    assert read_manifest(cfg.manifest)[0].verifie == ""
