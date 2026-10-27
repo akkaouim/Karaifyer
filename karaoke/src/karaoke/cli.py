@@ -199,6 +199,32 @@ def retirer(ids: str = typer.Option(..., help="Identifiants à retirer, séparé
 
 
 @app.command()
+def relocaliser(as_json: bool = typer.Option(False, "--json")) -> None:
+    """Enregistrements déplacés : lit {ancien chemin: nouveau chemin} (JSON) sur l'entrée standard ; le manifeste suit."""
+    import sys
+    from karaoke import relocaliser as RL
+    cfg = _workspace()
+    out = RL.relocaliser(cfg, json.load(sys.stdin))
+    typer.echo(json.dumps(out, ensure_ascii=False) if as_json
+               else f"{len(out['modifies'])} ligne(s) mise(s) à jour" + (f" — sauvegarde {out['sauvegarde']}" if out["sauvegarde"] else ""))
+
+
+@app.command()
+def retrouver(dossier: Path = typer.Option(..., help="Dossier où chercher les enregistrements introuvables"),
+              plan: bool = typer.Option(False, "--plan", help="Seulement lister ce qui serait retrouvé"),
+              as_json: bool = typer.Option(False, "--json")) -> None:
+    """Retrouve les enregistrements introuvables du manifeste (par identifiant Spotify, sinon par nom)."""
+    from karaoke import relocaliser as RL
+    cfg = _workspace()
+    found = RL.retrouver(cfg, dossier, appliquer=not plan)
+    if as_json:
+        typer.echo(json.dumps(found, ensure_ascii=False))
+    else:
+        for f in found:
+            typer.echo(f"{f['id']} {f['titre']} → {f['nouveau']} ({f['par']})")
+
+
+@app.command()
 def sets(partie: str = typer.Option(None, help="Ne générer que cette partie")) -> None:
     """Génère un set Ableton (.als) par morceau, rangé par partie de soirée, à partir du gabarit."""
     cfg = _workspace()
