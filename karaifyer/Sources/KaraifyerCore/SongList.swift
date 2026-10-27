@@ -8,6 +8,7 @@ public enum SongList {
         guard !q.isEmpty else { return songs }
         let fold = { (s: String) in s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) }
         let fq = fold(q)
+        if fq == "corrige" { return songs.filter { $0.musicEdited || $0.lyricsEdited } }      // « corrigé »
         return songs.filter { s in [s.id, s.titre, s.artiste, s.partie].contains { fold($0).contains(fq) } }
     }
 }
@@ -26,6 +27,24 @@ extension SongState {
     public var bpmRounded: Int? { bpm.map { Int($0.rounded()) } }
     public var bpmSort: Double { bpm ?? -1 }        // not analysed sorts first
     public var keyShort: String { KeyName.short(key) }
+
+    /// ♬: chords or bar fixes edited (both change the chords in the video); 🎤: lyrics edited.
+    public var musicEdited: Bool { corrections?.accords != nil || corrections?.mesures != nil }
+    public var lyricsEdited: Bool { corrections?.paroles != nil }
+    public var correctionsSort: Int { (musicEdited ? 1 : 0) + (lyricsEdited ? 1 : 0) }
+    public var correctionsHelp: String {
+        let parts = [("Paroles", corrections?.paroles), ("accords", corrections?.accords), ("mesures", corrections?.mesures)]
+            .compactMap { name, day in day.map { "\(name) corrigées le \($0)" } }
+        guard !parts.isEmpty else { return "" }
+        let text = parts.joined(separator: " · ")
+        return text.prefix(1).uppercased() + text.dropFirst()
+    }
+
+    /// Analysed before, but a step is out of date (saved corrections, a title edit, a setting): « Analyser » applies it.
+    public var needsReanalysis: Bool {
+        steps.contains { $0.status != "absent" } && steps.contains { $0.status == "perime" }
+    }
+    public var reanalysisSort: Int { needsReanalysis ? 1 : 0 }
 }
 
 /// « C# minor » → « C#m », « Eb major » → « Eb », for the table.

@@ -1,6 +1,8 @@
 """Per-song state for Karaifyer: manifest fields, step up-to-dateness, last run's failures, paths."""
 from __future__ import annotations
 import json
+from pathlib import Path
+from datetime import datetime
 
 from karaoke.steps.ingest import adopt_legacy_marker
 from karaoke.config import Config
@@ -51,6 +53,7 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
             "retirer": list(s.retirer), "langue": s.langue, "partie": s.partie,
             "decompte_mesures": s.decompte_mesures, "statut": rep.get("statut", "—"), "alertes": alerts,
             "verifie": s.verifie or None,
+            "corrections": _corrections(cfg, s.id),
             "steps": out_steps,
             "paths": {"dossier": str(ws.out), "video": str(ws.out / "paroles.mp4"),
                       "set": str(cfg.sets / slug(s.partie or "sans-partie") / f"{ws.out.name}.als"),
@@ -61,6 +64,15 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
                       "mesures_corrige": str(cfg.mesures / f"{s.id}.json")},
             "pad_s": pkg.get("pad_s"), "bpm": pkg.get("bpm"), "beats_per_bar": ch.get("beats_per_bar"), "key": ch.get("key"),
             "bars": ch.get("bars", []), "grid": grid, **_open_charts(cfg, s.id)}
+
+
+def _corrections(cfg: Config, sid: str) -> dict:
+    """Michel's own edits (their last change, YYYY-MM-DD): lyrics (timed or plain text), chord chart, bar fixes."""
+    def day(*paths: Path) -> str | None:
+        times = [p.stat().st_mtime for p in paths if p.exists()]
+        return datetime.fromtimestamp(max(times)).strftime("%Y-%m-%d") if times else None
+    return {"paroles": day(cfg.paroles / f"{sid}.lrc", cfg.paroles / f"{sid}.txt"),
+            "accords": day(cfg.accords / f"{sid}.txt"), "mesures": day(cfg.mesures / f"{sid}.json")}
 
 
 def _open_charts(cfg: Config, sid: str) -> dict:

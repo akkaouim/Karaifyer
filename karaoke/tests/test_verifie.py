@@ -52,3 +52,18 @@ def test_traiter_clears_verifie_when_outputs_change(cfg, monkeypatch, tmp_path):
     assert r.exit_code == 0, r.output
     by = {s.id: s for s in read_manifest(cfg.manifest)}
     assert by["050"].verifie == "" and by["051"].verifie == "2026-10-27"
+
+
+def test_etat_reports_manual_corrections_with_dates(cfg, tmp_path):
+    from karaoke.state import song_state
+    from karaoke.steps import STEPS
+    s = song(id="050", fichier=tmp_path / "a.flac")
+    write_manifest(cfg.manifest, [s])
+    for d in (cfg.paroles, cfg.accords, cfg.mesures):
+        d.mkdir(parents=True, exist_ok=True)
+    assert song_state(cfg, s, STEPS)["corrections"] == {"paroles": None, "accords": None, "mesures": None}
+    (cfg.paroles / "050.lrc").write_text("[00:01.00]x")
+    (cfg.mesures / "050.json").write_text("{}")
+    c = song_state(cfg, s, STEPS)["corrections"]
+    assert c["paroles"] and c["mesures"] and c["accords"] is None
+    assert len(c["paroles"]) == 10 and c["paroles"][4] == "-"            # YYYY-MM-DD

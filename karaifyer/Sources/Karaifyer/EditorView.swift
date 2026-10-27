@@ -20,7 +20,7 @@ struct EditorView: View {
                     .labelStyle(.iconOnly).disabled(!model.canUndo).help("Annuler la modification (⌘Z)")
                 Button("Rétablir", systemImage: "arrow.uturn.forward") { endEditing(); model.redo() }
                     .labelStyle(.iconOnly).disabled(!model.canRedo).help("Rétablir (⇧⌘Z)")
-                Text("Enregistrer réanalyse le morceau (vidéo, set, iReal).").font(.caption).foregroundStyle(.secondary)
+                Text("Enregistrer garde les corrections ; « Analyser » (onglet Karaoké) refait vidéo, set et iReal.").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Annuler") { endEditing(); closeAsking() }
                 Button("Enregistrer") {

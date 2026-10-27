@@ -57,6 +57,11 @@ public struct SongState: Codable, Equatable, Identifiable, Sendable {
     public var id, titre, artiste, album, fichier, langue, partie, statut: String
     public var alertes: [String]?         // why « alerte » / « echec » (rapport.json)
     public var verifie: String?           // date Michel marked it checked (manifest); cleared when a re-analysis changes it
+    public var corrections: Corrections?  // Michel's own edits and their last change (nil from an older pipeline)
+
+    public struct Corrections: Codable, Equatable, Sendable {
+        public var paroles, accords, mesures: String?     // YYYY-MM-DD, nil when not corrected
+    }
     public var retirer: [String]
     public var decompteMesures: Int
     public var steps: [StepState]

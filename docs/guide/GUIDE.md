@@ -149,6 +149,15 @@ bleu propose « Renommer… », une fois. Fermez d'abord les sets ouverts dans L
 secondes par morceau), rien d'autre n'est réanalysé, les anciens sets vont à la Corbeille et une copie du manifeste
 est gardée.
 
+**Actions rapides :** sur un morceau analysé, ✏️ ouvre la fenêtre Corriger et ▶️ le joue dans le Lecteur.
+
+**Première colonne :** pendant une analyse, l'avancement de chaque morceau ; en dehors, ⟳ orange signale un
+morceau « à réanalyser » (corrections enregistrées, titre modifié, réglage changé…). La colonne se trie.
+
+**Colonne Corrigé :** ♬ quand les accords ou les mesures ont été corrigés à la main (les deux changent les accords
+de la vidéo), 🎤 quand les paroles l'ont été. Survoler donne les dates. Taper « corrigé » dans la recherche ne
+montre que les morceaux corrigés.
+
 **Colonnes BPM, Tonalité, Vérifié :** le tempo habituel du morceau et sa tonalité détectée (« C#m », « Eb »),
 une fois analysé. Le bouton « Vérifié » marque un morceau comme contrôlé (la date est gardée dans le manifeste) ; le
 statut affiche alors « vérifié » en vert. Un nouveau clic le retire. Une analyse qui change les paroles, les
@@ -308,8 +317,9 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
   - `N.C.` : pas d'accord ;
   - accords reconnus : `C`, `C#m`, `Bb7`, `Cmaj7`, `Dm7`, `F#m7b5`, `Gsus4`, `Edim`, `Caug`, `A6`, `D9`,
     `Cadd9`, avec une basse : `C/E`, `Am/G`. Une case invalide est entourée de rouge.
-- **Enregistrer** réanalyse le morceau : vidéo, set Ableton et page iReal sont refaits. Seul ce que tu as
-  modifié devient une correction (paroles et/ou accords).
+- **Enregistrer** garde les corrections sans relancer l'analyse : seul ce que tu as modifié devient une
+  correction (paroles et/ou accords). Le morceau est marqué « à réanalyser » (⟳ orange dans la première colonne
+  de l'onglet Karaoké) ; « Analyser » refait alors la vidéo, le set Ableton et la page iReal, quand tu veux.
 - **Les corrections ne sont jamais écrasées** par une nouvelle analyse. Pour revenir à la détection
   automatique, supprime le fichier `paroles/<id>.lrc` ou `accords/<id>.txt` dans le dossier karaoké, puis
   refais le morceau.

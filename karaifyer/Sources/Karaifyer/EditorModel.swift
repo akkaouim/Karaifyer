@@ -566,6 +566,7 @@ final class EditorModel {
         lyricsDirty = false
         chordsDirty = false
         gridDirty = false
-        karaoke.analyse(ids: [song.id])
+        // not re-analysed right away: the Karaoké tab marks the song « à réanalyser » until « Analyser »
+        Task { await karaoke.refresh() }
     }
 }

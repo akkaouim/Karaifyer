@@ -159,52 +159,23 @@ struct KaraokeView: View {
 
     var table: some View {
         Table(model.displayedSongs, selection: $model.selection, sortOrder: $model.sortOrder) {
-            TableColumn("") { s in MarkView(mark: model.marks[s.id], paused: model.runState == .paused) }.width(22)
-            TableColumn("id", value: \.id) { s in Text(s.id).monospacedDigit() }.width(36)
-            TableColumn("Titre", value: \.titre) { s in CommitField(value: s.titre, enabled: !model.locked) { commit(s, "titre", $0) } }
-            TableColumn("Artiste", value: \.artiste) { s in CommitField(value: s.artiste, enabled: !model.locked) { commit(s, "artiste", $0) } }
-            TableColumn("Retirer (joué en live)") { s in
-                HStack(spacing: 6) {
-                    ForEach(RETIRER, id: \.0) { stem, label in
-                        Toggle(label, isOn: Binding(get: { current(s).retirer.contains(stem) }, set: { on in
-                            commit(s, "retirer", Retirer.toggled(current(s).retirer, stem, on: on, order: RETIRER.map(\.0)))
-                        }))
-                        .toggleStyle(.checkbox).font(.caption)
-                        .disabled(model.locked)
-                    }
-                }
-            }.width(min: 300)
-            TableColumn("Langue", value: \.langue) { s in
-                Picker("", selection: Binding(get: { s.langue }, set: { commit(s, "langue", $0) })) {
-                    ForEach(Array(Set(LANGUES + [s.langue])).sorted(), id: \.self) { Text($0) }
-                }
-                .labelsHidden()
-                .disabled(model.locked)
-            }.width(64)
             Group {
-            TableColumn("BPM", value: \.bpmSort) { s in bpmCell(s) }.width(44)
-            TableColumn("Tonalité", value: \.keyShort) { s in keyCell(s) }.width(60)
-            TableColumn("Vérifié", value: \.verifiedSort) { s in verifiedCell(s) }.width(52)
-            TableColumn("Statut", value: \.statutRank) { s in
-                HStack(spacing: 6) {
-                    statutText(s)
-                    Text((s.alertes ?? []).joined(separator: " · ")).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.tail)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                .help(Help.statut(s.statut, alertes: s.alertes ?? []))
-            }.width(min: 220, ideal: 360)
+                TableColumn("", value: \.reanalysisSort) { s in markCell(s) }.width(22)
+                TableColumn("") { s in quickActions(s) }.width(48)
+                TableColumn("id", value: \.id) { s in Text(s.id).monospacedDigit() }.width(36)
+                TableColumn("Titre", value: \.titre) { s in titleCell(s) }
+                TableColumn("Artiste", value: \.artiste) { s in artistCell(s) }
+                TableColumn("Retirer (joué en live)") { s in retirerCell(s) }.width(min: 300)
+                TableColumn("Langue", value: \.langue) { s in langueCell(s) }.width(64)
             }
-            TableColumn("Étapes", value: \.stepsDone) { s in
-                HStack(spacing: 3) {
-                    ForEach(s.steps, id: \.name) { st in
-                        Circle()
-                            .fill(color(step: st, running: model.currentID == s.id && model.currentStep == st.name))
-                            .frame(width: 9, height: 9)
-                            .help(Help.step(st))
-                    }
-                }
-            }.width(130)
+            Group {
+                TableColumn("BPM", value: \.bpmSort) { s in bpmCell(s) }.width(44)
+                TableColumn("Tonalité", value: \.keyShort) { s in keyCell(s) }.width(60)
+                TableColumn("Vérifié", value: \.verifiedSort) { s in verifiedCell(s) }.width(52)
+                TableColumn("Corrigé", value: \.correctionsSort) { s in correctionsCell(s) }.width(56)
+                TableColumn("Statut", value: \.statutRank) { s in statutCell(s) }.width(min: 220, ideal: 360)
+                TableColumn("Étapes", value: \.stepsDone) { s in stepsCell(s) }.width(130)
+            }
         }
         .contextMenu(forSelectionType: String.self) { ids in
             if let id = ids.first, let s = model.songs.first(where: { $0.id == id }) {
@@ -372,6 +343,86 @@ struct KaraokeView: View {
     /// The row as it is now (a quick second click must not build on a stale snapshot).
     func current(_ s: SongState) -> SongState { model.songs.first { $0.id == s.id } ?? s }
 
+    func markCell(_ s: SongState) -> some View {
+        MarkView(mark: model.marks[s.id], paused: model.runState == .paused, reanalyse: s.needsReanalysis)
+    }
+
+    func titleCell(_ s: SongState) -> some View {
+        CommitField(value: s.titre, enabled: !model.locked) { commit(s, "titre", $0) }
+    }
+
+    func artistCell(_ s: SongState) -> some View {
+        CommitField(value: s.artiste, enabled: !model.locked) { commit(s, "artiste", $0) }
+    }
+
+    func retirerCell(_ s: SongState) -> some View {
+        HStack(spacing: 6) {
+            ForEach(RETIRER, id: \.0) { stem, label in
+                Toggle(label, isOn: Binding(get: { current(s).retirer.contains(stem) }, set: { on in
+                    commit(s, "retirer", Retirer.toggled(current(s).retirer, stem, on: on, order: RETIRER.map(\.0)))
+                }))
+                .toggleStyle(.checkbox).font(.caption)
+                .disabled(model.locked)
+            }
+        }
+    }
+
+    func langueCell(_ s: SongState) -> some View {
+        Picker("", selection: Binding(get: { s.langue }, set: { commit(s, "langue", $0) })) {
+            ForEach(Array(Set(LANGUES + [s.langue])).sorted(), id: \.self) { Text($0) }
+        }
+        .labelsHidden()
+        .disabled(model.locked)
+    }
+
+    func statutCell(_ s: SongState) -> some View {
+        HStack(spacing: 6) {
+            statutText(s)
+            Text((s.alertes ?? []).joined(separator: " · ")).foregroundStyle(.secondary)
+                .lineLimit(1).truncationMode(.tail)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+        .help(Help.statut(s.statut, alertes: s.alertes ?? []))
+    }
+
+    func stepsCell(_ s: SongState) -> some View {
+        HStack(spacing: 3) {
+            ForEach(s.steps, id: \.name) { st in
+                Circle()
+                    .fill(color(step: st, running: model.currentID == s.id && model.currentStep == st.name))
+                    .frame(width: 9, height: 9)
+                    .help(Help.step(st))
+            }
+        }
+    }
+
+    /// ✏️ opens Corriger, ▶️ loads the song in the Lecteur and plays it — on analysed songs only.
+    @ViewBuilder func quickActions(_ s: SongState) -> some View {
+        if s.stepsDone > 0 {
+            HStack(spacing: 2) {
+                Button("✏️") { openWindow(id: "editor", value: s.id) }
+                    .help("Corriger paroles et accords")
+                    .disabled(model.locked)
+                Button("▶️") {
+                    PlayerModel.shared.openInPlayer(s.id)
+                    if !PlayerModel.shared.isPlaying { PlayerModel.shared.togglePlay() }
+                }
+                .help("Écouter dans le Lecteur")
+                .disabled(!PlayerModel.shared.missing(for: s).isEmpty)
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    func correctionsCell(_ s: SongState) -> some View {
+        HStack(spacing: 2) {
+            if s.musicEdited { Text("♬") }
+            if s.lyricsEdited { Text("🎤") }
+        }
+        .frame(maxWidth: .infinity)
+        .help(s.correctionsHelp)
+    }
+
     func statutText(_ s: SongState) -> some View {
         Text(s.isVerified ? "vérifié" : statutLabel(s.statut)).bold()
             .foregroundStyle(s.isVerified ? Color.green : color(statut: s.statut))
@@ -496,6 +547,7 @@ struct TerminalView: NSViewRepresentable {
 struct MarkView: View {
     let mark: RunMark?
     let paused: Bool
+    var reanalyse = false
     var body: some View {
         switch mark {
         case .running?:
@@ -510,7 +562,13 @@ struct MarkView: View {
                 .foregroundStyle(color(statut: statut)).help("Terminé dans cette analyse : \(statut)")
         case .failed?: Image(systemName: "xmark.circle.fill").foregroundStyle(.red).help("Arrêté sur une erreur (voir le terminal)")
         case .stopped?: Image(systemName: "stop.circle.fill").foregroundStyle(.orange).help("Arrêté pendant l'analyse : sera repris à la prochaine")
-        case nil: Color.clear
+        case nil:
+            if reanalyse {
+                Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(.orange)
+                    .help("À réanalyser : des corrections ou des réglages ont changé — « Analyser » les applique")
+            } else {
+                Color.clear
+            }
         }
     }
 }
