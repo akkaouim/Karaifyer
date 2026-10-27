@@ -228,6 +228,26 @@ def retrouver(dossier: Path = typer.Option(..., help="Dossier où chercher les e
             typer.echo(f"{f['id']} {f['titre']} → {f['nouveau']} ({f['par']})")
 
 
+@app.command(name="migrer-sorties")
+def migrer_sorties_cmd(plan: bool = typer.Option(False, "--plan", help="Seulement lister les renommages"),
+                       as_json: bool = typer.Option(False, "--json")) -> None:
+    """Renomme une fois les dossiers de sortie et les sets en « Titre - Artiste » (sets refaits, rien d'autre)."""
+    from karaoke import migrer_sorties as M
+    cfg = _workspace()
+    try:
+        out = M.plan(cfg) if plan else M.appliquer(cfg)
+    except ValueError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1)
+    if as_json:
+        typer.echo(json.dumps(out, ensure_ascii=False))
+    elif plan:
+        for it in out:
+            typer.echo(f"{it['id']} {it['ancien']} → {it['nouveau']}")
+    else:
+        typer.echo(f"{out['renommes']} dossier(s) renommé(s), {out['sets']} set(s) refait(s)")
+
+
 @app.command()
 def sets(partie: str = typer.Option(None, help="Ne générer que cette partie")) -> None:
     """Génère un set Ableton (.als) par morceau, rangé par partie de soirée, à partir du gabarit."""
