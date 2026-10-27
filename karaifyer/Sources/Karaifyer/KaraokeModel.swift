@@ -201,6 +201,32 @@ final class KaraokeModel: RunDriver {
         await refresh()
     }
 
+    /// Output folders still named « 005_artiste_titre »: the one-time rename to « Titre - Artiste » is offered.
+    private(set) var outputRenames: [[String: String]] = []
+    @ObservationIgnored private var outputRenamesChecked = false
+
+    func checkOutputRenames() async {
+        guard !outputRenamesChecked, !locked,
+              songs.contains(where: { ($0.paths.dossier as NSString).lastPathComponent.range(of: #"^\d{3}_"#, options: .regularExpression) != nil })
+        else { return }
+        outputRenamesChecked = true
+        let r = await pipeline.run(["migrer-sorties", "--plan", "--json"])
+        outputRenames = r.code == 0 ? (try? JSONSerialization.jsonObject(with: Data(r.out.utf8)) as? [[String: String]]) ?? [] : []
+    }
+
+    func renameOutputs() async {
+        guard !locked else { return }
+        appendLog("Renommage des dossiers de sortie (\(outputRenames.count))…")
+        let r = await pipeline.run(["migrer-sorties"])
+        appendLog(r.code == 0 ? r.out.trimmingCharacters(in: .whitespacesAndNewlines)
+                              : "Renommage impossible : " + (r.err.split(separator: "\n").last.map(String.init) ?? "échec"))
+        if r.code != 0 { KaraokeUI.shared.alert = "Renommage impossible : " + (r.err.split(separator: "\n").last.map(String.init) ?? "échec") }
+        outputRenamesChecked = false
+        outputRenames = []
+        await refresh()
+        await checkOutputRenames()           // whatever is left (an interrupted run) is offered again
+    }
+
     /// Songs whose recording is no longer where the manifest says.
     var missingRecordings: [SongState] { songs.filter { !FileManager.default.fileExists(atPath: $0.fichier) } }
 

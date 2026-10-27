@@ -137,6 +137,14 @@ ligne est marquée ✗ « capture défectueuse » et aucun fichier abîmé n'est
 dossier choisi : par identifiant Spotify, sinon par nom « Titre - Artiste ». La liste trouvée est montrée avant
 la mise à jour du manifeste (une copie est gardée).
 
+**Noms des dossiers de sortie :** chaque morceau a son dossier `sortie/Titre - Artiste/` et son set
+`sets/<Set List>/Titre - Artiste.als` (« (2) » si un autre morceau porte déjà ce nom). Changer le titre ou l'artiste
+renomme le dossier et le set. Les fichiers internes gardent le numéro du morceau (`travail/005/`,
+`paroles/005.lrc`, `accords/005.txt`, `mesures/005.json`). Les anciens dossiers « 005_artiste_titre » : un bandeau
+bleu propose « Renommer… », une fois. Fermez d'abord les sets ouverts dans Live ; les sets sont refaits (quelques
+secondes par morceau), rien d'autre n'est réanalysé, les anciens sets vont à la Corbeille et une copie du manifeste
+est gardée.
+
 **Barre d'outils**
 - **Ajouter des morceaux…** accepte n'importe quels fichiers audio (FLAC, WAV, MP3, M4A, AIFF). Le titre et
   l'artiste sont lus dans les tags, ou à défaut dans le nom du fichier. Un fichier déjà présent est ignoré.

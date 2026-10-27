@@ -16,6 +16,7 @@ let LANGUES = ["fr", "en", "es", "it", "de", "pt"]
     var removeAnalyse = true
     var removeCorrections = true
     var removeAudio = false
+    var outputRenameShown = false
 }
 
 struct KaraokeView: View {
@@ -27,6 +28,16 @@ struct KaraokeView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let b = model.banner { bannerView(b) }
+            if !model.outputRenames.isEmpty {
+                HStack {
+                    Image(systemName: "folder.badge.gearshape").foregroundStyle(.blue)
+                    Text("Les dossiers de sortie peuvent prendre le nom « Titre - Artiste » (\(model.outputRenames.count) dossiers).")
+                    Spacer()
+                    Button("Renommer…") { ui.outputRenameShown = true }.disabled(model.locked)
+                }
+                .padding(8)
+                .background(Color.blue.opacity(0.08))
+            }
             if !model.locked, case let missing = model.missingRecordings, !missing.isEmpty {
                 HStack {
                     Image(systemName: "questionmark.folder").foregroundStyle(.orange)
@@ -48,7 +59,8 @@ struct KaraokeView: View {
             table
             footer
         }
-        .task { await model.refresh() }
+        .task { await model.refresh(); await model.checkOutputRenames() }
+        .sheet(isPresented: Bindable(ui).outputRenameShown) { outputRenameSheet }
         .sheet(isPresented: Binding(get: { ui.removal != nil }, set: { if !$0 { ui.removal = nil } })) {
             if let items = ui.removal { removalSheet(items) }
         }
@@ -217,6 +229,39 @@ struct KaraokeView: View {
                 .disabled(model.locked)
             }
         }
+    }
+
+    var outputRenameSheet: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Renommer les dossiers de sortie").font(.headline)
+            Text("Les dossiers de sortie et les sets Ableton prennent le nom « Titre - Artiste ». Les sets sont refaits "
+                 + "(quelques secondes par morceau) ; rien d'autre n'est réanalysé. Les anciens sets vont à la Corbeille. "
+                 + "Une copie du manifeste est gardée.")
+                .fixedSize(horizontal: false, vertical: true)
+            Label("Fermez d'abord les sets ouverts dans Ableton Live.", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(model.outputRenames, id: \.self) { r in
+                        Text("\(r["ancien"] ?? "")  →  \(r["nouveau"] ?? "")").font(.caption).lineLimit(1).truncationMode(.middle)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: 240)
+            HStack {
+                Spacer()
+                Button("Plus tard", role: .cancel) { ui.outputRenameShown = false }.keyboardShortcut(.cancelAction)
+                Button("Renommer") {
+                    ui.outputRenameShown = false
+                    Task { await model.renameOutputs() }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(model.locked)
+            }
+        }
+        .padding(20)
+        .frame(width: 640)
     }
 
     func findRecordings() {
