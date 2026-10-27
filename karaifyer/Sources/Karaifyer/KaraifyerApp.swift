@@ -97,6 +97,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try? (line + "\n").write(to: out, atomically: true, encoding: .utf8)
                 exit(0)
             }
+            if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "--plan-recorder-migration") {
+                // Diagnostic, read-only: --plan-recorder-migration <out-file> [<output folder> <list name>] prints the
+                // naming migration plan (default: the saved settings), then quits (no recorder model, nothing written).
+                let args = ProcessInfo.processInfo.arguments
+                let out = URL(fileURLWithPath: args.indices.contains(i + 1) ? args[i + 1] : "/dev/stdout")
+                let root = args.indices.contains(i + 2) ? URL(fileURLWithPath: args[i + 2])
+                    : UserDefaults.standard.url(forKey: "outputRoot") ?? QueueModel.defaultOutputRoot
+                let list = args.indices.contains(i + 3) ? args[i + 3]
+                    : UserDefaults.standard.url(forKey: "lastList")?.deletingPathExtension().lastPathComponent
+                var text = ""
+                if let job = RecorderMigrationJob.compute(outputRoot: root, listName: list) {
+                    text = "target \(job.target.path) (switches: \(job.switchesFolder))\n"
+                        + job.plan.renames.map { "\($0.from) -> \($0.to)" }.joined(separator: "\n")
+                        + "\nduplicates: \(job.plan.duplicates)\n"
+                } else {
+                    text = "nothing to do\n"
+                }
+                try? text.write(to: out, atomically: true, encoding: .utf8)
+                exit(0)
+            }
             if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "--scan-glitches") {
                 // Diagnostic: report glitches in existing files, then quit.
                 for path in ProcessInfo.processInfo.arguments.dropFirst(i + 1) {
@@ -242,6 +262,10 @@ struct QueueView: View {
             footer
         }
         .frame(minWidth: 760, minHeight: 360)
+        .onAppear { model.offerMigration() }
+        .sheet(isPresented: Binding(get: { QueueUI.shared.migration != nil }, set: { if !$0 { QueueUI.shared.migration = nil } })) {
+            if let job = QueueUI.shared.migration { RecorderMigrationSheet(job: job, model: model) }
+        }
     }
 
     private var header: some View {

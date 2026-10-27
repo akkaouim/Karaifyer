@@ -281,6 +281,51 @@ final class QueueModel {
         return (moved, skipped)
     }
 
+    /// At launch: the one-time naming migration, unless done (or nothing to do).
+    func offerMigration() {
+        guard !UserDefaults.standard.bool(forKey: "recorderMigrationDone"), !isRunning, QueueUI.shared.migration == nil else { return }
+        let root = outputRoot, list = listURL?.deletingPathExtension().lastPathComponent
+        Task {
+            let job = await Task.detached { RecorderMigrationJob.compute(outputRoot: root, listName: list) }.value
+            if let job { QueueUI.shared.migration = job } else { UserDefaults.standard.set(true, forKey: "recorderMigrationDone") }
+        }
+    }
+
+    /// Renames (and brings in) as planned, never onto an existing name; stops at the first failure, and the next
+    /// launch offers the rest. Then the output folder, the index and the karaoke manifest follow.
+    func migrate(_ job: RecorderMigrationJob) async {
+        let ui = QueueUI.shared
+        ui.migrating = true
+        defer { ui.migrating = false }
+        let fm = FileManager.default
+        var pairs: [(from: URL, to: URL)] = [], failure: String?
+        persistOutputRoot = true
+        outputRoot = job.target
+        log("— Nouveaux noms « Titre - Artiste » (\(job.plan.renames.count) fichier(s)) —")
+        for r in job.plan.renames {
+            let src = job.target.appendingPathComponent(r.from), dst = job.target.appendingPathComponent(r.to)
+            guard !fm.fileExists(atPath: dst.path) else { failure = "« \(r.to) » existe déjà"; break }
+            do {
+                try fm.moveItem(at: src, to: dst)
+                pairs.append((src, dst))
+                log("Renommé : \(r.from) → \(r.to)" + (job.plan.duplicates.contains(r.to) ? " (copie en double)" : ""))
+            } catch {
+                failure = "\(r.from) : \(error.localizedDescription)"
+                break
+            }
+        }
+        indexes = [:]
+        refreshDoneStates()
+        await relocate(pairs)
+        if let failure {
+            banner = "Mise à jour des noms interrompue (\(pairs.count) fait(s)) : \(failure). Elle sera reproposée au prochain lancement."
+        } else {
+            UserDefaults.standard.set(true, forKey: "recorderMigrationDone")
+            banner = "\(pairs.count) enregistrement(s) renommé(s)."
+        }
+        ui.migration = nil
+    }
+
     /// « Déplacer vers… »: the rows' FLAC, MP3 and .asd go to `dir`; the karaoke manifest follows.
     func move(rows: [TrackRow], to dir: URL) async -> String {
         var files: [URL] = []
