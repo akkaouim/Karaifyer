@@ -15,6 +15,7 @@ from karaoke.steps.set_ableton import remove_stale_sets
 from karaoke.tools import TOOLS_DIR, ToolError, run_tool
 from karaoke.steps import STEPS
 from karaoke.steps.ingest import adopt_legacy_marker
+from karaoke.verification import WATCHED, outputs_changed
 from karaoke.workspace import Workspace, slug
 
 app = typer.Typer(help="Karaoké live : manifeste → dossiers prêts à jouer.", no_args_is_help=True)
@@ -77,8 +78,12 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
             _emit({"event": "song_start", "id": s.id})
         else:
             typer.echo(f"▶ {s.id} {s.artiste} – {s.titre}")
+        before = {n: (ws.read_marker(n) or {}).get("output_hash") for n in WATCHED}
         res = run_song(ws, STEPS, force=_csv_set(forcer) or set(), only={etape} if etape else None,
                        on_event=_emit if json_out else None)
+        if s.verifie and outputs_changed(before, res):
+            set_field(cfg.manifest, s.id, "verifie", "")
+            ws.log("« vérifié » retiré : paroles, accords, mix ou vidéo ont changé")
         rep = song_report(s, res)
         ws.out.mkdir(parents=True, exist_ok=True)
         (ws.out / "rapport.json").write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")

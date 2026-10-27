@@ -146,6 +146,7 @@ final class KaraokeModel: RunDriver {
             case "partie": songs[i].partie = value
             case "langue": songs[i].langue = value
             case "retirer": songs[i].retirer = value.split(separator: ";").map(String.init)
+            case "verifie": songs[i].verifie = value.isEmpty ? nil : value
             default: break
             }
         }

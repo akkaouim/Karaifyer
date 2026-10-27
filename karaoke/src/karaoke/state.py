@@ -50,6 +50,7 @@ def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
     return {"id": s.id, "titre": s.titre, "artiste": s.artiste, "album": s.album, "fichier": str(s.fichier),
             "retirer": list(s.retirer), "langue": s.langue, "partie": s.partie,
             "decompte_mesures": s.decompte_mesures, "statut": rep.get("statut", "—"), "alertes": alerts,
+            "verifie": s.verifie or None,
             "steps": out_steps,
             "paths": {"dossier": str(ws.out), "video": str(ws.out / "paroles.mp4"),
                       "set": str(cfg.sets / slug(s.partie or "sans-partie") / f"{ws.out.name}.als"),

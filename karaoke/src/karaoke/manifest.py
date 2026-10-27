@@ -15,7 +15,7 @@ from mutagen import File as MutagenFile
 
 STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
 COLUMNS = ["id", "titre", "artiste", "album", "duree_ref_s", "isrc", "fichier",
-           "retirer", "decompte_mesures", "langue", "partie", "spotify", "dossier"]
+           "retirer", "decompte_mesures", "langue", "partie", "spotify", "dossier", "verifie"]
 
 
 class ManifestError(ValueError):
@@ -42,10 +42,14 @@ class Song:
     langue: str
     partie: str
     spotify: str = ""            # Spotify track id (from the recording sheet), for Chordonomicon
+    verifie: str = ""            # date Michel marked the song checked (YYYY-MM-DD); cleared when a re-analysis changes it
     dossier: str = ""            # output folder name (sortie/<dossier>, sets/…/<dossier>.als); empty = legacy <id>_…
 
 
 def _parse_row(row: dict, line: int, errors: list[str]) -> Song | None:
+    verifie = (row.get("verifie") or "").strip()
+    if verifie and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", verifie):
+        errors.append(f"ligne {line}: verifie « {verifie} » doit être une date AAAA-MM-JJ ou vide")
     sid = (row.get("id") or "").strip()
     if not re.fullmatch(r"\d{3}", sid):
         errors.append(f"ligne {line}: id « {sid} » doit faire 3 chiffres")
@@ -66,7 +70,7 @@ def _parse_row(row: dict, line: int, errors: list[str]) -> Song | None:
                 fichier=Path((row.get("fichier") or "").strip()), retirer=tuple(retirer),
                 decompte_mesures=decompte, langue=(row.get("langue") or "fr").strip() or "fr",
                 partie=(row.get("partie") or "").strip(), spotify=(row.get("spotify") or "").strip(),
-                dossier=nfc((row.get("dossier") or "").strip()))
+                dossier=nfc((row.get("dossier") or "").strip()), verifie=verifie)
 
 
 def read_manifest(path: Path) -> list[Song]:
@@ -95,7 +99,7 @@ def write_manifest(path: Path, songs: list[Song]) -> None:
         w.writerow(COLUMNS)
         for s in songs:
             w.writerow([s.id, s.titre, s.artiste, s.album, f"{s.duree_ref_s:.3f}", s.isrc, str(s.fichier),
-                        ";".join(s.retirer), s.decompte_mesures, s.langue, s.partie, s.spotify, s.dossier])
+                        ";".join(s.retirer), s.decompte_mesures, s.langue, s.partie, s.spotify, s.dossier, s.verifie])
     os.replace(tmp, path)
 
 
@@ -197,7 +201,7 @@ def songs_from_files(paths: list[Path], existing: list[Song]) -> tuple[list[Song
     return added, skipped
 
 
-EDITABLE = ("titre", "artiste", "retirer", "langue", "partie", "decompte_mesures")
+EDITABLE = ("titre", "artiste", "retirer", "langue", "partie", "decompte_mesures", "verifie")
 
 
 def set_field(path: Path, sid: str, champ: str, valeur: str) -> Song:

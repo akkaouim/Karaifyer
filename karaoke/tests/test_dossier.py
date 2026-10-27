@@ -26,13 +26,13 @@ def test_dossier_column_round_trips_and_defaults_to_legacy(cfg, tmp_path):
     write_manifest(cfg.manifest, [song(id="050", titre="Danser", artiste="Loïc Nottet", dossier="Danser - Loïc Nottet"),
                                   song(id="011")])
     a, b = read_manifest(cfg.manifest)
-    assert COLUMNS[-1] == "dossier" and a.dossier == "Danser - Loïc Nottet"
+    assert "dossier" in COLUMNS and a.dossier == "Danser - Loïc Nottet"
     assert Workspace(cfg, a).out == cfg.sortie / "Danser - Loïc Nottet"
     assert Workspace(cfg, b).out.name == "011_zazie_je-suis-un-homme"          # unmigrated row: unchanged
 
 
 def test_manifest_without_the_column_still_reads(cfg):
-    cfg.manifest.write_text(",".join(COLUMNS[:-1]) + "\n" + "005,T,A,,1,,/x.flac,,2,fr,,\n", encoding="utf-8")
+    cfg.manifest.write_text(",".join(c for c in COLUMNS if c not in ("dossier", "verifie")) + "\n" + "005,T,A,,1,,/x.flac,,2,fr,,\n", encoding="utf-8")
     assert read_manifest(cfg.manifest)[0].dossier == ""
 
 

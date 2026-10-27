@@ -149,6 +149,12 @@ bleu propose « Renommer… », une fois. Fermez d'abord les sets ouverts dans L
 secondes par morceau), rien d'autre n'est réanalysé, les anciens sets vont à la Corbeille et une copie du manifeste
 est gardée.
 
+**Colonnes BPM, Tonalité, Vérifié :** le tempo habituel du morceau et sa tonalité détectée (« C#m », « Eb »),
+une fois analysé. Le bouton « Vérifié » marque un morceau comme contrôlé (la date est gardée dans le manifeste) ; le
+statut affiche alors « vérifié » en vert. Un nouveau clic le retire. Une analyse qui change les paroles, les
+accords, le mix ou la vidéo le retire aussi, pour que « vérifié » corresponde toujours à ce qui est là ; une
+analyse qui ne refait rien le garde.
+
 **Barre d'outils**
 - **Ajouter des morceaux…** accepte n'importe quels fichiers audio (FLAC, WAV, MP3, M4A, AIFF). Le titre et
   l'artiste sont lus dans les tags, ou à défaut dans le nom du fichier. Un fichier déjà présent est ignoré.

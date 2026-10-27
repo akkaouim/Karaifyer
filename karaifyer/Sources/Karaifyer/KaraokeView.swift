@@ -181,15 +181,20 @@ struct KaraokeView: View {
                 .labelsHidden()
                 .disabled(model.locked)
             }.width(64)
+            Group {
+            TableColumn("BPM", value: \.bpmSort) { s in bpmCell(s) }.width(44)
+            TableColumn("Tonalité", value: \.keyShort) { s in keyCell(s) }.width(60)
+            TableColumn("Vérifié", value: \.verifiedSort) { s in verifiedCell(s) }.width(52)
             TableColumn("Statut", value: \.statutRank) { s in
                 HStack(spacing: 6) {
-                    Text(statutLabel(s.statut)).bold().foregroundStyle(color(statut: s.statut))
+                    statutText(s)
                     Text((s.alertes ?? []).joined(separator: " · ")).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.tail)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 .help(Help.statut(s.statut, alertes: s.alertes ?? []))
             }.width(min: 220, ideal: 360)
+            }
             TableColumn("Étapes", value: \.stepsDone) { s in
                 HStack(spacing: 3) {
                     ForEach(s.steps, id: \.name) { st in
@@ -366,6 +371,43 @@ struct KaraokeView: View {
 
     /// The row as it is now (a quick second click must not build on a stale snapshot).
     func current(_ s: SongState) -> SongState { model.songs.first { $0.id == s.id } ?? s }
+
+    func statutText(_ s: SongState) -> some View {
+        Text(s.isVerified ? "vérifié" : statutLabel(s.statut)).bold()
+            .foregroundStyle(s.isVerified ? Color.green : color(statut: s.statut))
+    }
+
+    func bpmCell(_ s: SongState) -> some View {
+        Text(s.bpmRounded.map(String.init) ?? "").monospacedDigit().foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    func keyCell(_ s: SongState) -> some View {
+        Text(s.keyShort).foregroundStyle(.secondary).help(s.key ?? "")
+    }
+
+    func verifiedCell(_ s: SongState) -> some View {
+        let help = s.isVerified
+            ? "Vérifié le \(s.verifie ?? "") — cliquer pour retirer ; retiré aussi si une analyse change paroles, accords, mix ou vidéo"
+            : "Marquer comme vérifié"
+        return Button {
+            commit(s, "verifie", s.isVerified ? "" : Self.today)
+        } label: {
+            Image(systemName: s.isVerified ? "checkmark.seal.fill" : "seal")
+                .foregroundStyle(s.isVerified ? Color.green : Color.secondary)
+        }
+        .buttonStyle(.borderless)
+        .disabled(model.locked)
+        .help(help)
+        .frame(maxWidth: .infinity)
+    }
+
+    static var today: String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f.string(from: Date())
+    }
 
     func commit(_ s: SongState, _ field: String, _ value: String) {
         Task { if let err = await model.set(id: s.id, field: field, value: value) { KaraokeUI.shared.alert = err } }

@@ -20,4 +20,19 @@ extension SongState {
     public var statutRank: Int { Self.rank(statut: statut) }
     /// Steps done, for sorting the « Étapes » column by progress.
     public var stepsDone: Int { steps.filter { $0.status == "a_jour" }.count }
+
+    public var isVerified: Bool { !(verifie ?? "").isEmpty }
+    public var verifiedSort: Int { isVerified ? 1 : 0 }
+    public var bpmRounded: Int? { bpm.map { Int($0.rounded()) } }
+    public var bpmSort: Double { bpm ?? -1 }        // not analysed sorts first
+    public var keyShort: String { KeyName.short(key) }
+}
+
+/// « C# minor » → « C#m », « Eb major » → « Eb », for the table.
+public enum KeyName {
+    public static func short(_ key: String?) -> String {
+        guard let key else { return "" }
+        guard let m = key.wholeMatch(of: /([A-G][#b]?)\s+(major|minor)/) else { return key }
+        return String(m.1) + (m.2 == "minor" ? "m" : "")
+    }
 }

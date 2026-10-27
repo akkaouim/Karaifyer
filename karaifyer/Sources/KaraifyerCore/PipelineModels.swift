@@ -56,6 +56,7 @@ public struct GridInfo: Codable, Equatable, Sendable {
 public struct SongState: Codable, Equatable, Identifiable, Sendable {
     public var id, titre, artiste, album, fichier, langue, partie, statut: String
     public var alertes: [String]?         // why « alerte » / « echec » (rapport.json)
+    public var verifie: String?           // date Michel marked it checked (manifest); cleared when a re-analysis changes it
     public var retirer: [String]
     public var decompteMesures: Int
     public var steps: [StepState]
