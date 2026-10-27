@@ -472,12 +472,14 @@ struct CommitField: NSViewRepresentable {
     /// Give up keyboard focus after a commit, so later changes from buttons show (a focused field ignores
     /// outside updates) and Space goes back to the player. Off in tables, where focus must stay for the arrows.
     var resignOnCommit = false
+    var alignment: NSTextAlignment = .natural
     let onCommit: (String) -> Void
 
     func makeNSView(context: Context) -> NSTextField {
         let f = NSTextField(string: value)
         f.isBordered = false
         f.drawsBackground = false
+        f.alignment = alignment
         f.delegate = context.coordinator
         f.lineBreakMode = .byTruncatingTail
         return f
