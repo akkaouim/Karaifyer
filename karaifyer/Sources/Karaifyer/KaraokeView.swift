@@ -60,6 +60,7 @@ struct KaraokeView: View {
             footer
         }
         .task { await model.refresh(); await model.checkOutputRenames() }
+        .onChange(of: model.locked) { _, locked in if !locked { Task { await model.checkOutputRenames() } } }
         .sheet(isPresented: Bindable(ui).outputRenameShown) { outputRenameSheet }
         .sheet(isPresented: Binding(get: { ui.removal != nil }, set: { if !$0 { ui.removal = nil } })) {
             if let items = ui.removal { removalSheet(items) }

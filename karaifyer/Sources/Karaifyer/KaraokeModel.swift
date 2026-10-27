@@ -206,9 +206,8 @@ final class KaraokeModel: RunDriver {
     @ObservationIgnored private var outputRenamesChecked = false
 
     func checkOutputRenames() async {
-        guard !outputRenamesChecked, !locked,
-              songs.contains(where: { ($0.paths.dossier as NSString).lastPathComponent.range(of: #"^\d{3}_"#, options: .regularExpression) != nil })
-        else { return }
+        // asked of the pipeline, not guessed from the names: a rename cut short leaves rows already « Titre - Artiste »
+        guard !outputRenamesChecked, !locked, !songs.isEmpty else { return }
         outputRenamesChecked = true
         let r = await pipeline.run(["migrer-sorties", "--plan", "--json"])
         outputRenames = r.code == 0 ? (try? JSONSerialization.jsonObject(with: Data(r.out.utf8)) as? [[String: String]]) ?? [] : []

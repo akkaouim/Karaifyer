@@ -71,8 +71,7 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
             continue
         ws = Workspace(cfg, s)
         adopt_legacy_marker(ws)
-        if not s.dossier:            # legacy <id>_… folder: follow a title change; named folders are renamed by modifier
-            ws.adopt_previous_folder()
+        ws.adopt_previous_folder()     # a lone <id>_… folder: a legacy title change, or a rename cut short
         if json_out:
             ws.on_log = lambda line, sid=s.id: _emit({"event": "log", "id": sid, "line": line})
             _emit({"event": "song_start", "id": s.id})
@@ -123,7 +122,11 @@ def modifier(id: str = typer.Option(..., help="Id du morceau"), champ: str = typ
         s = set_field(cfg.manifest, id, champ, valeur)
         if champ in ("titre", "artiste"):
             from karaoke.workspace import renommer_dossier
-            renommer_dossier(cfg, id)
+            try:
+                renommer_dossier(cfg, id)
+            except OSError as e:
+                typer.echo(f"titre enregistré, mais le dossier de sortie n'a pas pu être renommé : {e}", err=True)
+                raise typer.Exit(1)
     except ManifestError as e:
         typer.echo(str(e), err=True)
         raise typer.Exit(1)
@@ -245,7 +248,8 @@ def migrer_sorties_cmd(plan: bool = typer.Option(False, "--plan", help="Seulemen
         for it in out:
             typer.echo(f"{it['id']} {it['ancien']} → {it['nouveau']}")
     else:
-        typer.echo(f"{out['renommes']} dossier(s) renommé(s), {out['sets']} set(s) refait(s)")
+        typer.echo(f"{out['renommes']} dossier(s) renommé(s), {out['sets']} set(s) refait(s)"
+                   + (f" ; sets à refaire par « Analyser » : {', '.join(out['sets_echec'])}" if out["sets_echec"] else ""))
 
 
 @app.command()

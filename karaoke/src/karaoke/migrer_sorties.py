@@ -6,6 +6,7 @@ paths into sortie/, so they are rebuilt (the set step only); nothing heavier re-
 involves the folder."""
 import fcntl
 import glob
+import os
 import shutil
 from dataclasses import replace
 from datetime import datetime
@@ -26,20 +27,27 @@ def _legacy_dir(cfg: Config, sid: str) -> Path | None:
 
 
 def plan(cfg: Config) -> list[dict]:
+    """Rows to rename, plus rows a run cut short left behind: named in the manifest but still in their legacy folder,
+    or renamed but with a legacy set left / their set not rebuilt yet."""
     songs = read_manifest(cfg.manifest)
     taken = {s.dossier: s.id for s in songs if s.dossier}
     out = []
     for s in songs:
         legacy = _legacy_dir(cfg, s.id)
+        legacy_sets = list(cfg.sets.glob(f"*/{s.id}_*.als"))
         if s.dossier:
-            if legacy is None or (cfg.sortie / s.dossier).exists():
-                continue                       # done, or never analysed
-            new = s.dossier                    # an interrupted run: the manifest has it, the folder doesn't yet
+            folder_done = legacy is None or (cfg.sortie / s.dossier).exists()
+            set_done = not legacy_sets and (not Workspace(cfg, s).read_marker("package")
+                                            or any(cfg.sets.glob(f"*/{glob.escape(s.dossier)}.als")))
+            if folder_done and set_done:
+                continue
+            new = s.dossier
         else:
-            new = unique_dossier(display_name(s.titre, s.artiste) or s.id, s.id, taken)
+            name = display_name(s.titre, s.artiste) or s.id
+            new = unique_dossier(name, s.id, taken)
             while (cfg.sortie / new).exists():                 # a folder no row claims: never merged into
                 taken[new] = "?"
-                new = unique_dossier(display_name(s.titre, s.artiste) or s.id, s.id, taken)
+                new = unique_dossier(name, s.id, taken)
             taken[new] = s.id
         out.append({"id": s.id, "titre": s.titre, "ancien": legacy.name if legacy else Workspace.folder_name(s),
                     "nouveau": new})
@@ -62,8 +70,12 @@ def _refuse_if_analysing(cfg: Config, ids: list[str]) -> None:
 def appliquer(cfg: Config, trash: Callable[[list[Path]], None] = system_trash) -> dict:
     items = plan(cfg)
     if not items:
-        return {"renommes": 0, "sauvegarde": None, "sets": 0}
+        return {"renommes": 0, "sauvegarde": None, "sets": 0, "sets_echec": []}
     _refuse_if_analysing(cfg, [it["id"] for it in items])
+    for it in items:                           # never into another song's folder (the drive ignores case)
+        src, dst = cfg.sortie / it["ancien"], cfg.sortie / it["nouveau"]
+        if src.is_dir() and dst.exists() and not os.path.samefile(src, dst):
+            raise ValueError(f"« {it['nouveau']} » existe déjà : renommage de {it['id']} impossible")
     backup = cfg.home / f"manifeste.avant-noms-{datetime.now():%Y%m%d-%H%M%S}.csv"
     shutil.copy2(cfg.manifest, backup)
     new = {it["id"]: it["nouveau"] for it in items}
@@ -73,13 +85,18 @@ def appliquer(cfg: Config, trash: Callable[[list[Path]], None] = system_trash) -
         src, dst = cfg.sortie / it["ancien"], cfg.sortie / it["nouveau"]
         if src.is_dir() and not dst.exists():
             src.rename(dst)
-    old_sets = sorted({p for it in items for p in cfg.sets.glob(f"*/{glob.escape(it['ancien'])}.als")})
+    old_sets = sorted({p for it in items for p in [*cfg.sets.glob(f"*/{glob.escape(it['ancien'])}.als"),
+                                                   *cfg.sets.glob(f"*/{it['id']}_*.als")]
+                       if p.stem != it["nouveau"]})
     trash(old_sets)
-    rebuilt = 0
+    rebuilt, failed = 0, []
     for s in songs:
         if s.id in new:
             ws = Workspace(cfg, s)
             if ws.read_marker("package"):
-                run_song(ws, STEPS, only={"set"})
-                rebuilt += 1
-    return {"renommes": len(items), "sauvegarde": str(backup), "sets": rebuilt}
+                res = run_song(ws, STEPS, only={"set"})
+                if (res.get("set") or {}).get("status") in ("fait", "saute"):
+                    rebuilt += 1
+                else:
+                    failed.append(s.id)
+    return {"renommes": len(items), "sauvegarde": str(backup), "sets": rebuilt, "sets_echec": failed}

@@ -70,8 +70,9 @@ class Workspace:
 
 def renommer_dossier(cfg: Config, sid: str) -> str:
     """After a title or artist edit: the song's output folder and its sets take the new « Titre - Artiste » name
-    (` (2)`… when another song holds it), and the manifest's `dossier` follows. A song never analysed only gets
-    the name. A legacy <id>_… folder is found by its id prefix (its name used the old title)."""
+    (` (2)`… when another song holds it, case ignored), and the manifest's `dossier` follows. A song never analysed
+    only gets the name. A legacy <id>_… folder is found by its id prefix (its name used the old title). The set is
+    rebuilt, since it holds paths into the folder. A failed rename leaves the manifest as it was."""
     import glob
     from dataclasses import replace
     from karaoke.manifest import read_manifest, write_manifest
@@ -85,17 +86,36 @@ def renommer_dossier(cfg: Config, sid: str) -> str:
         old_dirs = [p for p in cfg.sortie.glob(f"{sid}_*") if p.is_dir()]
         old_sets = list(cfg.sets.glob(f"*/{sid}_*.als"))
     old_dir = next((p for p in old_dirs if p.is_dir()), None)
-    new = unique_dossier(display_name(s.titre, s.artiste) or sid, sid, taken)
-    while (cfg.sortie / new).exists() and cfg.sortie / new != old_dir:     # a folder no row claims: never merged into
+
+    def ours(p: Path) -> bool:                 # the song's own folder, whatever the case it is spelled in
+        return old_dir is not None and p.exists() and os.path.samefile(p, old_dir)
+
+    name = display_name(s.titre, s.artiste) or sid
+    new = unique_dossier(name, sid, taken)
+    while (cfg.sortie / new).exists() and not ours(cfg.sortie / new):     # a folder no row claims: never merged into
         taken[new] = "?"
-        new = unique_dossier(display_name(s.titre, s.artiste) or sid, sid, taken)
+        new = unique_dossier(name, sid, taken)
     if new == s.dossier:
         return new
-    if old_dir is not None:
-        old_dir.rename(cfg.sortie / new)
-    for p in old_sets:
-        target = p.with_name(f"{new}.als")
-        if not target.exists():
-            p.rename(target)
     write_manifest(cfg.manifest, [replace(x, dossier=new) if x.id == sid else x for x in songs])
+    try:
+        if old_dir is not None and old_dir.name != new:
+            old_dir.rename(cfg.sortie / new)
+        renamed = []
+        for p in old_sets:
+            target = p.with_name(f"{new}.als")
+            if p.name != target.name and (not target.exists() or os.path.samefile(p, target)):
+                p.rename(target)
+                renamed.append(target)
+    except OSError:
+        write_manifest(cfg.manifest, songs)    # the folder kept its name: so does the manifest
+        raise
+    ws = Workspace(cfg, replace(s, dossier=new))
+    marker = ws.read_marker("package")
+    if marker and renamed and cfg.gabarit.exists():
+        from karaoke.steps.set_ableton import SET_ABLETON
+        try:
+            SET_ABLETON.run(ws, {"package": marker["result"], "video": {}})
+        except Exception as e:                 # the analysis rebuilds it anyway; say so rather than fail the edit
+            ws.log(f"set non refait après renommage : {e}")
     return new

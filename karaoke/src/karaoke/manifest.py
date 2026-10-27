@@ -145,14 +145,17 @@ def display_name(titre: str, artiste: str) -> str:
     s = (f"{t} - {a}" if a else t).replace(":", " -")
     for ch in '/\\?*"<>|':
         s = s.replace(ch, "")
-    s = re.sub(r"\s+", " ", s).strip(" .")
-    return nfc(s[:200])
+    s = nfc(re.sub(r"\s+", " ", s).strip(" ."))
+    b = s.encode()[:200]                       # filesystems count bytes (255), leaving room for « (2) » and « .als »
+    return b.decode(errors="ignore").strip(" .")
 
 
 def unique_dossier(name: str, sid: str, taken: dict[str, str]) -> str:
-    """`name`, or `name (2)`, `name (3)`… when another song (`taken`: folder name → song id) holds it."""
+    """`name`, or `name (2)`, `name (3)`… when another song (`taken`: folder name → song id) holds it — compared
+    without case, as on the (case-insensitive) drive."""
+    owners = {nfc(k).casefold(): v for k, v in taken.items()}
     n, cand = 1, name
-    while cand in taken and taken[cand] != sid:
+    while owners.get(nfc(cand).casefold(), sid) != sid:
         n += 1
         cand = f"{name} ({n})"
     return cand

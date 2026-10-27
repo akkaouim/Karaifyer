@@ -107,3 +107,52 @@ def test_cli_modifier_titre_renames(cfg, monkeypatch):
     monkeypatch.setenv("KARAOKE_HOME", str(cfg.home))
     r = CliRunner().invoke(app, ["modifier", "--id", "050", "--champ", "artiste", "--valeur", "L. Nottet"])
     assert r.exit_code == 0 and (cfg.sortie / "Danser - L. Nottet").exists()
+
+
+def test_case_only_title_fix_keeps_the_folder_without_suffix(cfg):
+    # Gate B #4
+    write_manifest(cfg.manifest, [song(id="050", titre="danser", artiste="X", dossier="danser - X")])
+    _outputs(cfg, "danser - X")
+    set_field(cfg.manifest, "050", "titre", "Danser")
+    assert renommer_dossier(cfg, "050") == "Danser - X"
+    assert [p.name for p in cfg.sortie.iterdir()] == ["Danser - X"]
+
+
+def test_unique_dossier_ignores_case():
+    assert unique_dossier("Le Petit Bal - B", "003", {"Le petit bal - B": "002"}) == "Le Petit Bal - B (2)"
+
+
+def test_long_names_fit_the_filesystem():
+    assert len(display_name("é" * 300, "à" * 50).encode()) <= 200
+
+
+def test_title_edit_rebuilds_the_set_with_the_new_folder(cfg, tmp_path, monkeypatch):
+    # Gate B #5: the .als holds paths into sortie/<folder>: a renamed copy would open with missing media
+    import shutil
+    from test_build import make_song, FIX
+    monkeypatch.setenv("KARAOKE_GABARIT", str(FIX / "gabarit.als"))
+    s = song(id="050", titre="Danser", artiste="Loïc Nottet", partie="A", dossier="Danser - Loïc Nottet")
+    write_manifest(cfg.manifest, [s])
+    ws = Workspace(cfg, s)
+    src = make_song(tmp_path / "src", "050", 3.0)
+    shutil.copytree(src.folder, ws.out)
+    ws.write_marker("package", {"key": "k", "result": {"faders": src.faders}, "output_hash": "h"})
+    (cfg.sets / "a").mkdir(parents=True)
+    (cfg.sets / "a" / "Danser - Loïc Nottet.als").write_text("old set")
+    set_field(cfg.manifest, "050", "titre", "Danse")
+    renommer_dossier(cfg, "050")
+    new = cfg.sets / "a" / "Danse - Loïc Nottet.als"
+    assert new.exists() and new.read_bytes() != b"old set" and not (cfg.sets / "a" / "Danser - Loïc Nottet.als").exists()
+
+
+def test_failed_folder_rename_leaves_the_manifest_as_it_was(cfg, monkeypatch):
+    from pathlib import Path as P
+    write_manifest(cfg.manifest, [song(id="050", titre="Danser", artiste="X", dossier="Danser - X")])
+    _outputs(cfg, "Danser - X")
+    set_field(cfg.manifest, "050", "titre", "Danse")
+    real = P.rename
+    monkeypatch.setattr(P, "rename", lambda self, t: (_ for _ in ()).throw(OSError("disque débranché")) if self.is_dir() else real(self, t))
+    import pytest
+    with pytest.raises(OSError):
+        renommer_dossier(cfg, "050")
+    assert read_manifest(cfg.manifest)[0].dossier == "Danser - X" and (cfg.sortie / "Danser - X").exists()
