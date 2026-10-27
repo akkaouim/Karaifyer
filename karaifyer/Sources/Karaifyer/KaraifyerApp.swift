@@ -209,7 +209,7 @@ struct QueueView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            Table(model.rows) {
+            Table(model.rows, selection: $model.selection) {
                 TableColumn("#") { Text($0.number).monospacedDigit() }.width(36)
                 TableColumn("Titre") { Text($0.title) }
                 TableColumn("Artiste") { Text($0.artist) }
@@ -231,6 +231,12 @@ struct QueueView: View {
                             .buttonStyle(.link)
                     }
                 }
+            }
+            .contextMenu(forSelectionType: Int.self) { ids in
+                Button(ids.count > 1 ? "Déplacer \(ids.count) enregistrements vers…" : "Déplacer vers…") {
+                    moveRows(model.rows.filter { ids.contains($0.index) })
+                }
+                .disabled(ids.isEmpty || model.isRunning || KaraokeModel.shared.locked)
             }
             Divider()
             footer
@@ -325,6 +331,27 @@ struct QueueView: View {
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do { try model.load(url: url) } catch { model.banner = "Couldn't read list: \(error.localizedDescription)" }
+    }
+
+    private func moveRows(_ rows: [TrackRow]) {
+        let done = rows.filter { model.existingFile(for: $0) != nil }
+        guard !done.isEmpty else { model.banner = "Ces lignes n'ont pas encore d'enregistrement."; return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Déplacer ici"
+        // a subfolder of the output folder is fine (sorting); the output folder itself would be a no-op
+        guard panel.runModal() == .OK, let url = panel.url,
+              url.standardizedFileURL.path != model.listDir.standardizedFileURL.path else { return }
+        let alert = NSAlert()
+        alert.messageText = "Déplacer \(done.count) enregistrement(s) vers « \(url.lastPathComponent) » ?"
+        alert.informativeText = "Les lignes déplacées apparaîtront « à enregistrer » tant que le dossier de sortie n'est pas "
+            + "celui-ci. Le manifeste karaoké suit (une copie est gardée). Aucun fichier n'est écrasé."
+        alert.addButton(withTitle: "Déplacer")
+        alert.addButton(withTitle: "Annuler").keyEquivalent = "\u{1b}"
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task { model.banner = await model.move(rows: done, to: url) }
     }
 
     /// The folder changes only once confirmed; moving is offered only to another folder, never one inside this one.

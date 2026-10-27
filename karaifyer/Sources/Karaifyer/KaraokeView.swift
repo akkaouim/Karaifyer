@@ -27,6 +27,18 @@ struct KaraokeView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let b = model.banner { bannerView(b) }
+            if !model.locked, case let missing = model.missingRecordings, !missing.isEmpty {
+                HStack {
+                    Image(systemName: "questionmark.folder").foregroundStyle(.orange)
+                    Text("\(missing.count) enregistrement(s) introuvable(s) : " + missing.prefix(3).map { "\($0.id) \($0.titre)" }.joined(separator: ", ")
+                         + (missing.count > 3 ? "…" : ""))
+                        .lineLimit(1)
+                    Spacer()
+                    Button("Retrouver…") { findRecordings() }
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.12))
+            }
             toolbar.padding(8)
             if model.locked {
                 Label("Analyse en cours : modifications désactivées jusqu'à la fin ou l'arrêt", systemImage: "lock.fill")
@@ -203,6 +215,26 @@ struct KaraokeView: View {
                     }
                 }
                 .disabled(model.locked)
+            }
+        }
+    }
+
+    func findRecordings() {
+        pickFolder { url in
+            Task {
+                guard let found = await model.findRecordings(in: url, apply: false) else { return }
+                let a = NSAlert()
+                if found.isEmpty {
+                    a.messageText = "Aucun enregistrement retrouvé dans ce dossier"
+                    a.runModal()
+                    return
+                }
+                a.messageText = "Mettre à jour \(found.count) ligne(s) du manifeste ?"
+                a.informativeText = found.map { "\($0["id"] ?? "") \($0["titre"] ?? "") → \(URL(fileURLWithPath: $0["nouveau"] ?? "").lastPathComponent)" }
+                    .joined(separator: "\n") + "\n\nUne copie du manifeste est gardée."
+                a.addButton(withTitle: "Mettre à jour")
+                a.addButton(withTitle: "Annuler").keyEquivalent = "\u{1b}"
+                if a.runModal() == .alertFirstButtonReturn { _ = await model.findRecordings(in: url, apply: true) }
             }
         }
     }

@@ -54,6 +54,7 @@ final class QueueModel {
     private(set) var listURL: URL?
     private(set) var rows: [TrackRow] = []
     private(set) var states: [Int: RowState] = [:]
+    var selection: Set<Int> = []
     private(set) var ignoredLines: [(line: Int, reason: String)] = []
 
     // Run state
@@ -278,6 +279,32 @@ final class QueueModel {
         indexes = [:]
         refreshDoneStates()
         return (moved, skipped)
+    }
+
+    /// « Déplacer vers… »: the rows' FLAC, MP3 and .asd go to `dir`; the karaoke manifest follows.
+    func move(rows: [TrackRow], to dir: URL) async -> String {
+        var files: [URL] = []
+        for row in rows {
+            let src = directory(for: row)
+            let idx = index(for: src)
+            for ext in ["flac", "mp3"] {
+                guard let name = idx.file(for: row.trackID, ext: ext) else { continue }
+                let f = src.appendingPathComponent(name)
+                files.append(f)
+                let asd = src.appendingPathComponent(name + ".asd")
+                if FileManager.default.fileExists(atPath: asd.path) { files.append(asd) }
+            }
+        }
+        guard !files.isEmpty else { return "Aucun enregistrement à déplacer pour ces lignes." }
+        do {
+            let r = try moveFiles(files, to: dir)
+            for m in r.moved { log("Déplacé : \(m.from.path) → \(m.to.path)") }
+            await relocate(r.moved)
+            return "\(r.moved.count) fichier(s) déplacé(s) vers \(dir.lastPathComponent)"
+                + (r.skipped.isEmpty ? "." : " ; laissés en place : \(r.skipped.joined(separator: ", ")).")
+        } catch {
+            return "Déplacement impossible : \(error.localizedDescription)"
+        }
     }
 
     /// The karaoke manifest follows moved recordings (`karaoke relocaliser`, which keeps a backup).

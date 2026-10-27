@@ -201,6 +201,23 @@ final class KaraokeModel: RunDriver {
         await refresh()
     }
 
+    /// Songs whose recording is no longer where the manifest says.
+    var missingRecordings: [SongState] { songs.filter { !FileManager.default.fileExists(atPath: $0.fichier) } }
+
+    /// « Retrouver les enregistrements… »: `karaoke retrouver` (by Spotify id, else by name), plan then apply.
+    func findRecordings(in dir: URL, apply: Bool) async -> [[String: String]]? {
+        let r = await pipeline.run(["retrouver", "--dossier", dir.path, "--json"] + (apply ? [] : ["--plan"]))
+        guard r.code == 0, let list = try? JSONSerialization.jsonObject(with: Data(r.out.utf8)) as? [[String: String]] else {
+            KaraokeUI.shared.alert = "Recherche impossible : " + (r.err.split(separator: "\n").last.map(String.init) ?? "échec")
+            return nil
+        }
+        if apply {
+            appendLog("Retrouvé \(list.count) enregistrement(s) dans \(dir.path)")
+            await refresh()
+        }
+        return list
+    }
+
     /// Forget the saved beat detection, then re-run from the beats step (Michel's bar-grid fix is kept).
     func redetectBeats(ids: [String]) {
         for id in ids {
