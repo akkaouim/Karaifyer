@@ -181,6 +181,7 @@ struct KaraokeView: View {
                 TableColumn("Étapes", value: \.stepsDone) { s in stepsCell(s) }.width(130)
             }
         }
+        .background(TableColumnResizer(titlePrefix: "Retirer", width: model.retirerCollapsed ? 96 : 340))
         .contextMenu(forSelectionType: String.self) { ids in
             if let id = ids.first, let s = model.songs.first(where: { $0.id == id }) {
                 Button("Ouvrir le dossier") { open(s.paths.dossier) }
