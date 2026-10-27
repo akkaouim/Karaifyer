@@ -91,3 +91,27 @@ def test_cli_plan_and_removal_as_json(cfg, tmp_path, monkeypatch):
     assert {Path(p).name for p in trashed} >= {"011.lrc"} and len(read_manifest(cfg.manifest)) == 2
     r = CliRunner().invoke(app, ["retirer", "--ids", "999", "--json"])
     assert r.exit_code != 0 and "999" in r.output
+
+
+def test_shared_recording_spelled_in_another_unicode_form_is_still_shared(cfg, tmp_path):
+    import unicodedata
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    f = audio / unicodedata.normalize("NFC", "05 - Loïc.flac")
+    f.write_bytes(b"x")
+    other = Path(unicodedata.normalize("NFD", str(f)))
+    assert str(other) != str(f)
+    write_manifest(cfg.manifest, [song(id="005", fichier=f), song(id="050", fichier=other)])
+    assert R.plan(cfg, ["005"])[0]["audio"]["partage"] is True
+    trashed = []
+    R.retirer(cfg, ["005"], audio=True, trash=lambda ps: trashed.extend(ps))
+    assert trashed == [] or all(Path(p).name != f.name for p in trashed)
+
+
+def test_recording_of_two_removed_rows_is_counted_and_trashed_once(cfg, tmp_path):
+    songs, a, b = setup(cfg, tmp_path)
+    p = R.plan(cfg, ["005", "050"])
+    assert sum(x["audio"]["taille"] for x in p) == 100 and not any(x["audio"]["partage"] for x in p)
+    trashed = []
+    R.retirer(cfg, ["005", "050"], audio=True, trash=lambda ps: trashed.extend(ps))
+    assert [Path(t).name for t in trashed].count(a.name) == 1

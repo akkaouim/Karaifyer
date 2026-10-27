@@ -12,11 +12,16 @@ let LANGUES = ["fr", "en", "es", "it", "de", "pt"]
     static let shared = KaraokeUI()
     var alert: String?
     var terminalShown = true
+    var removal: [RemovalItem]?           // « Retirer du manifeste… » sheet, with its three choices
+    var removeAnalyse = true
+    var removeCorrections = true
+    var removeAudio = false
 }
 
 struct KaraokeView: View {
     @Bindable var model: KaraokeModel
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
     let ui = KaraokeUI.shared
 
     var body: some View {
@@ -32,6 +37,9 @@ struct KaraokeView: View {
             footer
         }
         .task { await model.refresh() }
+        .sheet(isPresented: Binding(get: { ui.removal != nil }, set: { if !$0 { ui.removal = nil } })) {
+            if let items = ui.removal { removalSheet(items) }
+        }
         .alert(ui.alert ?? "", isPresented: Binding(get: { ui.alert != nil }, set: { if !$0 { ui.alert = nil } })) {}
     }
 
@@ -173,10 +181,76 @@ struct KaraokeView: View {
                     Menu("Refaire une étape") {
                         ForEach(STEP_NAMES, id: \.self) { st in Button(st) { model.analyse(ids: Array(ids), forced: st) } }
                     }
+                    Divider()
+                    Button(ids.count > 1 ? "Retirer \(ids.count) morceaux du manifeste…" : "Retirer du manifeste…") {
+                        askRemoval(model.songs.map(\.id).filter(ids.contains))
+                    }
                 }
                 .disabled(model.locked)
             }
         }
+    }
+
+    func askRemoval(_ ids: [String]) {
+        Task {
+            guard let items = await model.planRemoval(ids: ids) else { return }
+            ui.removeAnalyse = true
+            ui.removeCorrections = true
+            ui.removeAudio = false
+            ui.removal = items
+        }
+    }
+
+    func removalSheet(_ items: [RemovalItem]) -> some View {
+        let size = { (n: Int64) in ByteCountFormatter.string(fromByteCount: n, countStyle: .file) }
+        let shared = items.filter(\.audio.partage)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(items.count > 1 ? "Retirer \(items.count) morceaux du manifeste ?" : "Retirer ce morceau du manifeste ?")
+                .font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(items, id: \.id) { it in
+                        Text("\(it.id)  \(it.titre) — \(it.artiste)").monospacedDigit()
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 140)
+            Text("La ligne est retirée du manifeste (une copie est gardée : manifeste.avant-retrait-….csv). "
+                 + "Le rapport, les pages iReal et l'index des grilles sont refaits sans ce morceau.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("Mettre aussi à la Corbeille :").bold()
+            Toggle("Fichiers d'analyse (travail, sortie, set Ableton) — \(size(RemovalItem.total(items, \.analyse)))",
+                   isOn: Bindable(ui).removeAnalyse)
+            Toggle("Corrections (paroles, accords, mesures) — \(size(RemovalItem.total(items, \.corrections)))",
+                   isOn: Bindable(ui).removeCorrections)
+                .disabled(RemovalItem.total(items, \.corrections) == 0)
+            Toggle("Enregistrement audio — \(size(RemovalItem.audioTotal(items)))", isOn: Bindable(ui).removeAudio)
+                .disabled(!RemovalItem.audioOffered(items))
+            if !shared.isEmpty {
+                Text("Enregistrement gardé (utilisé par un autre morceau du manifeste) : "
+                     + shared.map { $0.id }.joined(separator: ", "))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Text("Rien n'est effacé : tout peut être récupéré dans la Corbeille du Mac.")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Annuler", role: .cancel) { ui.removal = nil }
+                    .keyboardShortcut(.cancelAction)
+                Button("Retirer", role: .destructive) {
+                    let choice = RemovalChoice(ids: items.map(\.id), analyse: ui.removeAnalyse,
+                                               corrections: ui.removeCorrections,
+                                               audio: ui.removeAudio && RemovalItem.audioOffered(items))
+                    ui.removal = nil
+                    for id in choice.ids { dismissWindow(id: "editor", value: id) }
+                    Task { await model.remove(choice) }
+                }
+                .disabled(model.locked)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
     }
 
     var footer: some View {

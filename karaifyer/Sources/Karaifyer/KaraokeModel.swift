@@ -173,6 +173,32 @@ final class KaraokeModel: RunDriver {
         plannedSteps += jobs.count * max(1, songs.first?.steps.count ?? 10)
         controller.start(jobs)
     }
+    /// « Retirer du manifeste… »: what each song would send to the Trash (for the confirmation sheet).
+    /// nil (with the reason in the alert) when the pipeline can't say.
+    func planRemoval(ids: [String]) async -> [RemovalItem]? {
+        let r = await pipeline.run(["retirer", "--ids", ids.joined(separator: ","), "--plan", "--json"])
+        if r.code == 0, let items = try? RemovalItem.decodeList(Data(r.out.utf8)) { return items }
+        KaraokeUI.shared.alert = "Retrait impossible : "
+            + (r.code == 0 ? "réponse illisible" : r.err.split(separator: "\n").last.map(String.init) ?? "échec")
+        return nil
+    }
+
+    /// Remove the rows (the pipeline keeps a backup of the manifest and sends the chosen files to the Trash),
+    /// then forget the app's own per-song state.
+    func remove(_ choice: RemovalChoice) async {
+        guard !locked else { return }
+        let r = await pipeline.run(choice.arguments)
+        if r.code == 0 {
+            appendLog("Retiré du manifeste : \(choice.ids.joined(separator: ", ")) (fichiers choisis dans la Corbeille)")
+            for id in choice.ids { for k in RemovalChoice.defaultsKeys(id: id) { UserDefaults.standard.removeObject(forKey: k) } }
+            selection.subtract(choice.ids)
+            PlayerModel.shared.forget(ids: Set(choice.ids))
+        } else {
+            KaraokeUI.shared.alert = "Retrait impossible : " + (r.err.split(separator: "\n").last.map(String.init) ?? "échec")
+        }
+        await refresh()
+    }
+
     /// Forget the saved beat detection, then re-run from the beats step (Michel's bar-grid fix is kept).
     func redetectBeats(ids: [String]) {
         for id in ids {

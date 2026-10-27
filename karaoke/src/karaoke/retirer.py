@@ -4,6 +4,7 @@ the manifest — the grilles index, the report, the iReal pages — is rebuilt w
 import json
 import shutil
 import subprocess
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -39,6 +40,15 @@ def _corrections(cfg: Config, sid: str) -> list[Path]:
             cfg.mesures / f"{sid}.json"]
 
 
+def _same_file_key(p: Path):
+    """The same recording, however the manifest spells it (é composed or not, as macOS accepts both)."""
+    try:
+        st = p.stat()
+        return ("inode", st.st_dev, st.st_ino)
+    except OSError:
+        return ("path", unicodedata.normalize("NFC", str(p)))
+
+
 def plan(cfg: Config, ids: list[str]) -> list[dict]:
     """What removing `ids` would touch, per song, with sizes. The recording is `partage` when another manifest
     row (not being removed) uses the same file: it's then never offered."""
@@ -47,14 +57,16 @@ def plan(cfg: Config, ids: list[str]) -> list[dict]:
     missing = [i for i in ids if i not in by_id]
     if missing:
         raise ValueError(f"absent du manifeste : {', '.join(missing)}")
-    kept = {str(s.fichier) for s in songs if s.id not in ids}
-    out = []
+    kept = {_same_file_key(s.fichier) for s in songs if s.id not in ids}
+    out, seen = [], set()
     for sid in ids:
         s = by_id[sid]
-        audio = _group([s.fichier])
+        key = _same_file_key(s.fichier)
+        audio = _group([] if key in seen else [s.fichier])   # two removed rows, one recording: listed once
+        seen.add(key)
         out.append({"id": sid, "titre": s.titre, "artiste": s.artiste,
                     "analyse": _group(_analyse(cfg, sid)), "corrections": _group(_corrections(cfg, sid)),
-                    "audio": {**audio, "fichier": str(s.fichier), "partage": str(s.fichier) in kept}})
+                    "audio": {**audio, "fichier": str(s.fichier), "partage": _same_file_key(s.fichier) in kept}})
     return out
 
 

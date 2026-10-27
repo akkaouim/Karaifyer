@@ -130,6 +130,16 @@ titre, artiste, id ou Set List (accents et majuscules ignorés).
 - **Refaire le morceau**, ou **Refaire une étape** ▸.
 - **Refaire la détection des temps** : oublie la détection des temps enregistrée et la refait (elle est sinon
   réutilisée tant que l'audio ne change pas) ; les corrections de mesure (`mesures/<id>.json`) sont gardées.
+- **Retirer du manifeste…** (un ou plusieurs morceaux sélectionnés) : une fenêtre récapitule ce qui part.
+  - La ligne est toujours retirée du manifeste, et une copie de l'ancien manifeste est gardée
+    (`manifeste.avant-retrait-<date>.csv`). Le rapport, les pages iReal et l'index des grilles sont refaits.
+  - Trois cases, avec la place occupée :
+    - **Fichiers d'analyse** (`travail/`, `sortie/`, le set Ableton) : cochée ;
+    - **Corrections** (`paroles/`, `accords/`, `mesures/`) : cochée ;
+    - **Enregistrement audio** (le FLAC) : décochée ; jamais proposée quand une autre ligne du manifeste
+      utilise le même enregistrement (005/050, 041/081).
+  - **Rien n'est effacé** : tout part dans la Corbeille du Mac et peut en être sorti.
+  - Impossible pendant une analyse. Un morceau retiré est déchargé du Lecteur, et sa fenêtre Corriger est fermée.
 
 ---
 

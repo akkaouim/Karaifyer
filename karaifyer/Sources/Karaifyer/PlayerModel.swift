@@ -91,6 +91,21 @@ final class PlayerModel {
         AppTabs.shared.selected = .lecteur
     }
 
+    /// A song removed from the manifest: unload it if it's the one in the Lecteur.
+    func forget(ids: Set<String>) {
+        if let s = selectedID, ids.contains(s) { selectedID = nil }
+        guard let s = loaded, ids.contains(s.id) else { return }
+        stopEverything()
+        engine = nil
+        loaded = nil
+        scene = nil
+        renderer = nil
+        length = 0
+        position = 0
+        videoChanged()
+        videoPlayer.replaceCurrentItem(with: nil)
+    }
+
     private func key(_ id: String) -> String { "playerMix.\(id)" }
     private func save() { if let s = loaded { UserDefaults.standard.set(settings.encoded(), forKey: key(s.id)) } }
 
