@@ -327,31 +327,46 @@ struct QueueView: View {
         do { try model.load(url: url) } catch { model.banner = "Couldn't read list: \(error.localizedDescription)" }
     }
 
+    /// The folder changes only once confirmed; moving is offered only to another folder, never one inside this one.
     private func chooseOutput() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
+        panel.prompt = "Choisir"
         panel.directoryURL = model.outputRoot
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let oldListDir = model.listDir
-        model.persistOutputRoot = true
-        model.outputRoot = url
-        let existing = model.recordedFiles(in: oldListDir)
-        guard !existing.isEmpty, oldListDir.standardizedFileURL != model.listDir.standardizedFileURL else { return }
-        let alert = NSAlert()
-        alert.messageText = "Move \(existing.count) recorded file\(existing.count == 1 ? "" : "s") to the new folder?"
-        alert.informativeText = "Rows already recorded in the old folder count as done only if their files are in the output folder.\n\nFrom: \(oldListDir.path)\nTo: \(model.listDir.path)"
-        alert.addButton(withTitle: "Move Files")
-        alert.addButton(withTitle: "Leave Them")
-        if alert.runModal() == .alertFirstButtonReturn {
-            do {
-                let n = try model.moveRecordings(from: oldListDir)
-                model.banner = "Moved \(n) file\(n == 1 ? "" : "s") to \(model.listDir.path)."
-            } catch {
-                model.banner = "Couldn't move files: \(error.localizedDescription)"
+        let old = model.listDir
+        let existing = FolderChoice.moveOffered(current: old.path, new: url.path) ? model.recordedFiles(in: old) : []
+        var move = false
+        if !existing.isEmpty {
+            let alert = NSAlert()
+            alert.messageText = "Déplacer les enregistrements vers ce dossier ?"
+            alert.informativeText = "\(existing.count) fichier(s) dans le dossier actuel. Les morceaux comptent comme enregistrés "
+                + "seulement si leurs fichiers sont dans le dossier de sortie.\n\nDe : \(old.path)\nVers : \(url.path)"
+            alert.addButton(withTitle: "Déplacer les fichiers")
+            alert.addButton(withTitle: "Utiliser sans déplacer")
+            alert.addButton(withTitle: "Annuler").keyEquivalent = "\u{1b}"
+            switch alert.runModal() {
+            case .alertFirstButtonReturn: move = true
+            case .alertSecondButtonReturn: break
+            default: return
             }
         }
+        var pairs: [(from: URL, to: URL)] = []
+        if move {
+            do {
+                let r = try model.moveFiles(existing, to: url)
+                pairs = r.moved
+                model.banner = "\(r.moved.count) fichier(s) déplacé(s)"
+                    + (r.skipped.isEmpty ? "." : " ; déjà présents, laissés en place : \(r.skipped.joined(separator: ", ")).")
+            } catch {
+                model.banner = "Déplacement interrompu : \(error.localizedDescription)"
+            }
+        }
+        model.persistOutputRoot = true
+        model.outputRoot = url
+        if !pairs.isEmpty { Task { await model.relocate(pairs) } }
     }
 }
 

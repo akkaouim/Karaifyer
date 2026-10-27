@@ -226,26 +226,80 @@ final class QueueModel {
         log("Stop requested: will stop after \(which)")
     }
 
-    /// Recorded files in the current list folder (for moving after an output change).
+    /// What « Déplacer les fichiers » takes along: recordings, their Ableton analysis files, the log.
     func recordedFiles(in dir: URL) -> [URL] {
         let items = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
-        return items.filter { ["flac", "mp3", "txt"].contains($0.pathExtension) }
+        return items.filter { u in
+            let n = u.lastPathComponent.lowercased()
+            return n.hasSuffix(".flac") || n.hasSuffix(".mp3") || n.hasSuffix(".mp3.asd") || n == "sysrec-log.txt"
+        }
     }
 
-    /// Moves the list folder's recordings from `oldListDir` into the current listDir.
-    func moveRecordings(from oldListDir: URL) throws -> Int {
+    /// Moves files into `dir` without ever overwriting: a taken name is skipped. Another disk: copy, check the size,
+    /// keep the modification date (the analysis keys on it), then remove the original. The log is appended to the
+    /// destination's log instead of replacing it.
+    func moveFiles(_ files: [URL], to dir: URL) throws -> (moved: [(from: URL, to: URL)], skipped: [String]) {
         let fm = FileManager.default
-        try fm.createDirectory(at: listDir, withIntermediateDirectories: true)
-        var moved = 0
-        for f in recordedFiles(in: oldListDir) {
-            let dst = listDir.appendingPathComponent(f.lastPathComponent)
-            if fm.fileExists(atPath: dst.path) { continue }
-            try fm.moveItem(at: f, to: dst)
-            moved += 1
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let present = Set((try? fm.contentsOfDirectory(atPath: dir.path)) ?? [])
+        var moved: [(from: URL, to: URL)] = [], skipped: [String] = []
+        for f in files {
+            let dst = dir.appendingPathComponent(f.lastPathComponent)
+            if f.lastPathComponent == "sysrec-log.txt", present.contains("sysrec-log.txt") {
+                let h = try FileHandle(forWritingTo: dst)
+                h.seekToEndOfFile(); h.write(try Data(contentsOf: f)); try h.close()
+                try fm.removeItem(at: f)
+                continue
+            }
+            guard SafeMove.plan(files: [f.lastPathComponent], destinationNames: present).skipped.isEmpty else {
+                skipped.append(f.lastPathComponent); continue
+            }
+            do {
+                let sameVolume = (try? f.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier as? NSObject)
+                    == (try? dir.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier as? NSObject)
+                if sameVolume {
+                    try fm.moveItem(at: f, to: dst)
+                } else {
+                    try fm.copyItem(at: f, to: dst)
+                    let a = try fm.attributesOfItem(atPath: f.path), b = try fm.attributesOfItem(atPath: dst.path)
+                    guard (a[.size] as? Int64) == (b[.size] as? Int64) else {
+                        try? fm.removeItem(at: dst)
+                        throw RowFailure(message: "copie incomplète : \(f.lastPathComponent)")
+                    }
+                    if let date = a[.modificationDate] { try fm.setAttributes([.modificationDate: date], ofItemAtPath: dst.path) }
+                    try fm.removeItem(at: f)
+                }
+                moved.append((f, dst))
+            } catch {
+                // keep going: what already moved must still reach the manifest
+                skipped.append("\(f.lastPathComponent) (\(error.localizedDescription))")
+            }
         }
+        indexes = [:]
         refreshDoneStates()
-        return moved
+        return (moved, skipped)
     }
+
+    /// The karaoke manifest follows moved recordings (`karaoke relocaliser`, which keeps a backup).
+    func relocate(_ pairs: [(from: URL, to: URL)]) async {
+        let audio = pairs.filter { ["flac", "mp3"].contains($0.from.pathExtension.lowercased()) }
+        guard !audio.isEmpty,
+              let json = try? JSONSerialization.data(withJSONObject: Dictionary(audio.map { ($0.from.path, $0.to.path) },
+                                                                              uniquingKeysWith: { a, _ in a })) else { return }
+        let p = Pipeline()
+        let args = p.args(["relocaliser", "--json"]), env = p.env, cwd = p.projectDir
+        let input = String(decoding: json, as: UTF8.self)
+        let result = await Task.detached { EditorModel.runProcess(args: args, env: env, cwd: cwd, input: input) }.value
+        switch result {
+        case .success(let data):
+            let n = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["modifies"] as? [Any]
+            KaraokeModel.shared.appendLog("Manifeste : \(n?.count ?? 0) ligne(s) suivent les enregistrements déplacés")
+        case .failure(let e):
+            banner = "Manifeste non mis à jour : \(e.message)"
+        }
+        await KaraokeModel.shared.refresh()
+    }
+
     func skipCurrent() { skipRequested = true }
 
     func retryFailed() {
