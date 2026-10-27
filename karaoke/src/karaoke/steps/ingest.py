@@ -7,6 +7,7 @@ Outputs: travail/<id>/input.wav (44.1 kHz stereo float32, leading silence remove
 """
 from __future__ import annotations
 
+import hashlib
 import numpy as np
 
 from karaoke import audio
@@ -23,10 +24,33 @@ def first_sound_frame(x: np.ndarray, threshold_db: float = -60.0) -> int | None:
     return int(idx[0]) if idx.size else None
 
 
-def _key(ws: Workspace) -> str:
-    p = ws.song.fichier
+def _stat_key(p: Path, duree) -> str:
     st = p.stat() if p.exists() else None
-    return f"{p}|{st.st_size if st else 0}|{st.st_mtime_ns if st else 0}|{ws.song.duree_ref_s}"
+    return f"{st.st_size if st else 0}|{st.st_mtime_ns if st else 0}|{duree}"
+
+
+def _key(ws: Workspace) -> str:
+    """Size, date and reference duration: a renamed or moved recording (same bytes, same date) stays analysed."""
+    return _stat_key(ws.song.fichier, ws.song.duree_ref_s)
+
+
+def _full(version: str, key: str) -> str:
+    """What runner.run_song stores for a step without dependencies."""
+    return hashlib.sha1("|".join(["ingest", version, key]).encode()).hexdigest()
+
+
+def adopt_legacy_marker(ws: Workspace, old_path: Path | None = None) -> bool:
+    """A marker written with the old, path-based key (`<path>|size|mtime|duree`) for this same file is rewritten to
+    the current key, so the change of key format — or a move from `old_path` — re-runs nothing."""
+    m = ws.read_marker("ingest")
+    if not m:
+        return False
+    p = ws.song.fichier
+    legacy = _full(INGEST.version, f"{old_path or p}|{_stat_key(p, ws.song.duree_ref_s)}")
+    if m.get("key") != legacy:
+        return False
+    ws.write_marker("ingest", {**m, "key": _full(INGEST.version, _key(ws))})
+    return True
 
 
 def _run(ws: Workspace, upstream: dict) -> dict:

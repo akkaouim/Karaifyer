@@ -14,6 +14,7 @@ from karaoke.state import song_state
 from karaoke.steps.set_ableton import remove_stale_sets
 from karaoke.tools import TOOLS_DIR, ToolError, run_tool
 from karaoke.steps import STEPS
+from karaoke.steps.ingest import adopt_legacy_marker
 from karaoke.workspace import Workspace, slug
 
 app = typer.Typer(help="Karaoké live : manifeste → dossiers prêts à jouer.", no_args_is_help=True)
@@ -69,6 +70,7 @@ def traiter(ids: str = typer.Option(None, help="Liste d'id à traiter, ex. 041,0
         if wanted and s.id not in wanted:
             continue
         ws = Workspace(cfg, s)
+        adopt_legacy_marker(ws)
         ws.adopt_previous_folder()
         if json_out:
             ws.on_log = lambda line, sid=s.id: _emit({"event": "log", "id": sid, "line": line})

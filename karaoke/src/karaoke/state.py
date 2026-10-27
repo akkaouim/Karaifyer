@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 
+from karaoke.steps.ingest import adopt_legacy_marker
 from karaoke.config import Config
 from karaoke.manifest import Song
 from karaoke.runner import Step, inspect_song
@@ -19,6 +20,7 @@ def _step_of(alert: str) -> str | None:
 
 def song_state(cfg: Config, s: Song, steps: list[Step]) -> dict:
     ws = Workspace(cfg, s)
+    adopt_legacy_marker(ws)          # one stat: markers from the path-based key stay up to date
     rep_path = ws.out / "rapport.json"
     rep = json.loads(rep_path.read_text(encoding="utf-8")) if rep_path.exists() else {}
     last, alerts = rep.get("etapes", {}), rep.get("alertes", [])
