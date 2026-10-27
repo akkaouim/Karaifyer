@@ -106,6 +106,12 @@ final class PlayerModel {
         videoPlayer.replaceCurrentItem(with: nil)
     }
 
+    /// The karaoke folder changed: nothing loaded belongs to the new one.
+    func forgetAll() {
+        if let s = loaded { forget(ids: [s.id]) }
+        selectedID = nil
+    }
+
     private func key(_ id: String) -> String { "playerMix.\(id)" }
     private func save() { if let s = loaded { UserDefaults.standard.set(settings.encoded(), forKey: key(s.id)) } }
 

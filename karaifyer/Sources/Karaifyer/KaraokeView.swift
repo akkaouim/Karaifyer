@@ -99,6 +99,22 @@ struct KaraokeView: View {
                         .labelStyle(.iconOnly).buttonStyle(.borderless)
                 }
             }
+            Menu {
+                Button("Changer de dossier karaoké…") { KaraokeHome.choose() }
+                Button("Afficher dans le Finder") { open(model.pipeline.karaokeHome) }
+                let others = KaraokeHome.recents.filter { $0 != model.pipeline.karaokeHome }
+                if !others.isEmpty {
+                    Divider()
+                    Section("Récents") {
+                        ForEach(others, id: \.self) { p in Button(p) { KaraokeHome.switchTo(p) } }
+                    }
+                }
+            } label: {
+                Label(KaraokeFolder.displayName(model.pipeline.karaokeHome), systemImage: "externaldrive")
+            }
+            .fixedSize()
+            .disabled(model.locked)
+            .help("Dossier karaoké : \(model.pipeline.karaokeHome)")
             Picker("Vidéo :", selection: $model.videoLayout) {
                 Text("Grille + paroles").tag("grille")
                 Text("Accords sur les paroles").tag("paroles")

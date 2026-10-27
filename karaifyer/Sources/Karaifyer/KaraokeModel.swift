@@ -76,6 +76,8 @@ final class KaraokeModel: RunDriver {
         return e
     }
     func closeEditor(_ id: String) { editors[id]?.pause(); editors[id] = nil }
+    var hasUnsavedEditor: Bool { editors.values.contains { $0.dirty } }
+    func closeAllEditors() { for id in Array(editors.keys) { closeEditor(id) } }
 
     /// User-guide screenshots only (`--screenshots`): show an analysis in progress without running one.
     func stageRunForScreenshot(current: String, step: String, queued: [String], done: [(String, String)],
@@ -116,7 +118,7 @@ final class KaraokeModel: RunDriver {
     func createWorkspace(at path: String) async {
         let r = await pipeline.run(["init", "--home", path])
         appendLog(r.code == 0 ? "Dossier karaoké créé : \(path)" : "Création impossible : \(r.err)")
-        if r.code == 0 { UserDefaults.standard.set(path, forKey: "karaokeHome") }
+        if r.code == 0 { UserDefaults.standard.set(path, forKey: "karaokeHome"); KaraokeHome.remember(path) }
         await refresh()
     }
 

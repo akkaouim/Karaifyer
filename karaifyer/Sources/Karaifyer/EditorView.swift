@@ -34,6 +34,7 @@ struct EditorView: View {
         }
         .navigationTitle(model.windowTitle)
         .onAppear { model.installSpaceKey() }
+        .onReceive(NotificationCenter.default.publisher(for: .karaokeHomeChanged)) { _ in dismiss() }
         .onDisappear { model.removeSpaceKey(); ProgressionPanel.close(id: model.song.id) }
         .sheet(isPresented: $model.importShown) { importSheet }
         .sheet(isPresented: $model.replaceShown) { replaceSheet }

@@ -50,7 +50,13 @@ struct SettingsView: View {
         let p = Pipeline()
         let problems = p.problems()
         Form {
-            row("Dossier karaoké", key: "karaokeHome", value: p.karaokeHome, folder: true)
+            HStack {
+                Text("Dossier karaoké").frame(width: 170, alignment: .leading)
+                Text(p.karaokeHome).lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+                    .help(p.karaokeHome)
+                Button("Choisir…") { KaraokeHome.choose() }
+                Button("Défaut") { KaraokeHome.switchTo(nil) }
+            }
             row("Gabarit Ableton", key: "gabarit", value: p.gabarit, folder: false)
             row("Projet karaoke (code)", key: "projectDir", value: p.projectDir, folder: true)
             HStack {

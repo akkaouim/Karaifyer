@@ -42,6 +42,17 @@ menus donne l'état de l'enregistrement et de l'analyse en un coup d'œil.
 (le dépôt cloné, trouvé automatiquement). « Tout est prêt » en vert signifie que rien ne manque. Sinon, un bandeau orange
 dans l'onglet Karaoké dit quoi faire, par exemple « disque débranché ».
 
+**Changer de dossier karaoké :** le bouton avec l'icône de disque, dans la barre de l'onglet Karaoké, montre le dossier
+utilisé (par exemple « Hypermnesia › karaoke »). Il propose :
+- **Changer de dossier karaoké…** : choisir le dossier qui contient `manifeste.csv`, ou un dossier vide pour en
+  commencer un (le bandeau orange propose alors de le créer). Si vous choisissez par erreur le disque au lieu du dossier
+  karaoké qu'il contient, l'app propose d'utiliser ce dossier-là.
+- **Récents** : revenir en un clic à un des 5 derniers dossiers utilisés (par exemple un par soirée).
+- **Afficher dans le Finder.**
+
+Le changement est refusé pendant une analyse ou si une fenêtre Corriger a des modifications non enregistrées. Le morceau
+chargé dans le Lecteur est déchargé et les fenêtres Corriger se ferment. Le même choix se fait aussi dans les Réglages.
+
 **Grilles ouvertes** (Réglages) : « Télécharger » récupère Chordonomicon et patadata (≈ 100 Mo, une fois, usage
 privé) et relie les morceaux par la feuille d'enregistrement (identifiants Spotify).
 
