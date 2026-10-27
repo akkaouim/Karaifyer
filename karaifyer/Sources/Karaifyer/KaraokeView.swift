@@ -175,13 +175,13 @@ struct KaraokeView: View {
                     retirerCell(s)
                 }
                 .width(min: model.retirerCollapsed ? 96 : 300, ideal: model.retirerCollapsed ? 96 : 340)
-                TableColumn("Langue", value: \.langue) { s in langueCell(s) }.width(min: 48, ideal: 64)
+                TableColumn("Langue", value: \.langue) { s in langueCell(s) }.width(Self.headerFit("Langue", content: 64))
             }
             Group {
-                TableColumn("BPM", value: \.bpmSort) { s in bpmCell(s) }.width(min: 36, ideal: 44)
-                TableColumn("Tonalité", value: \.keyShort) { s in keyCell(s) }.width(min: 44, ideal: 60)
-                TableColumn("Vérifié", value: \.verifiedSort) { s in verifiedCell(s) }.width(min: 36, ideal: 52)
-                TableColumn("Corrigé", value: \.correctionsSort) { s in correctionsCell(s) }.width(min: 40, ideal: 56)
+                TableColumn("BPM", value: \.bpmSort) { s in bpmCell(s) }.width(Self.headerFit("BPM", content: 36))
+                TableColumn("Tonalité", value: \.keyShort) { s in keyCell(s) }.width(Self.headerFit("Tonalité", content: 40))
+                TableColumn("Vérifié", value: \.verifiedSort) { s in verifiedCell(s) }.width(Self.headerFit("Vérifié", content: 30))
+                TableColumn("Corrigé", value: \.correctionsSort) { s in correctionsCell(s) }.width(Self.headerFit("Corrigé", content: 40))
                 TableColumn("Statut", value: \.statutRank) { s in statutCell(s) }.width(min: 220, ideal: 360)
                 TableColumn("Étapes", value: \.stepsDone) { s in stepsCell(s) }.width(130)
             }
@@ -465,6 +465,14 @@ struct KaraokeView: View {
         .disabled(model.locked)
         .help(help)
         .frame(maxWidth: .infinity)
+    }
+
+    /// Fixed width showing the whole header (in the table header's own font, with room for the sort arrow), never
+    /// narrower than the cells need.
+    static func headerFit(_ title: String, content: CGFloat) -> CGFloat {
+        let font = NSTableHeaderCell().font ?? .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let text = ceil((title as NSString).size(withAttributes: [.font: font]).width)
+        return max(content, text + 30)        // cell insets (~16) + sort arrow (~14)
     }
 
     static var today: String {
