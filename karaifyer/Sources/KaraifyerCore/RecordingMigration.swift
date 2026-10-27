@@ -51,14 +51,18 @@ public enum RecordingMigration {
     /// Keys are « subfolder/name ». A subfolder holding only tracks already there (« old takes ») brings nothing.
     public static func incoming(main: [String: RecordingIndex.Entry],
                                 subfolders: [String: [String: RecordingIndex.Entry]]) -> [String: RecordingIndex.Entry] {
-        var have = Set(main.values.compactMap(\.trackID))
+        // per track and extension: a FLAC brought in before an interruption doesn't strand its MP3
+        func key(_ name: String, _ e: RecordingIndex.Entry) -> String? {
+            e.trackID.map { "\($0).\((name as NSString).pathExtension.lowercased())" }
+        }
+        var have = Set(main.compactMap { key($0.key, $0.value) })
         var out: [String: RecordingIndex.Entry] = [:]
         for sub in subfolders.keys.sorted() {
             var brought = Set<String>()
             for (name, e) in subfolders[sub]!.sorted(by: { $0.key < $1.key }) {
-                guard let id = e.trackID, !have.contains(id) || brought.contains(id) else { continue }
+                guard let k = key(name, e), !have.contains(k), !brought.contains(k) else { continue }
                 out["\(sub)/\(name)"] = e
-                brought.insert(id)
+                brought.insert(k)
             }
             have.formUnion(brought)
         }
@@ -74,6 +78,9 @@ public enum RecordingMigration {
         for o in others where !numbered(o) { taken[o] = .some(nil) }
         var renames: [Rename] = [], duplicates: [String] = []
         var named: [String: Set<String>] = [:]               // track → extensions that already got the plain name
+        for (n, e) in entries where !numbered(n) {              // renamed before an interruption: they keep it
+            if let id = e.trackID { named[id, default: []].insert((n as NSString).pathExtension.lowercased()) }
+        }
         let all = entries.merging(incoming) { a, _ in a }
         for n in all.keys.sorted() where numbered(n) || incoming[n] != nil {
             let e = all[n]!
@@ -108,6 +115,32 @@ public enum FolderChoice {
 }
 
 public enum SafeMove {
+    public struct CopyError: LocalizedError {
+        public let errorDescription: String?
+    }
+
+    /// A copy to another disk: same size, and the source's modification date to the nanosecond (the analysis keys on
+    /// it). A failed copy leaves nothing at the destination.
+    public static func copy(from src: URL, to dst: URL) throws {
+        let fm = FileManager.default
+        do {
+            try fm.copyItem(at: src, to: dst)
+            var a = stat(), b = stat()
+            guard stat(src.path, &a) == 0, stat(dst.path, &b) == 0, a.st_size == b.st_size else {
+                throw CopyError(errorDescription: "copie incomplète : \(src.lastPathComponent)")
+            }
+            if a.st_mtimespec.tv_sec != b.st_mtimespec.tv_sec || a.st_mtimespec.tv_nsec != b.st_mtimespec.tv_nsec {
+                var times = [a.st_atimespec, a.st_mtimespec]
+                guard utimensat(AT_FDCWD, dst.path, &times, 0) == 0 else {
+                    throw CopyError(errorDescription: "date non conservée : \(src.lastPathComponent)")
+                }
+            }
+        } catch {
+            try? fm.removeItem(at: dst)
+            throw error
+        }
+    }
+
     /// Files whose name is free at the destination; the others are skipped, never overwritten.
     public static func plan(files: [String], destinationNames: Set<String>) -> (move: [String], skipped: [String]) {
         (files.filter { !destinationNames.contains($0) }, files.filter { destinationNames.contains($0) })

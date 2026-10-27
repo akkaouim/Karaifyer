@@ -152,9 +152,37 @@ final class QueueModel {
         return index(for: dir).file(for: row.trackID).map { dir.appendingPathComponent($0) }
     }
 
-    /// The folder's recordings by Spotify id (.karaifyer-index.json), tags re-read only for new or changed files.
+    /// The folder's recordings by Spotify id (.karaifyer-index.json). Never blocks: answers with what is known and
+    /// re-reads new or changed files' tags (ffprobe) in the background, then updates the rows.
     func index(for dir: URL) -> RecordingIndex {
-        var idx = indexes[dir] ?? RecordingIndex.load(dir: dir)
+        if let idx = indexes[dir] { return idx }
+        let idx = RecordingIndex.load(dir: dir)
+        indexes[dir] = idx
+        scheduleRefresh(dir)
+        return idx
+    }
+
+    /// The index brought up to date, tags read off the main thread — for decisions (recording, naming, moving).
+    func freshIndex(for dir: URL) async -> RecordingIndex {
+        let base = indexes[dir] ?? RecordingIndex.load(dir: dir)
+        let idx = await Task.detached { Self.refreshed(base, dir: dir) }.value
+        indexes[dir] = idx
+        return idx
+    }
+
+    private func scheduleRefresh(_ dir: URL) {
+        guard !refreshing.contains(dir) else { return }
+        refreshing.insert(dir)
+        Task {
+            let before = indexes[dir]
+            let idx = await freshIndex(for: dir)
+            refreshing.remove(dir)
+            if idx != before { refreshDoneStates() }
+        }
+    }
+
+    nonisolated static func refreshed(_ start: RecordingIndex, dir: URL) -> RecordingIndex {
+        var idx = start
         let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
         let items = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys)) ?? []
         let listing = items.filter { ["flac", "mp3"].contains($0.pathExtension.lowercased()) }.map { u in
@@ -165,10 +193,10 @@ final class QueueModel {
         if idx.refresh(listing: listing, read: { RecordingTags.read(dir.appendingPathComponent($0)) }), !items.isEmpty {
             idx.save(dir: dir)
         }
-        indexes[dir] = idx
         return idx
     }
     @ObservationIgnored private var indexes: [URL: RecordingIndex] = [:]
+    @ObservationIgnored private var refreshing: Set<URL> = []
 
     // MARK: - Commands
 
@@ -188,6 +216,7 @@ final class QueueModel {
     }
 
     func refreshDoneStates() {
+        for dir in Set(rows.map { directory(for: $0) }) where indexes[dir] != nil { scheduleRefresh(dir) }
         for row in rows {
             if let f = existingFile(for: row) {
                 states[row.index] = RowState(status: .done, file: f)
@@ -199,6 +228,21 @@ final class QueueModel {
 
     func start() {
         guard !isRunning, !rows.isEmpty else { return }
+        // « Plus tard » on the naming update: recordings of the loaded list may sit in another folder and be recorded again
+        if !UserDefaults.standard.bool(forKey: "recorderMigrationDone"), let job = pendingMigration {
+            let a = NSAlert()
+            a.messageText = "Les noms des enregistrements n'ont pas encore été mis à jour"
+            a.informativeText = "Des morceaux déjà enregistrés (dans « \(job.target.lastPathComponent) » ou ses sous-dossiers) "
+                + "pourraient être enregistrés une seconde fois."
+            a.addButton(withTitle: "Mettre à jour d'abord…")
+            a.addButton(withTitle: "Enregistrer quand même")
+            a.addButton(withTitle: "Annuler").keyEquivalent = "\u{1b}"
+            switch a.runModal() {
+            case .alertFirstButtonReturn: QueueUI.shared.migration = job; return
+            case .alertSecondButtonReturn: break
+            default: return
+            }
+        }
         // Analysis load caused recording glitches before: offer to pause it (default).
         if KaraokeModel.shared.runState == .running {
             let a = NSAlert()
@@ -236,138 +280,173 @@ final class QueueModel {
         }
     }
 
-    /// Moves files into `dir` without ever overwriting: a taken name is skipped. Another disk: copy, check the size,
-    /// keep the modification date (the analysis keys on it), then remove the original. The log is appended to the
-    /// destination's log instead of replacing it.
-    func moveFiles(_ files: [URL], to dir: URL) throws -> (moved: [(from: URL, to: URL)], skipped: [String]) {
+    /// Moves files into `dir` without ever overwriting: a taken name is skipped. Another disk: copy with the size
+    /// checked and the exact modification date kept (the analysis keys on it), then remove the original. The log is
+    /// appended to the destination's log. Every failure is reported per file, so what moved still reaches the manifest.
+    /// Runs off the main thread.
+    nonisolated static func moveFiles(_ files: [URL], to dir: URL) -> (moved: [(from: URL, to: URL)], skipped: [String]) {
         let fm = FileManager.default
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        do { try fm.createDirectory(at: dir, withIntermediateDirectories: true) } catch {
+            return ([], files.map { "\($0.lastPathComponent) (\(error.localizedDescription))" })
+        }
         let present = Set((try? fm.contentsOfDirectory(atPath: dir.path)) ?? [])
+        let volume = { (u: URL) in (try? u.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier as? NSObject) ?? nil }
         var moved: [(from: URL, to: URL)] = [], skipped: [String] = []
         for f in files {
             let dst = dir.appendingPathComponent(f.lastPathComponent)
-            if f.lastPathComponent == "sysrec-log.txt", present.contains("sysrec-log.txt") {
-                let h = try FileHandle(forWritingTo: dst)
-                h.seekToEndOfFile(); h.write(try Data(contentsOf: f)); try h.close()
-                try fm.removeItem(at: f)
-                continue
-            }
-            guard SafeMove.plan(files: [f.lastPathComponent], destinationNames: present).skipped.isEmpty else {
-                skipped.append(f.lastPathComponent); continue
-            }
             do {
-                let sameVolume = (try? f.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier as? NSObject)
-                    == (try? dir.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier as? NSObject)
-                if sameVolume {
+                if f.lastPathComponent == "sysrec-log.txt", present.contains("sysrec-log.txt") {
+                    let h = try FileHandle(forWritingTo: dst)
+                    h.seekToEndOfFile(); h.write(try Data(contentsOf: f)); try h.close()
+                    try fm.removeItem(at: f)
+                    continue
+                }
+                guard SafeMove.plan(files: [f.lastPathComponent], destinationNames: present).skipped.isEmpty else {
+                    skipped.append(f.lastPathComponent); continue
+                }
+                if volume(f) == volume(dir) {
                     try fm.moveItem(at: f, to: dst)
                 } else {
-                    try fm.copyItem(at: f, to: dst)
-                    let a = try fm.attributesOfItem(atPath: f.path), b = try fm.attributesOfItem(atPath: dst.path)
-                    guard (a[.size] as? Int64) == (b[.size] as? Int64) else {
-                        try? fm.removeItem(at: dst)
-                        throw RowFailure(message: "copie incomplète : \(f.lastPathComponent)")
-                    }
-                    if let date = a[.modificationDate] { try fm.setAttributes([.modificationDate: date], ofItemAtPath: dst.path) }
+                    try SafeMove.copy(from: f, to: dst)
                     try fm.removeItem(at: f)
                 }
                 moved.append((f, dst))
             } catch {
-                // keep going: what already moved must still reach the manifest
                 skipped.append("\(f.lastPathComponent) (\(error.localizedDescription))")
             }
         }
-        indexes = [:]
-        refreshDoneStates()
         return (moved, skipped)
     }
 
-    /// At launch: the one-time naming migration, unless done (or nothing to do).
+    /// At launch: retry manifest updates left pending, then offer the one-time naming migration unless done.
     func offerMigration() {
+        Task { await flushRelocations() }
+        if RecordingTags.ffprobe == nil {
+            banner = "ffprobe introuvable (brew install ffmpeg) : les morceaux déjà enregistrés ne peuvent pas être reconnus."
+        }
         guard !UserDefaults.standard.bool(forKey: "recorderMigrationDone"), !isRunning, QueueUI.shared.migration == nil else { return }
         let root = outputRoot, list = listURL?.deletingPathExtension().lastPathComponent
         Task {
             let job = await Task.detached { RecorderMigrationJob.compute(outputRoot: root, listName: list) }.value
+            pendingMigration = job
             if let job { QueueUI.shared.migration = job } else { UserDefaults.standard.set(true, forKey: "recorderMigrationDone") }
         }
     }
+    @ObservationIgnored private(set) var pendingMigration: RecorderMigrationJob?
 
     /// Renames (and brings in) as planned, never onto an existing name; stops at the first failure, and the next
-    /// launch offers the rest. Then the output folder, the index and the karaoke manifest follow.
+    /// launch offers the rest. Each rename is journaled for the manifest before the next one, and the folder's index
+    /// follows the renames (no tag re-read).
     func migrate(_ job: RecorderMigrationJob) async {
         let ui = QueueUI.shared
         ui.migrating = true
         defer { ui.migrating = false }
         let fm = FileManager.default
-        var pairs: [(from: URL, to: URL)] = [], failure: String?
-        persistOutputRoot = true
-        outputRoot = job.target
+        var done: [RecordingMigration.Rename] = [], failure: String?
         log("— Nouveaux noms « Titre - Artiste » (\(job.plan.renames.count) fichier(s)) —")
         for r in job.plan.renames {
             let src = job.target.appendingPathComponent(r.from), dst = job.target.appendingPathComponent(r.to)
             guard !fm.fileExists(atPath: dst.path) else { failure = "« \(r.to) » existe déjà"; break }
             do {
                 try fm.moveItem(at: src, to: dst)
-                pairs.append((src, dst))
+                addPending([(src, dst)])
+                done.append(r)
                 log("Renommé : \(r.from) → \(r.to)" + (job.plan.duplicates.contains(r.to) ? " (copie en double)" : ""))
             } catch {
                 failure = "\(r.from) : \(error.localizedDescription)"
                 break
             }
         }
-        indexes = [:]
-        refreshDoneStates()
-        await relocate(pairs)
+        var idx = RecordingIndex.load(dir: job.target)
+        for r in done {
+            idx.entries[r.from] = nil
+            if let e = job.entries[r.from] { idx.entries[r.to] = e }
+        }
+        idx.save(dir: job.target)
+        indexes = [job.target: idx]
+        persistOutputRoot = true
+        outputRoot = job.target
+        await flushRelocations()
         if let failure {
-            banner = "Mise à jour des noms interrompue (\(pairs.count) fait(s)) : \(failure). Elle sera reproposée au prochain lancement."
+            banner = "Mise à jour des noms interrompue (\(done.count) faite(s)) : \(failure). Elle sera reproposée au prochain lancement."
         } else {
             UserDefaults.standard.set(true, forKey: "recorderMigrationDone")
-            banner = "\(pairs.count) enregistrement(s) renommé(s)."
+            pendingMigration = nil
+            banner = "\(done.count) enregistrement(s) renommé(s)."
         }
         ui.migration = nil
     }
 
-    /// « Déplacer vers… »: the rows' FLAC, MP3 and .asd go to `dir`; the karaoke manifest follows.
+    /// « Déplacer vers… »: the rows' FLAC, MP3 and .asd go to `dir` (off the main thread); the manifest follows.
     func move(rows: [TrackRow], to dir: URL) async -> String {
         var files: [URL] = []
         for row in rows {
             let src = directory(for: row)
-            let idx = index(for: src)
+            let idx = await freshIndex(for: src)
             for ext in ["flac", "mp3"] {
                 guard let name = idx.file(for: row.trackID, ext: ext) else { continue }
-                let f = src.appendingPathComponent(name)
-                files.append(f)
+                files.append(src.appendingPathComponent(name))
                 let asd = src.appendingPathComponent(name + ".asd")
                 if FileManager.default.fileExists(atPath: asd.path) { files.append(asd) }
             }
         }
         guard !files.isEmpty else { return "Aucun enregistrement à déplacer pour ces lignes." }
-        do {
-            let r = try moveFiles(files, to: dir)
-            for m in r.moved { log("Déplacé : \(m.from.path) → \(m.to.path)") }
-            await relocate(r.moved)
-            return "\(r.moved.count) fichier(s) déplacé(s) vers \(dir.lastPathComponent)"
-                + (r.skipped.isEmpty ? "." : " ; laissés en place : \(r.skipped.joined(separator: ", ")).")
-        } catch {
-            return "Déplacement impossible : \(error.localizedDescription)"
-        }
+        let r = await moveAndFollow(files, to: dir)
+        return "\(r.moved.count) fichier(s) déplacé(s) vers \(dir.lastPathComponent)"
+            + (r.skipped.isEmpty ? "." : " ; laissés en place : \(r.skipped.joined(separator: ", ")).")
     }
 
-    /// The karaoke manifest follows moved recordings (`karaoke relocaliser`, which keeps a backup).
+    /// Moves off the main thread, logs, refreshes the rows, and has the manifest follow.
+    func moveAndFollow(_ files: [URL], to dir: URL) async -> (moved: [(from: URL, to: URL)], skipped: [String]) {
+        banner = "Déplacement de \(files.count) fichier(s)…"
+        let r = await Task.detached { Self.moveFiles(files, to: dir) }.value
+        for m in r.moved { log("Déplacé : \(m.from.path) → \(m.to.path)") }
+        indexes = [:]
+        refreshDoneStates()
+        await relocate(r.moved)
+        return r
+    }
+
+    /// The karaoke manifest follows moved recordings (`karaoke relocaliser`, which keeps a backup). Moves are
+    /// journaled first, so a failure (drive unplugged, app quit) is retried at the next launch.
     func relocate(_ pairs: [(from: URL, to: URL)]) async {
-        let audio = pairs.filter { ["flac", "mp3"].contains($0.from.pathExtension.lowercased()) }
-        guard !audio.isEmpty,
-              let json = try? JSONSerialization.data(withJSONObject: Dictionary(audio.map { ($0.from.path, $0.to.path) },
-                                                                              uniquingKeysWith: { a, _ in a })) else { return }
+        addPending(pairs)
+        await flushRelocations()
+    }
+
+    private var pendingRelocations: [String: String] {
+        get { UserDefaults.standard.dictionary(forKey: "pendingRelocations") as? [String: String] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "pendingRelocations") }
+    }
+
+    /// x → y after a → x reads a → y (the manifest still says a).
+    private func addPending(_ pairs: [(from: URL, to: URL)]) {
+        var d = pendingRelocations
+        for p in pairs where ["flac", "mp3"].contains(p.from.pathExtension.lowercased()) {
+            for (k, v) in d where v == p.from.path { d[k] = p.to.path }
+            d[p.from.path] = p.to.path
+        }
+        pendingRelocations = d
+    }
+
+    func flushRelocations() async {
+        let d = pendingRelocations
+        guard !d.isEmpty, let json = try? JSONSerialization.data(withJSONObject: d) else { return }
         let p = Pipeline()
+        guard p.problems().isEmpty, p.manifestExists else { return }      // drive away: keep them for later
         let args = p.args(["relocaliser", "--json"]), env = p.env, cwd = p.projectDir
         let input = String(decoding: json, as: UTF8.self)
         let result = await Task.detached { EditorModel.runProcess(args: args, env: env, cwd: cwd, input: input) }.value
         switch result {
         case .success(let data):
+            var left = pendingRelocations
+            for k in d.keys where left[k] == d[k] { left[k] = nil }
+            pendingRelocations = left
             let n = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["modifies"] as? [Any]
             KaraokeModel.shared.appendLog("Manifeste : \(n?.count ?? 0) ligne(s) suivent les enregistrements déplacés")
         case .failure(let e):
-            banner = "Manifeste non mis à jour : \(e.message)"
+            banner = "Manifeste karaoké pas encore mis à jour (\(e.message)) : ce sera refait au prochain lancement, "
+                + "ou utilisez « Retrouver… » dans l'onglet Karaoké."
         }
         await KaraokeModel.shared.refresh()
     }
@@ -602,7 +681,9 @@ final class QueueModel {
 
         // Already in the folder (a duplicate row of a track just recorded, or a file added meanwhile): one file per
         // track, nothing is copied.
-        if let f = existingFile(for: row) {
+        let retake = shortRetries[row.index] != nil || glitchRetries[row.index] != nil || faultRetries[row.index] != nil
+        if !retake, let name = await freshIndex(for: dir).file(for: row.trackID) {
+            let f = dir.appendingPathComponent(name)
             let note = row.duplicateOf.map { "même morceau que la ligne \(rows[$0].number)" }
             states[row.index] = RowState(status: .done, file: f, note: note)
             log("Row \(row.number): already recorded → \(f.lastPathComponent)")
@@ -745,11 +826,11 @@ final class QueueModel {
 
         // 5. Trim, encode, tag.
         states[row.index] = RowState(status: .encoding)
-        let name = RecordingNaming.unique(
+        let name = RecordingNaming.uniqueBase(
             base: RecordingNaming.base(title: row.title.isEmpty ? meta.title : row.title,
                                        artist: row.artist.isEmpty ? meta.artist : row.artist),
-            trackID: row.trackID, ext: "flac", existing: index(for: dir).entries.mapValues(\.trackID))
-        let base = dir.appendingPathComponent((name as NSString).deletingPathExtension)
+            trackID: row.trackID, exts: ["flac", "mp3"], existing: await freshIndex(for: dir).entries.mapValues(\.trackID))
+        let base = dir.appendingPathComponent(name)
         let tags = TrackTags(title: meta.title, artist: meta.artist, album: meta.album,
                              trackNumber: row.number, comment: comment(for: row),
                              spotifyURI: row.uri, artworkURL: meta.artworkURL)   // the sheet's id: a relinked take still matches its row
@@ -787,7 +868,8 @@ final class QueueModel {
             throw RowFailure(message: r.warning!, requeue: true)
         }
         states[row.index] = RowState(status: .done, file: r.flac, note: r.warning)
-        _ = index(for: dir)          // the new file joins the index (its duplicates rows read « done »)
+        _ = await freshIndex(for: dir)          // the new file joins the index (its duplicate rows read « done »)
+        refreshDoneStates()
         log(String(format: "Row %@: %@ — %.0f Hz, %.2fs, lead-in trimmed %.3fs, peak %.1f dBFS, %d gaps%@",
                    row.number, r.flac.lastPathComponent, seg.sampleRate, Double(durMs) / 1000,
                    r.trimmedSeconds, 20 * log10(max(seg.peak, 1e-9)), seg.discontinuities,

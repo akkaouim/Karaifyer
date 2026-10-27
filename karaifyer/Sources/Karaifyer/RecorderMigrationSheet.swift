@@ -7,6 +7,7 @@ struct RecorderMigrationJob: Sendable {
     let target: URL
     let plan: RecordingMigration.Plan
     let switchesFolder: Bool
+    let entries: [String: RecordingIndex.Entry]      // by the plan's « from » names: the index follows the renames
 
     /// Reads the folders' tags off the main thread (ffprobe per file the first time).
     static func compute(outputRoot: URL, listName: String?) -> RecorderMigrationJob? {
@@ -46,7 +47,9 @@ struct RecorderMigrationJob: Sendable {
         let incoming = RecordingMigration.incoming(main: main, subfolders: subs)
         let plan = RecordingMigration.renames(entries: main, others: others, incoming: incoming)
         let switches = targetURL.standardizedFileURL != outputRoot.standardizedFileURL
-        return plan.renames.isEmpty && !switches ? nil : RecorderMigrationJob(target: targetURL, plan: plan, switchesFolder: switches)
+        return plan.renames.isEmpty && !switches ? nil
+            : RecorderMigrationJob(target: targetURL, plan: plan, switchesFolder: switches,
+                                   entries: main.merging(incoming) { a, _ in a })
     }
 }
 

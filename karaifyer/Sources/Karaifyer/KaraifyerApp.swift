@@ -404,20 +404,18 @@ struct QueueView: View {
             default: return
             }
         }
-        var pairs: [(from: URL, to: URL)] = []
-        if move {
-            do {
-                let r = try model.moveFiles(existing, to: url)
-                pairs = r.moved
-                model.banner = "\(r.moved.count) fichier(s) déplacé(s)"
-                    + (r.skipped.isEmpty ? "." : " ; déjà présents, laissés en place : \(r.skipped.joined(separator: ", ")).")
-            } catch {
-                model.banner = "Déplacement interrompu : \(error.localizedDescription)"
-            }
+        guard move else {
+            model.persistOutputRoot = true
+            model.outputRoot = url
+            return
         }
-        model.persistOutputRoot = true
-        model.outputRoot = url
-        if !pairs.isEmpty { Task { await model.relocate(pairs) } }
+        Task {
+            let r = await model.moveAndFollow(existing, to: url)
+            model.persistOutputRoot = true
+            model.outputRoot = url
+            model.banner = "\(r.moved.count) fichier(s) déplacé(s)"
+                + (r.skipped.isEmpty ? "." : " ; laissés en place : \(r.skipped.joined(separator: ", ")).")
+        }
     }
 }
 

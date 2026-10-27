@@ -114,4 +114,20 @@ struct RecordingMigrationTests {
                                            others: [])
         #expect(p.renames.map(\.to) == ["Ma liberté - Serge Regiani.flac"])
     }
+
+    // Gate A #1: stopped after « 14 » was renamed, before « 80 » (same track): the re-plan must not stall on it
+    @Test func rerunAfterInterruptionWithADuplicateGivesTheSecondCopyASuffix() {
+        let p = RecordingMigration.renames(entries: [
+            "Ma liberté de penser - Florent Pagny.flac": e("P", "Ma liberté de penser", "Florent Pagny"),
+            "80 - Ma liberté de penser - Florent Pagny.flac": e("P", "Ma liberté de penser", "Florent Pagny")], others: [])
+        #expect(p.renames == [.init(from: "80 - Ma liberté de penser - Florent Pagny.flac", to: "Ma liberté de penser - Florent Pagny (2).flac")])
+        #expect(p.duplicates == ["Ma liberté de penser - Florent Pagny (2).flac"])
+    }
+
+    // Gate A: the FLAC was brought in, the MP3 not yet: the MP3 still comes
+    @Test func incomingMatchesPerTrackAndExtension() {
+        let main = ["Lemon tree - Fool’s garden.flac": e("LT", "Lemon tree", "Fool’s garden")]
+        let subs = ["Copie": ["088 - Lemon tree - Fool’s garden.mp3": e("LT", "Lemon tree", "Fool’s garden")]]
+        #expect(Array(RecordingMigration.incoming(main: main, subfolders: subs).keys) == ["Copie/088 - Lemon tree - Fool’s garden.mp3"])
+    }
 }
