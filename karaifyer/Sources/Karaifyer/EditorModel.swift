@@ -163,7 +163,10 @@ final class EditorModel {
         rebuildClick()
     }
     func moveBar(_ i: Int, by d: Int) { guard i < starts.count else { return }; changeFix(BarGrid.moved(fix, beats: beats, line: starts[i], by: d)) }
-    func pinBar(_ i: Int) { guard i < starts.count else { return }; changeFix(BarGrid.pinned(fix, beats: beats, line: starts[i])) }
+    func pinBar(_ i: Int) {
+        guard i < starts.count, let g = song.grid else { return }
+        changeFix(BarGrid.locked(fix, beats: beats, detected: g.downbeatsDetectees, detectedBPB: g.beatsPerBarDetecte, bpm: g.bpm, line: starts[i]))
+    }
     func unpinBar(_ i: Int) { guard i < starts.count else { return }; changeFix(BarGrid.unpinned(fix, beats: beats, line: starts[i])) }
     func hasPin(_ i: Int) -> Bool { gridAvailable && i < starts.count && BarGrid.hasPin(fix, beats: beats, line: starts[i]) }
     func setSignature(_ s: String?) { var f = fix; f.signature = s; changeFix(f) }

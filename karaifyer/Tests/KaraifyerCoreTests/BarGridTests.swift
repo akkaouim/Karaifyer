@@ -45,9 +45,9 @@ struct BarGridTests {
         #expect(f.pins == [8.5])
         f = BarGrid.moved(f, beats: beats, line: 17, by: 1)                 // moves the existing pin
         #expect(f.pins == [9.0] && BarGrid.hasPin(f, beats: beats, line: 18))
-        f = BarGrid.pinned(f, beats: beats, line: 4)
-        #expect(f.pins == [2.0, 9.0])
-        #expect(BarGrid.unpinned(f, beats: beats, line: 18).pins == [2.0])
+        f = BarGrid.locked(f, beats: beats, detected: down, detectedBPB: 4, bpm: 100, line: 4)   // before the pin: a lock
+        #expect(f.pins == [9.0] && f.locks == [2.0])
+        #expect(BarGrid.unpinned(f, beats: beats, line: 18) == BarFix(signature: nil, swing: false, pins: [], locks: [2.0]))
         #expect(BarGrid.moved(.empty, beats: beats, line: 0, by: -1) == .empty)   // out of range: unchanged
     }
 
@@ -83,5 +83,43 @@ struct BarGridTests {
         #expect(BarGrid.matches(starts: [0, 4, 8], beats: beats, bars: [0, 2, 4.0004]))
         #expect(!BarGrid.matches(starts: [0, 4, 8], beats: beats, bars: [0, 2.5, 4]))     // same count, moved line
         #expect(!BarGrid.matches(starts: [0, 4], beats: beats, bars: [0, 2, 4]))
+    }
+
+    var irregular: [Double] { [0, 4, 8, 13, 14, 18, 22, 26].map { beats[$0] } }    // a 5-beat bar then a 1-beat bar
+    func grid(_ f: BarFix) -> [Int] {
+        BarGrid.lines(beats: beats, detected: irregular, fix: f, detectedBPB: 4, bpm: 100).lines
+    }
+
+    @Test func lockingABarNeverMovesOne() {
+        let f = BarGrid.locked(.empty, beats: beats, detected: irregular, detectedBPB: 4, bpm: 100, line: 13)
+        #expect(f.locks == [6.5] && f.pins.isEmpty)
+        #expect(grid(f) == [0, 4, 8, 13, 14, 18, 22, 26])
+        #expect(BarGrid.hasPin(f, beats: beats, line: 13))
+    }
+
+    @Test func lockingInACountedStretchIsAPin() {
+        let moved = BarFix(signature: nil, swing: false, pins: [1.0])           // bar moved to beat 2: 2, 6, 10…
+        let f = BarGrid.locked(moved, beats: beats, detected: irregular, detectedBPB: 4, bpm: 100, line: 10)
+        #expect(f.pins == [1.0, 5.0] && f.locks.isEmpty)
+        #expect(grid(f) == grid(moved))
+    }
+
+    @Test func aMovedBarRecountsOnlyUntilTheNextLock() {
+        let f = BarFix(signature: nil, swing: false, pins: [beats[2]], locks: [beats[14]])
+        #expect(grid(f) == [0, 2, 6, 10, 14, 18, 22, 26])
+    }
+
+    @Test func unlockingAndMovingDropTheLock() {
+        let f = BarFix(signature: nil, swing: false, pins: [], locks: [beats[13]])
+        #expect(BarGrid.unpinned(f, beats: beats, line: 13).isEmpty)
+        let m = BarGrid.moved(f, beats: beats, line: 13, by: 1)
+        #expect(m.locks.isEmpty && m.pins == [beats[14]])
+    }
+
+    @Test func fixFilesWithAndWithoutLocks() {
+        let f = BarFix(signature: nil, swing: false, pins: [3.5], locks: [6.5])
+        #expect(BarFix.decode(f.encoded()) == f && !BarFix(signature: nil, swing: false, pins: [], locks: [1]).isEmpty)
+        let old = BarFix.decode(Data(#"{"pins":[3.5],"signature":null,"swing":false}"#.utf8))
+        #expect(old == BarFix(signature: nil, swing: false, pins: [3.5]) && old.locks.isEmpty)
     }
 }

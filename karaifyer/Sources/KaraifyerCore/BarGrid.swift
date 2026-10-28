@@ -5,12 +5,21 @@ public struct BarFix: Codable, Equatable, Sendable {
     public var signature: String?
     public var swing: Bool
     public var pins: [Double]
-    public init(signature: String?, swing: Bool, pins: [Double]) { self.signature = signature; self.swing = swing; self.pins = pins }
+    /// Bar lines locked where they are: the detected bar lines follow them, not a recount (files before locks have none).
+    public var locks: [Double]
+    public init(signature: String?, swing: Bool, pins: [Double], locks: [Double] = []) {
+        self.signature = signature; self.swing = swing; self.pins = pins; self.locks = locks
+    }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(signature: try c.decodeIfPresent(String.self, forKey: .signature), swing: try c.decodeIfPresent(Bool.self, forKey: .swing) ?? false,
+                  pins: try c.decodeIfPresent([Double].self, forKey: .pins) ?? [], locks: try c.decodeIfPresent([Double].self, forKey: .locks) ?? [])
+    }
     public static let empty = BarFix(signature: nil, swing: false, pins: [])
-    public var isEmpty: Bool { signature == nil && !swing && pins.isEmpty }
+    public var isEmpty: Bool { signature == nil && !swing && pins.isEmpty && locks.isEmpty }
     public static func decode(_ data: Data?) -> BarFix {
         guard let data, let f = try? JSONDecoder().decode(BarFix.self, from: data) else { return .empty }
-        return BarFix(signature: BarGrid.menu.contains(f.signature ?? "") ? f.signature : nil, swing: f.swing, pins: f.pins)
+        return BarFix(signature: BarGrid.menu.contains(f.signature ?? "") ? f.signature : nil, swing: f.swing, pins: f.pins, locks: f.locks)
     }
     public func encoded() -> Data {
         let e = JSONEncoder(); e.outputFormatting = [.sortedKeys]
@@ -34,21 +43,31 @@ public enum BarGrid {
 
     public static func lines(beats: [Double], detected: [Double], fix: BarFix, detectedBPB: Int, bpm: Double) -> (lines: [Int], bpb: Int) {
         let n = beatsInBar(signature: fix.signature, detected: detectedBPB, bpm: bpm)
-        // only detected lines that sit on a beat (to 1 ms, like barfix.on_beat / chords.bars_from)
-        let onBeat = Dictionary(beats.enumerated().map { (Int(($0.element * 1000).rounded()), $0.offset) }, uniquingKeysWith: { a, _ in a })
-        let det = Array(Set(detected.compactMap { onBeat[Int(($0 * 1000).rounded())] })).sorted()
-        guard !beats.isEmpty else { return (det, n) }
-        var anchors = Array(Set(fix.pins.map { nearest(beats, $0) })).sorted()
-        if fix.signature != nil, let first = det.first, anchors.first.map({ $0 >= first + n }) ?? true {
-            anchors = Array(Set(anchors + [first])).sorted()
-        }
-        guard let a0 = anchors.first else { return (det, n) }
+        let det = onBeat(beats, detected)
+        let ev = events(beats: beats, det: det, fix: fix, n: n)
+        guard let a0 = ev.first?.at else { return (det, n) }
         var out = det.filter { $0 < a0 }
-        for (k, a) in anchors.enumerated() {
-            let end = k + 1 < anchors.count ? anchors[k + 1] : beats.count
-            out += Array(stride(from: a, to: end, by: max(n, 1)))
+        for (k, e) in ev.enumerated() {
+            let end = k + 1 < ev.count ? ev[k + 1].at : beats.count
+            out += e.counted ? Array(stride(from: e.at, to: end, by: max(n, 1))) : [e.at] + det.filter { $0 > e.at && $0 < end }
         }
         return (out, n)
+    }
+
+    /// Only detected lines that sit on a beat (to 1 ms, like barfix.on_beat / chords.bars_from), as beat indices.
+    static func onBeat(_ beats: [Double], _ detected: [Double]) -> [Int] {
+        let index = Dictionary(beats.enumerated().map { (Int(($0.element * 1000).rounded()), $0.offset) }, uniquingKeysWith: { a, _ in a })
+        return Array(Set(detected.compactMap { index[Int(($0 * 1000).rounded())] })).sorted()
+    }
+
+    /// Where the grid changes rule: anchors (pins, the signature's implicit first line) start a count every N beats;
+    /// locks keep the detected lines. A pin and a lock on the same beat count as the pin.
+    static func events(beats: [Double], det: [Int], fix: BarFix, n: Int) -> [(at: Int, counted: Bool)] {
+        guard !beats.isEmpty else { return [] }
+        var anchors = Set(fix.pins.map { nearest(beats, $0) })
+        if fix.signature != nil, let first = det.first, anchors.min().map({ $0 >= first + n }) ?? true { anchors.insert(first) }
+        let locks = Set(fix.locks.map { nearest(beats, $0) }).subtracting(anchors)
+        return (anchors.map { ($0, true) } + locks.map { ($0, false) }).sorted { $0.0 < $1.0 }
     }
 
     /// The grid as the editor computes it is the song's grid (same bar positions, 1 ms): else etat is stale.
@@ -58,28 +77,35 @@ public enum BarGrid {
 
     public static func starts(_ lines: [Int]) -> [Int] { lines.first == 0 ? lines : [0] + lines }
 
-    static func pinIndex(_ fix: BarFix, beats: [Double], line: Int) -> Int? {
-        fix.pins.firstIndex { nearest(beats, $0) == line }
+    public static func hasPin(_ fix: BarFix, beats: [Double], line: Int) -> Bool {
+        (fix.pins + fix.locks).contains { nearest(beats, $0) == line }
     }
 
-    public static func hasPin(_ fix: BarFix, beats: [Double], line: Int) -> Bool { pinIndex(fix, beats: beats, line: line) != nil }
-
+    /// Moving a bar line pins it at its new beat (dropping any pin or lock it had): the bars after it are recounted.
     public static func moved(_ fix: BarFix, beats: [Double], line: Int, by delta: Int) -> BarFix {
         let to = line + delta
         guard beats.indices.contains(line), to >= 1, to < beats.count else { return fix }
-        var f = fix
-        if let i = pinIndex(fix, beats: beats, line: line) { f.pins.remove(at: i) }
+        var f = unpinned(fix, beats: beats, line: line)
         f.pins = Array(Set(f.pins + [beats[to]])).sorted()
         return f
     }
 
-    public static func pinned(_ fix: BarFix, beats: [Double], line: Int) -> BarFix {
+    /// Locking a bar never moves one: in a stretch counted every N beats it becomes a pin (on that count already),
+    /// elsewhere a lock (the detected lines go on after it).
+    public static func locked(_ fix: BarFix, beats: [Double], detected: [Double], detectedBPB: Int, bpm: Double, line: Int) -> BarFix {
         guard beats.indices.contains(line), !hasPin(fix, beats: beats, line: line) else { return fix }
-        var f = fix; f.pins = (f.pins + [beats[line]]).sorted(); return f
+        let n = beatsInBar(signature: fix.signature, detected: detectedBPB, bpm: bpm)
+        let counted = events(beats: beats, det: onBeat(beats, detected), fix: fix, n: n).last { $0.at <= line }?.counted ?? false
+        var f = fix
+        if counted { f.pins = (f.pins + [beats[line]]).sorted() } else { f.locks = (f.locks + [beats[line]]).sorted() }
+        return f
     }
 
     public static func unpinned(_ fix: BarFix, beats: [Double], line: Int) -> BarFix {
-        var f = fix; f.pins.removeAll { nearest(beats, $0) == line }; return f
+        var f = fix
+        f.pins.removeAll { nearest(beats, $0) == line }
+        f.locks.removeAll { nearest(beats, $0) == line }
+        return f
     }
 
     /// Chords re-cut beat by beat into new bars; nil when a cell doesn't parse.

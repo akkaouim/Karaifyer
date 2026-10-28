@@ -150,7 +150,14 @@ struct EditorView: View {
             Text("« A B » = moitié-moitié · « Am . . F » = un symbole par temps · N.C. = sans accord · ex. Cmaj7 Dm7 G7 Am/G Gsus4 Edim7")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
-                Button("Rechercher la grille…") { searchChart() }
+                Menu("Rechercher la grille") {
+                    ForEach(ChartSearch.allCases, id: \.self) { site in
+                        Button(site.label) {
+                            if let url = site.url(titre: model.song.titre, artiste: model.song.artiste) { NSWorkspace.shared.open(url) }
+                        }
+                    }
+                }
+                .fixedSize()
                 Button("Importer une grille…") { model.importDraft = ""; model.importShown = true }
                 Button("Afficher la progression d'accords") {
                     if let raw = model.song.progression {
@@ -223,15 +230,6 @@ struct EditorView: View {
             }
         }
         .padding(8)
-    }
-
-    /// Ultimate Guitar and La Boîte à chansons searches in the browser: Michel picks the version he trusts.
-    func searchChart() {
-        let q = "\(model.song.titre) \(model.song.artiste)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        for u in ["https://www.ultimate-guitar.com/search.php?search_type=title&value=\(q)",
-                  "https://www.boiteachansons.net/recherche?q=\(q)"] {
-            if let url = URL(string: u) { NSWorkspace.shared.open(url) }
-        }
     }
 
     var importSheet: some View {

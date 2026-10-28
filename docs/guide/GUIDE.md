@@ -274,6 +274,7 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
   - « Décaler le début de la mesure d'un temps plus tôt / plus tard (et les suivantes) » déplace le début de cette
     mesure d'un temps et recompte la suite à partir d'elle, jusqu'à la prochaine mesure verrouillée ;
   - « Verrouiller cette mesure » (🔒) la protège : une correction faite sur une mesure précédente ne la décale pas.
+    Verrouiller ne déplace aucune mesure : les mesures qui suivent restent telles qu'elles sont.
     Par exemple, verrouiller la mesure 70 avant de corriger la 50 limite la correction aux mesures 50 à 69 ;
     verrouiller la mesure qui suit une mesure courte garde cette mesure courte ;
   - les accords suivent leurs temps.
@@ -297,8 +298,8 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
   vidéo est refaite avec les lignes calées.
 
 **Grilles d'accords (tablatures et grilles ouvertes)** :
-- **Rechercher la grille…** ouvre une recherche du morceau sur Ultimate Guitar et La Boîte à chansons : choisir la
-  version la plus fiable.
+- **Rechercher la grille** propose Ultimate Guitar ou La Boîte à chansons et ouvre la recherche du morceau sur le
+  site choisi : choisir la version la plus fiable.
 - **Importer une grille…** : coller la grille (accords au-dessus des paroles, ChordPro, ou fichier patadata), puis
   « Appliquer ». La grille est fusionnée avec la détection et remplace les cases tout de suite (⌘Z pour revenir) :
   - un accord écrit au-dessus d'un mot tombe sur le temps où ce mot est chanté ;
