@@ -16,7 +16,7 @@ def no_genius(monkeypatch):
     monkeypatch.setattr(genius, "fetch", lambda *a, **k: None)
 
 
-def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009", from_genius=None):
+def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009", from_genius=None, align=None):
     if isinstance(result, Exception):
         def down(*a, **k):
             raise result
@@ -38,6 +38,11 @@ def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009", from_geni
                  "words": [{"w": w, "s": 1.0 + i + 0.1 * k, "e": 1.0 + i + 0.1 * k + 0.08}
                            for k, w in enumerate(l.split())]} for i, l in enumerate(lines)]
     monkeypatch.setattr(L, "align_lines", fake_align)
+    if align:
+        def custom(vocals, lines, language, work, duration_s=600.0, segments=None):
+            calls.append((lines, segments))
+            return align(lines, segments)
+        monkeypatch.setattr(L, "align_lines", custom)
     monkeypatch.setattr(L, "transcribe", lambda *a, **k: [])        # nothing heard unless a test says so
     for name, text in (files or {}).items():
         (cfg.paroles / name).write_text(text, encoding="utf-8")
@@ -342,3 +347,40 @@ def test_lrclib_down_and_genius_without_the_song_is_a_retry(cfg, monkeypatch):
 def test_genius_down_when_lrclib_has_nothing_is_a_retry(cfg, monkeypatch):
     with pytest.raises(StepRetry, match="Genius HTTP 502"):
         run(cfg, monkeypatch, lrclib.NOT_FOUND, from_genius=StepRetry("Genius HTTP 502"))
+
+
+GUESSED = ("[karaoke:decalage=0.500]\n[karaoke:a_caler=1,2]\n"
+           "[00:10.50]Alpha\n[00:12.50]Bravo bis\n[00:14.50]Charlie\n[00:20.50]Delta\n")
+
+
+def sung_in_window(lines, segments):
+    """Each window's words are sung from 1 s into it, every 0.5 s."""
+    return [{"start": a + 1, "score": 0.8, "words": [{"w": w, "s": a + 1 + 0.5 * k, "e": a + 1.2 + 0.5 * k}
+                                                     for k, w in enumerate(l.split())]}
+            for l, (a, _) in zip(lines, segments)]
+
+
+def test_guessed_lines_are_aligned_between_the_lines_timed_by_hand(cfg, monkeypatch):
+    r, calls = run(cfg, monkeypatch, LrclibResult(False, False, None, None), files={"009.lrc": GUESSED},
+                   align=sung_in_window)
+    # the « à caler » run is aligned as one stretch, between the hand-timed lines around it
+    assert calls == [(["Alpha", "Bravo bis Charlie", "Delta"], [[9.0, 20.0], [10.0, 20.0], [19.0, 30.0]])]
+    assert r["source"] == "fichier-lrc+alignement"
+    assert [(l["t"], l["text"]) for l in r["lines"]] == [(10.0, "Alpha"), (11.0, "Bravo bis"), (12.0, "Charlie"),
+                                                         (20.0, "Delta")]
+    assert [w["text"] for w in r["lines"][2]["words"]] == ["Charlie"]
+
+
+def test_guessed_lines_not_found_in_the_voice_are_spread_between_their_neighbours(cfg, monkeypatch):
+    def unheard(lines, segments):
+        return [{"start": None, "score": None, "words": [{"w": w, "s": None, "e": None} for w in l.split()]}
+                if " " in l else sung_in_window([l], [s])[0] for l, s in zip(lines, segments)]
+    r, _ = run(cfg, monkeypatch, LrclibResult(False, False, None, None), files={"009.lrc": GUESSED}, align=unheard)
+    assert [l["t"] for l in r["lines"]] == [10.0, 13.333, 16.667, 20.0]
+
+
+def test_a_text_all_guessed_is_aligned_on_the_whole_song(cfg, monkeypatch):
+    text = "[karaoke:decalage=0.500]\n[karaoke:a_caler=0,1]\n[00:02.50]Un deux\n[00:04.50]Trois\n"
+    r, calls = run(cfg, monkeypatch, LrclibResult(False, False, None, None), files={"009.lrc": text})
+    assert calls == [(["Un deux", "Trois"], None)]
+    assert r["source"] == "fichier-lrc+alignement" and [l["t"] for l in r["lines"]] == [1.0, 2.0]

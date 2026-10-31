@@ -28,7 +28,7 @@ struct LyricsSyncTests {
     }
 
     @Test func replaceKeepsTimesOfUnchangedLines() {
-        let old = [(time: 10.0, text: "un"), (time: 20.0, text: "deux"), (time: 30.0, text: "trois")]
+        let old = [LyricLine(time: 10, text: "un"), LyricLine(time: 20, text: "deux"), LyricLine(time: 30, text: "trois")]
         let r = LyricsText.replace(old: old, with: "un\nnouveau\ndeux\ntrois\nfin\n")
         #expect(r.lines.map(\.text) == ["un", "nouveau", "deux", "trois", "fin"])
         #expect(r.lines.map(\.time) == [10, 15, 20, 30, 32])

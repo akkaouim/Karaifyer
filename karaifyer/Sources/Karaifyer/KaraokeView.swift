@@ -505,6 +505,7 @@ struct CommitField: NSViewRepresentable {
     /// outside updates) and Space goes back to the player. Off in tables, where focus must stay for the arrows.
     var resignOnCommit = false
     var alignment: NSTextAlignment = .natural
+    var dimmed = false                 // shown in grey but editable (a provisional value)
     let onCommit: (String) -> Void
 
     func makeNSView(context: Context) -> NSTextField {
@@ -520,7 +521,7 @@ struct CommitField: NSViewRepresentable {
     func updateNSView(_ f: NSTextField, context: Context) {
         if f.currentEditor() == nil { f.stringValue = value }
         f.isEditable = enabled
-        f.textColor = enabled ? .labelColor : .secondaryLabelColor
+        f.textColor = enabled && !dimmed ? .labelColor : .secondaryLabelColor
         context.coordinator.onCommit = onCommit
         context.coordinator.original = value
         context.coordinator.resignOnCommit = resignOnCommit

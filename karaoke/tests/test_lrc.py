@@ -20,3 +20,11 @@ def test_shift_clamps():
 
 def test_plain_lines():
     assert plain_lines("[Refrain]\nLa la\n\n  Do ré  \n") == ["La la", "Do ré"]
+
+
+def test_guessed_lines_by_file_order():
+    from karaoke.lrc import parse_marked
+    # the app writes [karaoke:a_caler=…] with the indices of every timed line, empty ones included
+    text = "[karaoke:decalage=0.500]\n[karaoke:a_caler=1,2]\n[00:09.00]Trois\n[00:05.00]Deux\n[00:07.00]\n[00:03.00]Un\n"
+    assert parse_marked(text) == [(Line(3.0, "Un"), False), (Line(5.0, "Deux"), True), (Line(9.0, "Trois"), False)]
+    assert [g for _, g in parse_marked(SAMPLE)] == [False] * 4

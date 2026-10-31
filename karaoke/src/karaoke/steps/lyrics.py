@@ -1,8 +1,9 @@
 """Step `lyrics` — synced lyric lines, never transcribed.
 
 Inputs:  manifest row; ingest result (offset_s); stems/vocals.wav (for alignment only);
-         optional $KARAOKE_HOME/paroles/<id>.lrc (Michel's corrected file, wins over everything)
-         or paroles/<id>.txt (plain text to align).
+         optional $KARAOKE_HOME/paroles/<id>.lrc (Michel's corrected file, wins over everything; its lines
+         marked « à caler » are aligned on the voice between the hand-timed ones) or paroles/<id>.txt (plain
+         text to align).
 Outputs: result {source, language, lines: [{t, text, score, words}]} with t in trimmed-input time;
          words = [{text, start, end, syllables: [{text, start}]}] from WhisperX word alignment (every
          song with lyrics is aligned; synced sources keep their line starts and align within each line).
@@ -195,9 +196,57 @@ def _run(ws: Workspace, upstream: dict) -> dict:
         return {"source": source, "language": s.langue,
                 "lines": synced_lines(lrc.shift(lrc.parse(text), -offset), snap)}
 
+    def with_guessed(marked: list[tuple[lrc.Line, bool]]) -> dict:
+        """« à caler » lines (times placed by « Remplacer le texte »): each run of them is aligned as one
+        stretch between the hand-timed lines around it, which keep their times."""
+        starts, texts, g = [l.t for l, _ in marked], [l.text for l, _ in marked], [x for _, x in marked]
+        n = len(marked)
+        if all(g):
+            aligned = align_lines(vocals, texts, s.langue, ws.work, duration)
+            times = _interpolate([a["start"] for a in aligned])
+            return {"source": "fichier-lrc+alignement", "language": s.langue,
+                    "lines": with_words(times, texts, aligned)}
+        anchors = [i for i in range(n) if not g[i]]
+        groups: list[tuple[list[int], list[float]]] = []
+        i = 0
+        while i < n:
+            if not g[i]:
+                prev = max((starts[j] for j in anchors if j < i), default=0.0)
+                nxt = min((starts[j] for j in anchors if j > i), default=None)
+                end = starts[i + 1] if i + 1 < n and not g[i + 1] else \
+                    min(starts[i] + LINE_TAIL_S, nxt if nxt is not None else float("inf"))
+                groups.append(([i], [round(max(prev, starts[i] - LINE_LEAD_S), 3), round(end, 3)]))
+                i += 1
+                continue
+            e = i
+            while e < n and g[e]:
+                e += 1
+            groups.append((list(range(i, e)), [starts[i - 1] if i else 0.0, starts[e] if e < n else duration]))
+            i = e
+        aligned = align_lines(vocals, [" ".join(texts[k] for k in idx) for idx, _ in groups], s.langue, ws.work,
+                              duration, segments=[w for _, w in groups])
+        per_line: list[dict] = [{}] * n
+        for (idx, _), a in zip(groups, aligned):
+            words, p = a.get("words") or [], 0
+            for k in idx:                         # the stretch's words, back to their lines
+                c = len(texts[k].split())
+                w, p = words[p:p + c], p + c
+                timed = [x for x in w if x.get("s") is not None]
+                per_line[k] = {"start": timed[0]["s"] if timed else None, "score": a.get("score"), "words": w}
+        times = _interpolate([per_line[k]["start"] if g[k] else starts[k] for k in range(n)])
+        for k in range(1, n):
+            if times[k] <= times[k - 1]:
+                times[k] = round(times[k - 1] + 0.01, 3)
+        return {"source": "fichier-lrc+alignement", "language": s.langue,
+                "lines": with_words(times, texts, per_line)}
+
     if user_lrc.exists():
         text = user_lrc.read_text(encoding="utf-8")
         show = lrc.show_offset(text)
+        marked = lrc.parse_marked(text)
+        if any(x for _, x in marked):
+            delta = -(show if show is not None else offset)
+            return with_guessed([(l, x) for (_, x), l in zip(marked, lrc.shift([l for l, _ in marked], delta))])
         if show is not None:   # a corrected copy of sortie/.../paroles.lrc (show time)
             return {"source": "fichier-lrc", "language": s.langue,
                     "lines": synced_lines(lrc.shift(lrc.parse(text), -show), snap=False)}

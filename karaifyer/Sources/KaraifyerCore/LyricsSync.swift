@@ -84,10 +84,10 @@ public enum SyncTime {
 }
 
 /// « Remplacer le texte… »: new lines matched to the old ones in order (longest common subsequence of texts) keep
-/// their time; the others are interpolated between neighbours (2 s steps after the last).
+/// their time and mark; the others are interpolated between neighbours (2 s steps after the last) and marked
+/// « à caler », so the analysis aligns them on the voice.
 public enum LyricsText {
-    public static func replace(old: [(time: Double, text: String)], with text: String)
-        -> (lines: [(time: Double, text: String)], firstChanged: Int?) {
+    public static func replace(old: [LyricLine], with text: String) -> (lines: [LyricLine], firstChanged: Int?) {
         let new = text.split(separator: "\n", omittingEmptySubsequences: true).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let a = old.map(\.text), n = new.count, m = a.count
         var L = Array(repeating: Array(repeating: 0, count: m + 1), count: n + 1)
@@ -97,9 +97,10 @@ public enum LyricsText {
             }
         }
         var times = [Double?](repeating: nil, count: n)
+        var guessed = [Bool](repeating: true, count: n)
         var i = 0, j = 0
         while i < n && j < m {
-            if new[i] == a[j] { times[i] = old[j].time; i += 1; j += 1 }
+            if new[i] == a[j] { times[i] = old[j].time; guessed[i] = old[j].guessed; i += 1; j += 1 }
             else if L[i + 1][j] >= L[i][j + 1] { i += 1 } else { j += 1 }
         }
         let first = times.firstIndex { $0 == nil }
@@ -114,6 +115,6 @@ public enum LyricsText {
             k = e
         }
         for x in 1..<max(n, 1) where times[x]! < times[x - 1]! { times[x] = times[x - 1]! + 0.01 }
-        return (zip(times, new).map { ($0!, $1) }, first)
+        return (new.indices.map { LyricLine(time: times[$0]!, text: new[$0], guessed: guessed[$0]) }, first)
     }
 }

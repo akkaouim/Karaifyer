@@ -8,6 +8,9 @@ from dataclasses import dataclass
 DECALAGE = re.compile(r"\[karaoke:decalage=([0-9.]+)\]")
 STAMP = re.compile(r"\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]")
 SECTION = re.compile(r"^\s*\[[^\]]*\]\s*$")
+# Written by the app's « Remplacer le texte »: indices (file order, from 0, every timed line) of the lines
+# whose time is only a guess, to be aligned on the voice.
+A_CALER = re.compile(r"\[karaoke:a_caler=([0-9,]*)\]")
 
 
 @dataclass(frozen=True)
@@ -17,19 +20,27 @@ class Line:
 
 
 def parse(text: str) -> list[Line]:
-    out = []
+    return [l for l, _ in parse_marked(text)]
+
+
+def parse_marked(text: str) -> list[tuple[Line, bool]]:
+    """Lines with their « à caler » mark (A_CALER), sorted by time."""
+    m = A_CALER.search(text)
+    marked = {int(x) for x in m.group(1).split(",") if x} if m else set()
+    out, n = [], -1
     for raw in text.splitlines():
         stamps = list(STAMP.finditer(raw))
         if not stamps:
             continue
+        n += 1
         lyric = raw[stamps[-1].end():].strip()
         if not lyric:
             continue
-        for m in stamps:
-            frac = m.group(3) or "0"
-            t = int(m.group(1)) * 60 + int(m.group(2)) + int(frac) / (10 ** len(frac))
-            out.append(Line(round(t, 3), lyric))
-    return sorted(out, key=lambda l: l.t)
+        for st in stamps:
+            frac = st.group(3) or "0"
+            t = int(st.group(1)) * 60 + int(st.group(2)) + int(frac) / (10 ** len(frac))
+            out.append((Line(round(t, 3), lyric), n in marked))
+    return sorted(out, key=lambda x: x[0].t)
 
 
 def show_offset(text: str) -> float | None:

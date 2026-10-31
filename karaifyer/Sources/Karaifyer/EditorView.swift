@@ -110,8 +110,10 @@ struct EditorView: View {
                         HStack(spacing: 4) {
                             Button("−0,5 s", systemImage: "arrow.counterclockwise") { endEditing(); model.shiftTime(id, by: -0.5) }
                                 .labelStyle(.iconOnly).buttonStyle(.borderless).help("Commencer 0,5 s plus tôt")
-                            CommitField(value: LRC.timecode(line.time), resignOnCommit: true, alignment: .center) { model.setTime(id, $0) }
+                            CommitField(value: LRC.timecode(line.time), resignOnCommit: true, alignment: .center,
+                                        dimmed: line.guessed) { model.setTime(id, $0) }
                                 .frame(width: 64)
+                                .help(line.guessed ? "À caler : temps provisoire, calé sur la voix à la prochaine analyse (ou cale-le toi-même)" : "")
                             Button("+0,5 s", systemImage: "arrow.clockwise") { endEditing(); model.shiftTime(id, by: 0.5) }
                                 .labelStyle(.iconOnly).buttonStyle(.borderless).help("Commencer 0,5 s plus tard")
                         }

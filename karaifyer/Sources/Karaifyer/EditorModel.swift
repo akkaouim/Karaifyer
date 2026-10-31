@@ -250,7 +250,13 @@ final class EditorModel {
         let fm = FileManager.default
         let lrcPath = fm.fileExists(atPath: song.paths.lrcCorrige) ? song.paths.lrcCorrige : song.paths.lrc
         if let t = try? String(contentsOfFile: lrcPath, encoding: .utf8) {
-            doc = LyricsDoc(lines: LRC.showTimeLines(t, pad: song.padS ?? 0))   // converts with the file's own decalage
+            var l = LRC.showTimeLines(t, pad: song.padS ?? 0)   // converts with the file's own decalage
+            // « à caler » lines: once analysed, they show the times found on the voice
+            if l.contains(where: \.guessed), lrcPath != song.paths.lrc,
+               let out = try? String(contentsOfFile: song.paths.lrc, encoding: .utf8) {
+                l = LRC.fillGuessed(l, from: LRC.showTimeLines(out, pad: song.padS ?? 0))
+            }
+            doc = LyricsDoc(lines: l)
         }
         fix = BarFix.decode(song.paths.mesuresCorrige.flatMap { fm.contents(atPath: $0) })
         recomputeGrid()                            // didSet doesn't run in init
@@ -432,14 +438,17 @@ final class EditorModel {
         let prevID = s.ids.firstIndex(of: id).flatMap { $0 > 0 ? s.ids[$0 - 1] : nil }
         let t = SyncTime.clamp(snapped, after: prevID.flatMap { p in lines.first { $0.id == p }?.time })
         edit { doc.stamp(line.id, at: t); lyricsDirty = true }
+        syncWasGuessed[line.id] = line.guessed
         _ = s.stamp(oldTime: line.time)
         sync = s
         selectedLine = line.id
     }
 
+    @ObservationIgnored private var syncWasGuessed: [UUID: Bool] = [:]   // a cancelled stamp puts « à caler » back
+
     func syncCancel() {
         guard var s = sync, let (id, old) = s.cancel() else { return }
-        edit { doc.stamp(id, at: old); lyricsDirty = true }
+        edit { doc.stamp(id, at: old, guessed: syncWasGuessed[id] ?? false); lyricsDirty = true }
         sync = s
     }
 
@@ -488,10 +497,11 @@ final class EditorModel {
         syncMessage = done ? "\(n) ligne\(n > 1 ? "s" : "") synchronisée\(n > 1 ? "s" : "")" : nil
     }
 
-    /// « Remplacer le texte… »: unchanged lines keep their times; new ones are placed between their neighbours.
+    /// « Remplacer le texte… »: unchanged lines keep their times; new ones are placed between their neighbours,
+    /// « à caler » until the analysis aligns them on the voice.
     func replaceText(_ text: String) {
-        let r = LyricsText.replace(old: lines.map { (time: $0.time, text: $0.text) }, with: text)
-        edit { doc = LyricsDoc(lines: r.lines.map { LyricLine(time: $0.time, text: $0.text) }); lyricsDirty = true }
+        let r = LyricsText.replace(old: lines, with: text)
+        edit { doc = LyricsDoc(lines: r.lines); lyricsDirty = true }
         if syncing {
             let start = r.firstChanged ?? sync?.active.flatMap { a in syncIDs.firstIndex(of: a) } ?? 0
             syncIDs = lines.map(\.id)

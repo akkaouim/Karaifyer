@@ -297,6 +297,12 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
 - **Enregistrer** garde les temps comme correction des paroles (`paroles/<id>.lrc`), qui passe avant LRCLIB ; la
   vidéo est refaite avec les lignes calées.
 
+**Coller des paroles trouvées ailleurs** : **Remplacer le texte…** place les nouvelles lignes entre leurs voisines,
+avec un temps provisoire affiché en gris (« à caler »). Après **Enregistrer** puis **Analyser**, ces lignes sont calées
+sur la voix, entre les lignes calées à la main, qui ne bougent pas ; si tout le texte est nouveau, toute la chanson est
+calée. Caler une ligne grise soi-même (⏱, ↺ ↻, saisie du temps ou Synchroniser) garde son temps : elle n'est plus
+« à caler ».
+
 **Grilles d'accords (tablatures et grilles ouvertes)** :
 - **Rechercher la grille** propose Ultimate Guitar ou La Boîte à chansons et ouvre la recherche du morceau sur le
   site choisi : choisir la version la plus fiable.

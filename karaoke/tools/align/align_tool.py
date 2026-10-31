@@ -1,7 +1,8 @@
 """Forced alignment of known lyric lines on a vocal stem (no transcription).
 
 job.json: {"audio": path, "language": "fr"|"en", "lines": ["...", ...], "segments": [[start, end], ...]?}
-          with "segments", each line is aligned inside its own window (lines already synced).
+          with "segments", each line is aligned inside its own window (lines already synced); a "line"
+          may hold several lyric lines aligned as one stretch.
 out.json: {"starts": [seconds|null per line], "scores": [mean word score|null per line],
            "words": [[{"w": word, "s": start|null, "e": end|null}, ...] per line]}
 """
@@ -30,7 +31,9 @@ def main(job_path: str, out_path: str) -> None:
     start = max(0.0, float(loud[0]) / 16000.0 - 0.2) if len(loud) else 0.0
     segs = job.get("segments")
     if segs:
-        segments = [{"start": float(a), "end": float(b), "text": l} for (a, b), l in zip(segs, lines)]
+        # a window opening before the voice is audible starts there instead (« à caler » lines from 0 s)
+        segments = [{"start": max(float(a), start) if start < float(b) else float(a), "end": float(b), "text": l}
+                    for (a, b), l in zip(segs, lines)]
     else:
         segments = [{"start": start, "end": dur, "text": text}]
     res = whisperx.align(segments, model, meta, audio, "cpu", return_char_alignments=False)
