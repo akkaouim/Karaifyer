@@ -20,7 +20,7 @@ struct PlayerView: View {
             .frame(minWidth: 760)
         }
         .onAppear { model.installSpaceKey(); Task { await KaraokeModel.shared.refresh() } }
-        .onDisappear { model.stopEverything(); model.removeSpaceKey() }
+        .onDisappear { model.stopEverything(); model.removeSpaceKey(); SeparateVideo.shared.close() }
         .sheet(isPresented: Bindable(ExportUI.shared).shown) { ExportSheet(player: model) }
     }
 
@@ -53,7 +53,13 @@ struct PlayerView: View {
     var video: some View {
         ZStack {
             Color.black
-            if model.loaded != nil, model.scene != nil {
+            if SeparateVideo.shared.isOpen {
+                // not drawn twice: the separate window has the video
+                VStack(spacing: 8) {
+                    Text("Vidéo dans une fenêtre séparée").foregroundStyle(.secondary)
+                    Button("Ramener la vidéo ici") { SeparateVideo.shared.close() }
+                }
+            } else if model.loaded != nil, model.scene != nil {
                 LiveVideoView(model: model)
             } else if model.loaded != nil {
                 VideoView(player: model.videoPlayer)
@@ -118,6 +124,10 @@ struct PlayerView: View {
                 .disabled(model.loopRange == nil)
             Button("Effacer") { model.clearLoop() }.disabled(model.loopRange == nil)
             Spacer()
+            Button(SeparateVideo.shared.isOpen ? "Ramener la vidéo" : "Fenêtre vidéo", systemImage: "rectangle.on.rectangle") {
+                SeparateVideo.shared.toggle(model: model, from: NSApp.keyWindow)
+            }
+            .help("La vidéo dans sa propre fenêtre, en plein écran sur le second écran s'il y en a un ; les réglages restent ici")
         }
     }
 
@@ -198,6 +208,24 @@ struct PlayerView: View {
     }
 }
 
+/// The video in the separate window: live when the song has a scene, else the pre-rendered paroles.mp4.
+struct SeparateVideoContent: View {
+    let model: PlayerModel
+    var body: some View {
+        ZStack {
+            Color.black
+            if model.loaded != nil, model.scene != nil {
+                LiveVideoView(model: model)
+            } else if model.loaded != nil {
+                VideoView(player: model.videoPlayer)
+            } else {
+                Text("Choisir un morceau dans le Lecteur").foregroundStyle(.secondary)
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
 /// The lyrics video. Double-click opens it full screen (on the window's screen); double-click or Escape closes.
 struct VideoView: NSViewRepresentable {
     let player: AVPlayer
@@ -217,7 +245,9 @@ final class DoubleClickPlayerView: AVPlayerView {
         frame.contains(point) ? self : nil
     }
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2, let p = player {
+        if event.clickCount == 2, let w = window, MainActor.assumeIsolated({ w === SeparateVideo.shared.window }) {
+            w.toggleFullScreen(nil)
+        } else if event.clickCount == 2, let p = player {
             MainActor.assumeIsolated { FullScreenVideo.toggle(player: p, screen: window?.screen) }
         } else {
             super.mouseDown(with: event)
@@ -292,7 +322,9 @@ final class LiveVideoNSView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2, let m = model {
+        if event.clickCount == 2, let w = window, MainActor.assumeIsolated({ w === SeparateVideo.shared.window }) {
+            w.toggleFullScreen(nil)
+        } else if event.clickCount == 2, let m = model {
             MainActor.assumeIsolated { FullScreenVideo.toggleLive(model: m, screen: window?.screen) }
         } else {
             super.mouseDown(with: event)
@@ -351,5 +383,58 @@ final class EscWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) {
         MainActor.assumeIsolated { FullScreenVideo.close(self) }
+    }
+}
+
+/// The video in its own window, for a second screen: native full screen there (its own Space), so the main window
+/// with the mixer stays usable on the other screen. One window; it remembers where it was left.
+@MainActor @Observable final class SeparateVideo: NSObject, NSWindowDelegate {
+    static let shared = SeparateVideo()
+    private(set) var isOpen = false
+    @ObservationIgnored private(set) var window: NSWindow?
+
+    func toggle(model: PlayerModel, from main: NSWindow?) {
+        if isOpen { close() } else { open(model: model, from: main) }
+    }
+
+    func open(model: PlayerModel, from main: NSWindow?) {
+        guard window == nil else { window?.makeKeyAndOrderFront(nil); return }
+        let screens = NSScreen.screens
+        let w = VideoWindow(contentRect: VideoWindowPlacement.centred(in: (main?.screen ?? NSScreen.main)?.visibleFrame ?? .zero, width: 960),
+                            styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        w.title = "Vidéo — Karaifyer"
+        w.isReleasedWhenClosed = false
+        w.collectionBehavior = [.fullScreenPrimary]
+        w.contentAspectRatio = NSSize(width: 16, height: 9)
+        w.backgroundColor = .black
+        w.contentView = NSHostingView(rootView: SeparateVideoContent(model: model))
+        w.delegate = self
+        w.setFrameAutosaveName("KaraifyerVideoWindow")      // reopens where it was left
+        let show = VideoWindowPlacement.showScreen(screens: screens.map(\.frame),
+                                                   mainWindowScreen: main?.screen.flatMap { s in screens.firstIndex { $0 === s } })
+        if let i = show { w.setFrame(VideoWindowPlacement.centred(in: screens[i].visibleFrame, width: 960), display: false) }
+        window = w
+        isOpen = true
+        w.orderFront(nil)
+        if show != nil {
+            w.toggleFullScreen(nil)
+            main?.makeKeyAndOrderFront(nil)                  // the keyboard stays with the mixer
+        } else {
+            w.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    func close() { window?.close() }
+
+    func windowWillClose(_ notification: Notification) {
+        window?.contentView = nil                            // stops the live view's display link
+        window = nil
+        isOpen = false
+    }
+}
+
+final class VideoWindow: NSWindow {
+    override func cancelOperation(_ sender: Any?) {
+        if styleMask.contains(.fullScreen) { toggleFullScreen(nil) } else { super.cancelOperation(sender) }
     }
 }

@@ -366,6 +366,12 @@ habituelle, pas la XR18. Il sert à répéter chez soi en coupant sa partie, et 
 - **Vidéo :** dessinée **en direct**, calée sur le son (tempo, boucle et position suivent aussitôt). Double-clic pour
   le **plein écran**, puis double-clic ou Échap pour en sortir. Un morceau analysé avant cette version garde l'ancienne
   vidéo (« Réanalyser pour la vidéo en direct »).
+- **Fenêtre vidéo** (à droite du transport) : la vidéo passe dans sa propre fenêtre, pour un second écran.
+  - Avec un second écran branché, elle s'y ouvre directement en plein écran ; la fenêtre principale (mixers, tempo,
+    hauteur, boucle) reste utilisable sur l'autre écran, même en plein écran elle aussi.
+  - Sans second écran, elle s'ouvre là où tu l'as laissée la dernière fois.
+  - Double-clic : plein écran ou fenêtre ; Échap sort du plein écran ; Espace lance ou arrête la lecture.
+  - Fermer la fenêtre, ou « Ramener la vidéo », la remet dans le Lecteur ; changer d'onglet la ferme.
 - **Disposition :** « Grille + paroles » (par défaut) ou « Accords sur les paroles », mémorisée.
 - **Transport :** ⏮ retour au début, ▶︎/⏸, et la **barre de position** à faire glisser pour aller n'importe où.
   **Espace** lance ou arrête la lecture, sauf pendant que tu tapes dans la recherche.

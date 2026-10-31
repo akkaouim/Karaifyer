@@ -239,8 +239,8 @@ final class PlayerModel {
 
     func installSpaceKey() {
         guard keyMonitor == nil else { return }
-        // only the main window and the full-screen video: a « Corriger » window has its own Space
-        keyMonitor = SpaceKey.monitor(accepts: { w in w?.title == "Karaifyer" || (w != nil && w === FullScreenVideo.window) }) {
+        // only the main window and the video windows: a « Corriger » window has its own Space
+        keyMonitor = SpaceKey.monitor(accepts: { w in w?.title == "Karaifyer" || (w != nil && (w === FullScreenVideo.window || w === SeparateVideo.shared.window)) }) {
             [weak self] in self?.togglePlay()
         }
     }
