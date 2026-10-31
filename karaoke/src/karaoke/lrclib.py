@@ -1,4 +1,4 @@
-"""LRCLIB client (the pipeline's only network access). Network trouble → StepRetry."""
+"""LRCLIB client (the pipeline's first lyrics source; Genius is the fallback). Network trouble → StepRetry."""
 from __future__ import annotations
 import time
 from dataclasses import dataclass
@@ -12,7 +12,7 @@ from karaoke.runner import StepRetry
 BASE = "https://lrclib.net"
 UA = "karaoke-live/0.1 (github.com/akkaouim/mp3-pipeline)"
 DURATION_TOLERANCE_S = 3.0
-BACKOFF_S = (2.0, 5.0, 10.0, 30.0, 60.0)   # LRCLIB answers 503 under load; 043 hit an outage longer than 17 s
+BACKOFF_S = (2.0, 5.0)   # under load or down (502 all day, 2026-10-31): Genius takes over, LRCLIB is asked again next run
 
 
 @dataclass(frozen=True)

@@ -130,7 +130,10 @@ def _run_song_locked(ws: Workspace, steps: list[Step], force: set[str], only: se
             result = step.run(ws, upstream)
             secs = time.monotonic() - t0
             oh = output_hash(result, step.artifacts(ws))
-            ws.write_marker(step.name, {"key": key, "result": result, "output_hash": oh, "seconds": secs})
+            # « a_retenter »: a stand-in result (e.g. lyrics from Genius while LRCLIB was down), used now and
+            # stored under a key that never matches, so the next run tries again
+            stored = f"{key}|a_retenter" if result.get("a_retenter") else key
+            ws.write_marker(step.name, {"key": stored, "result": result, "output_hash": oh, "seconds": secs})
             out[step.name] = _entry("fait", secs, result, out_hash=oh)
             emit(step.name, out[step.name]["status"])
             ws.log(f"fin {step.name} ({secs:.1f} s)")

@@ -7,13 +7,15 @@ Outputs: result {source, language, lines: [{t, text, score, words}]} with t in t
          words = [{text, start, end, syllables: [{text, start}]}] from WhisperX word alignment (every
          song with lyrics is aligned; synced sources keep their line starts and align within each line).
 Sources, in priority order: fichier-lrc, instrumental, lrclib-synchro, lrclib-texte+alignement,
-texte-fourni+alignement, aucune.
+texte-fourni+alignement, genius-texte+alignement, transcription, aucune.
+LRCLIB unreachable: the text sources below it still work, and the result is marked « a_retenter » so the next
+run asks LRCLIB again (the runner stores it as stale); with no text at all the step is retried.
 """
 from __future__ import annotations
 import json
 from pathlib import Path
 
-from karaoke import lrc, lrclib
+from karaoke import genius, lrc, lrclib
 from karaoke.syllables import timed_words
 from karaoke.runner import Step, StepRetry
 from karaoke.tools import TOOLS_DIR, run_tool, tool_timeout
@@ -200,12 +202,12 @@ def _run(ws: Workspace, upstream: dict) -> dict:
             return {"source": "fichier-lrc", "language": s.langue,
                     "lines": synced_lines(lrc.shift(lrc.parse(text), -show), snap=False)}
         return synced(text, "fichier-lrc", snap=False)
+    lrclib_down = ""
     try:
         res = lrclib.fetch(s.titre, s.artiste, s.album, s.duree_ref_s)
-    except StepRetry:
-        if not user_txt.exists():
-            raise
-        res = lrclib.NOT_FOUND   # offline: the supplied text still works (spec: offline except LRCLIB)
+    except StepRetry as e:
+        lrclib_down = str(e)
+        res = lrclib.NOT_FOUND   # offline: the supplied text, then Genius, still work (spec: offline except LRCLIB)
     if res.instrumental:
         return {"source": "instrumental", "language": s.langue, "lines": []}
     if res.synced:
@@ -224,10 +226,20 @@ def _run(ws: Workspace, upstream: dict) -> dict:
         times = _interpolate([a["start"] for a in aligned])
         return {"source": "lrclib-synchro+realignement", "language": s.langue,
                 "lines": with_words(times, texts, aligned)}
+    from_genius = None
+    if not res.plain and not user_txt.exists():
+        try:
+            from_genius = genius.fetch(s.titre, s.artiste)
+        except StepRetry as e:
+            raise StepRetry(f"{lrclib_down} ; {e}" if lrclib_down else str(e))
+        if from_genius is None and lrclib_down:
+            raise StepRetry(lrclib_down)      # no transcription while LRCLIB may still have the lyrics
     if res.plain:
         text, source = res.plain, "lrclib-texte+alignement"
     elif user_txt.exists():
         text, source = user_txt.read_text(encoding="utf-8"), "texte-fourni+alignement"
+    elif from_genius:
+        text, source = "\n".join(from_genius), "genius-texte+alignement"
     else:
         # No lyrics anywhere: transcribe the lead singer as a draft (flagged « à relire »).
         lead = ws.stems / "lead.wav"
@@ -240,7 +252,10 @@ def _run(ws: Workspace, upstream: dict) -> dict:
     texts = lrc.plain_lines(text)
     aligned = align_lines(vocals, texts, s.langue, ws.work, duration)
     times = _interpolate([a["start"] for a in aligned])
-    return {"source": source, "language": s.langue, "lines": with_words(times, texts, aligned)}
+    out = {"source": source, "language": s.langue, "lines": with_words(times, texts, aligned)}
+    if lrclib_down:
+        out["a_retenter"] = True
+    return out
 
 
 LYRICS = Step(name="lyrics", deps=("ingest", "separate", "vocals_split"), key=_key, run=_run,

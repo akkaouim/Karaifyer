@@ -1,6 +1,6 @@
 import json
 import pytest
-from karaoke import lrclib
+from karaoke import genius, lrclib
 from karaoke.lrclib import LrclibResult
 from karaoke.runner import StepRetry
 from karaoke.steps import lyrics as L
@@ -10,8 +10,25 @@ from test_manifest import song
 UP = {"ingest": {"offset_s": 0.5}, "separate": {}}
 
 
-def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009"):
-    monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: result)
+@pytest.fixture(autouse=True)
+def no_genius(monkeypatch):
+    """Never the network in tests: Genius has nothing unless a test says otherwise."""
+    monkeypatch.setattr(genius, "fetch", lambda *a, **k: None)
+
+
+def run(cfg, monkeypatch, result, files=None, aligned=None, sid="009", from_genius=None):
+    if isinstance(result, Exception):
+        def down(*a, **k):
+            raise result
+        monkeypatch.setattr(lrclib, "fetch", down)
+    else:
+        monkeypatch.setattr(lrclib, "fetch", lambda *a, **k: result)
+    if isinstance(from_genius, Exception):
+        def gdown(*a, **k):
+            raise from_genius
+        monkeypatch.setattr(genius, "fetch", gdown)
+    else:
+        monkeypatch.setattr(genius, "fetch", lambda *a, **k: from_genius)
     calls = []
     def fake_align(vocals, lines, language, work, duration_s=600.0, segments=None):
         calls.append((lines, segments))
@@ -70,6 +87,7 @@ def test_offline_propagates_retry(cfg, monkeypatch):
     def boom(*a, **k):
         raise StepRetry("offline")
     monkeypatch.setattr(lrclib, "fetch", boom)
+    monkeypatch.setattr(genius, "fetch", lambda *a, **k: None)
     with pytest.raises(StepRetry):
         L.LYRICS.run(Workspace(cfg, song(id="011")), UP)
 
@@ -111,12 +129,14 @@ def test_offline_uses_supplied_text(cfg, monkeypatch):
     def offline(*a, **k):
         raise StepRetry("offline")
     monkeypatch.setattr(lrclib, "fetch", offline)
+    monkeypatch.setattr(genius, "fetch", lambda *a, **k: pytest.fail("Michel's text comes before Genius"))
     calls = []
     monkeypatch.setattr(L, "align_lines", lambda v, lines, lang, work, d=600.0, segments=None: calls.append(lines)
                         or [{"start": 1.0 + i, "score": 0.9, "words": []} for i in range(len(lines))])
     (cfg.paroles / "013.txt").write_text("A\nB\n", encoding="utf-8")
     r = L.LYRICS.run(Workspace(cfg, song(id="013")), UP)
     assert r["source"] == "texte-fourni+alignement" and calls == [["A", "B"]]
+    assert r["a_retenter"] is True                # LRCLIB may have synced lyrics once it is back
 
 
 def _pinned_align(calls):
@@ -287,3 +307,38 @@ def test_existing_transcription_is_reused(cfg, monkeypatch, tmp_path):
     (work / "transcribe_out.json").write_text(json.dumps({"words": [w("Bonjour.", 1.0, 1.5)] * 3}))
     lines = L.transcribe(vocals, "fr", work)
     assert calls == [] and lines
+
+
+def test_lrclib_down_aligns_genius_and_asks_for_lrclib_again(cfg, monkeypatch):
+    r, calls = run(cfg, monkeypatch, StepRetry("LRCLIB HTTP 502"), from_genius=["Un deux", "Trois"])
+    assert r["source"] == "genius-texte+alignement" and calls == [(["Un deux", "Trois"], None)]
+    assert [l["t"] for l in r["lines"]] == [1.0, 2.0] and r["a_retenter"] is True
+
+
+def test_lrclib_without_the_song_uses_genius_before_transcribing(cfg, monkeypatch):
+    monkeypatch.setattr(L, "transcribe", lambda *a, **k: pytest.fail("Genius comes before the transcription"))
+    r, _ = run(cfg, monkeypatch, lrclib.NOT_FOUND, from_genius=["Un", "Deux"])
+    assert r["source"] == "genius-texte+alignement" and "a_retenter" not in r
+
+
+def test_genius_is_not_asked_when_lrclib_or_michel_has_the_text(cfg, monkeypatch):
+    never = AssertionError("Genius must not be asked")
+    r, _ = run(cfg, monkeypatch, LrclibResult(True, False, None, "Un\nDeux"), from_genius=never)
+    assert r["source"] == "lrclib-texte+alignement"
+    r, _ = run(cfg, monkeypatch, lrclib.NOT_FOUND, files={"014.txt": "A\n"}, sid="014", from_genius=never)
+    assert r["source"] == "texte-fourni+alignement" and "a_retenter" not in r
+
+
+def test_both_sites_down_is_a_retry_naming_both(cfg, monkeypatch):
+    with pytest.raises(StepRetry, match="LRCLIB HTTP 502.*Genius HTTP 403"):
+        run(cfg, monkeypatch, StepRetry("LRCLIB HTTP 502"), from_genius=StepRetry("Genius HTTP 403"))
+
+
+def test_lrclib_down_and_genius_without_the_song_is_a_retry(cfg, monkeypatch):
+    with pytest.raises(StepRetry, match="LRCLIB HTTP 502"):
+        run(cfg, monkeypatch, StepRetry("LRCLIB HTTP 502"), from_genius=None)
+
+
+def test_genius_down_when_lrclib_has_nothing_is_a_retry(cfg, monkeypatch):
+    with pytest.raises(StepRetry, match="Genius HTTP 502"):
+        run(cfg, monkeypatch, lrclib.NOT_FOUND, from_genius=StepRetry("Genius HTTP 502"))

@@ -71,7 +71,7 @@ def test_gives_up_after_retries():
     sleeps = []
     with pytest.raises(StepRetry):
         fetch("t", "a", "al", 100, client(lambda req: httpx.Response(503)), sleep=sleeps.append)
-    assert sleeps == [2.0, 5.0, 10.0, 30.0, 60.0]     # 043: a 17 s outage window was too short
+    assert sleeps == [2.0, 5.0]     # a few seconds: Genius takes over and LRCLIB is asked again next run
 
 
 def test_query_is_nfc():

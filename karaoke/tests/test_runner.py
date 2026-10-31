@@ -1,4 +1,4 @@
-from karaoke.runner import Step, StepRetry, run_song
+from karaoke.runner import Step, StepRetry, inspect_song, run_song
 from karaoke.workspace import Workspace
 from test_manifest import song
 
@@ -164,3 +164,21 @@ def test_second_run_on_the_same_song_is_refused_while_one_is_active(cfg):
         res = run_song(ws, [a])
     assert ran == [] and res["a"]["status"] == "a_reessayer" and "déjà en cours" in res["a"]["error"]
     assert run_song(ws, [a])["a"]["status"] == "fait"          # lock released → runs
+
+
+def test_a_result_to_retry_later_is_kept_but_reruns_next_time(cfg):
+    calls, state, flag = [], {}, {"on": True}
+    mk = make_steps(calls, state)
+    steps = [mk("lyrics", output=lambda ws: {"x": 1, **({"a_retenter": True} if flag["on"] else {})}),
+             mk("video", ("lyrics",))]
+    ws = Workspace(cfg, song())
+    r = run_song(ws, steps)
+    assert r["lyrics"]["status"] == "fait" and r["video"]["status"] == "fait"
+    assert inspect_song(ws, steps)["lyrics"] == "perime"
+    calls.clear()
+    run_song(ws, steps)                       # still to retry, same output: the video is not redone
+    assert calls == ["lyrics"]
+    flag["on"] = False
+    calls.clear()
+    run_song(ws, steps)                       # the site is back: a new result, then up to date
+    assert calls == ["lyrics", "video"] and inspect_song(ws, steps) == {"lyrics": "a_jour", "video": "a_jour"}

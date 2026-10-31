@@ -332,8 +332,16 @@ Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au mo
   automatique, supprime le fichier `paroles/<id>.lrc` ou `accords/<id>.txt` dans le dossier karaoké, puis
   refais le morceau.
 
-**Paroles introuvables en ligne :** Karaifyer les transcrit depuis la voix du chanteur (alerte « à relire »).
-Tu peux aussi déposer un texte brut `paroles/<id>.txt` ; il sera calé automatiquement sur la voix.
+**Paroles introuvables sur LRCLIB, ou LRCLIB en panne :** Karaifyer prend le texte sur **Genius** (titre et artiste
+de la feuille, petites fautes tolérées) et le cale sur la voix ; la source affichée est « genius-texte+alignement ».
+- Genius ne donne pas de temps : les lignes sont calées par l'alignement. Une ligne que Genius note « (x2) » n'est
+  calée qu'une fois : ajouter la répétition dans **Corriger**.
+- Si LRCLIB était en panne, le morceau est marqué pour que la **prochaine analyse** redemande LRCLIB (souvent des
+  paroles déjà synchronisées) ; seules les paroles sont refaites, et la vidéo seulement si elles changent.
+- Ni LRCLIB ni Genius : Karaifyer les transcrit depuis la voix du chanteur (alerte « à relire »).
+
+Tu peux aussi déposer un texte brut `paroles/<id>.txt` ; il passe avant Genius et sera calé automatiquement sur la
+voix.
 
 ---
 
@@ -477,7 +485,8 @@ mesure 1 :
 - **Bandeau orange « Pas encore de dossier karaoké » :** clique **Créer le dossier karaoké ici** ou choisis un
   emplacement. Si ton dossier est sur un disque externe, branche-le puis clique **Réessayer**.
 - **« uv introuvable » ou « ffmpeg introuvable » :** `brew install uv ffmpeg`, puis **Réessayer**.
-- **« à réessayer » sur un morceau :** le service de paroles LRCLIB est temporairement indisponible. Relance
+- **« à réessayer » sur un morceau :** les services de paroles sont indisponibles (LRCLIB en panne et Genius
+  injoignable ou sans le morceau, ou Genius injoignable pour un morceau absent de LRCLIB). Relance
   plus tard (Refaire une étape ▸ lyrics), ou attends le nouvel essai automatique de fin d'analyse.
 - **La vidéo d'un morceau ne change pas après une correction :** vérifie que le morceau a bien été réanalysé
   (pastilles vertes), puis rouvre la vidéo.
