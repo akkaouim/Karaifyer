@@ -25,7 +25,7 @@ public struct BarInfo: Codable, Equatable, Sendable {
 
 public struct StepState: Codable, Equatable, Sendable {
     public var name: String
-    public var status: String          // a_jour | perime | absent | echec | a_reessayer | bloque
+    public var status: String          // a_jour | a_retenter | perime | absent | echec | a_reessayer | bloque
     public var seconds: Double?
     public var error: String?
     public var alert: String?          // a report alert about this step's result (orange dot)

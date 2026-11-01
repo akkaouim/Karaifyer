@@ -438,8 +438,14 @@ struct KaraokeView: View {
     }
 
     func statutText(_ s: SongState) -> some View {
-        Text(s.isVerified ? "vérifié" : statutLabel(s.statut)).bold()
-            .foregroundStyle(s.isVerified ? Color.green : color(statut: s.statut))
+        HStack(spacing: 4) {
+            Text(s.isVerified ? "vérifié" : statutLabel(s.statut)).bold()
+                .foregroundStyle(s.isVerified ? Color.green : color(statut: s.statut))
+            if s.lrclibRetry && s.statut != "a_reessayer" {
+                Text("· LRCLIB à réessayer").foregroundStyle(.cyan)
+                    .help("Paroles de Genius calées sur la voix : le morceau est prêt ; LRCLIB sera redemandé à la prochaine analyse")
+            }
+        }
     }
 
     func bpmCell(_ s: SongState) -> some View {
@@ -646,6 +652,7 @@ func color(step: StepState, running: Bool) -> Color {
     if step.warned { return .orange }
     switch step.status {
     case "a_jour": return .green
+    case "a_retenter": return .cyan
     case "echec": return .red
     case "bloque", "a_reessayer": return .orange
     default: return .gray.opacity(0.4)

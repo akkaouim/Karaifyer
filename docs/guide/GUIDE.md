@@ -250,6 +250,7 @@ titre, artiste, id ou Set List (accents et majuscules ignorés).
 | **paroles à vérifier : X % des mots calés** | l'alignement des mots sur la voix est imparfait | vérifier dans l'éditeur ou la vidéo |
 | **sans paroles** | rien trouvé et rien entendu (instrumental) | déposer un texte `paroles/<id>.txt` si besoin |
 | **à réessayer** | service en ligne injoignable | relancer plus tard (fait automatiquement une fois) |
+| **ok · LRCLIB à réessayer** (pastille des paroles bleue) | LRCLIB était en panne : les paroles viennent de Genius, calées sur la voix ; le morceau est prêt | rien d'obligatoire ; « Analyser » plus tard redemande à LRCLIB, et ne refait la suite que si ses paroles sont différentes |
 
 Le **rapport** (bouton Rapport) liste tous les morceaux, du plus à risque au moins à risque :
 

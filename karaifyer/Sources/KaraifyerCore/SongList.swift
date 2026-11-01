@@ -28,7 +28,9 @@ extension SongState {
     }
     public var statutRank: Int { Self.rank(statut: statut) }
     /// Steps done, for sorting the « Étapes » column by progress.
-    public var stepsDone: Int { steps.filter { $0.status == "a_jour" }.count }
+    public var stepsDone: Int { steps.filter { $0.status == "a_jour" || $0.status == "a_retenter" }.count }
+    /// Lyrics done from Genius while LRCLIB was down: ready to play, LRCLIB asked again at the next analysis.
+    public var lrclibRetry: Bool { steps.contains { $0.status == "a_retenter" } }
 
     /// Not a sort: the « Retirer » header's click target (see SongList.headerClick).
     public var retirerHeader: Int { 0 }

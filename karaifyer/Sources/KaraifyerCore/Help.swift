@@ -16,6 +16,7 @@ public enum Help {
     ]
     static let statuses: [String: String] = [
         "a_jour": "à jour",
+        "a_retenter": "faite avec les paroles de Genius calées sur la voix (LRCLIB injoignable) ; LRCLIB sera redemandé à la prochaine analyse",
         "perime": "à refaire : un réglage ou une étape précédente a changé",
         "absent": "pas encore faite",
         "echec": "échec",

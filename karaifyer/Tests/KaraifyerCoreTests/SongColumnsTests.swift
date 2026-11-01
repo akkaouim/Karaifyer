@@ -53,6 +53,14 @@ struct CorrectionsTests {
         #expect(!s.musicEdited && !s.lyricsEdited)
     }
 
+    @Test func lyricsToRetryOnLRCLIBAreDoneNotStale() throws {
+        let retry = #"{"name":"lyrics","status":"a_retenter","seconds":1,"error":""},{"name":"video","status":"a_jour","seconds":1,"error":""}"#
+        let s = try song(steps: retry, corrections: "null")
+        #expect(s.lrclibRetry && !s.needsReanalysis && s.stepsDone == 2)
+        #expect(!(try song(steps: fresh, corrections: "null").lrclibRetry))
+        #expect(Help.step(s.steps[0]).contains("LRCLIB sera redemandé"))
+    }
+
     @Test func staleStepsOfAnAnalysedSongMeanReanalyse() throws {
         #expect(try song(steps: stale, corrections: "null").needsReanalysis)
         #expect(!(try song(steps: fresh, corrections: "null").needsReanalysis))

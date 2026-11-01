@@ -150,7 +150,8 @@ def _run_song_locked(ws: Workspace, steps: list[Step], force: set[str], only: se
 
 def inspect_song(ws: Workspace, steps: list[Step]) -> dict[str, str]:
     """Up-to-date-ness of each step as run_song would judge it (same key), without running anything:
-    a_jour | perime (a marker exists but is stale) | absent (never run)."""
+    a_jour | a_retenter (done with a stand-in result, to try again: the steps after it count it as done) |
+    perime (a marker exists but is stale) | absent (never run)."""
     hashes: dict[str, str | None] = {}
     out: dict[str, str] = {}
     for step in steps:
@@ -161,7 +162,9 @@ def inspect_song(ws: Workspace, steps: list[Step]) -> dict[str, str]:
             out[step.name] = "perime" if marker else "absent"
             continue
         key = hashlib.sha1("|".join([step.name, step.version, step.key(ws), *deps]).encode()).hexdigest()
-        ok = marker is not None and marker.get("key") == key and all(p.exists() for p in step.artifacts(ws))
-        hashes[step.name] = marker["output_hash"] if ok else None
-        out[step.name] = "a_jour" if ok else ("perime" if marker else "absent")
+        found = marker is not None and all(p.exists() for p in step.artifacts(ws))
+        ok = found and marker.get("key") == key
+        retry = found and marker.get("key") == f"{key}|a_retenter"
+        hashes[step.name] = marker["output_hash"] if ok or retry else None
+        out[step.name] = "a_jour" if ok else "a_retenter" if retry else ("perime" if marker else "absent")
     return out

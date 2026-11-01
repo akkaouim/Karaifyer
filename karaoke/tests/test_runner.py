@@ -174,7 +174,8 @@ def test_a_result_to_retry_later_is_kept_but_reruns_next_time(cfg):
     ws = Workspace(cfg, song())
     r = run_song(ws, steps)
     assert r["lyrics"]["status"] == "fait" and r["video"]["status"] == "fait"
-    assert inspect_song(ws, steps)["lyrics"] == "perime"
+    # done with a stand-in text, LRCLIB asked again next time: the steps after it are up to date
+    assert inspect_song(ws, steps) == {"lyrics": "a_retenter", "video": "a_jour"}
     calls.clear()
     run_song(ws, steps)                       # still to retry, same output: the video is not redone
     assert calls == ["lyrics"]
